@@ -1,0 +1,129 @@
+"""Customer-facing API: a company's offers page and web chat with the AI agent."""
+
+from datetime import date
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from ..ai.prompts import welcome_message
+from ..ai.tools import is_bookable
+from ..config import get_settings
+from ..database import get_db
+from ..models import Channel, Company, CompanyStatus, Conversation, Customer, Message, Sender, TravelPackage
+from ..ratelimit import limiter
+from ..schemas import (
+    ChatMessagesOut,
+    CustomerMessageIn,
+    PublicCompanyOut,
+    PublicPackageOut,
+    StartChatIn,
+    StartChatOut,
+)
+from ..security import random_token
+from ..serializers import public_message_out
+from ..services.conversations import handle_customer_message, is_customer_visible
+
+router = APIRouter(prefix="/api/public/companies/{slug}", tags=["public"])
+
+
+
+
+def _company(db: Session, slug: str) -> Company:
+    company = db.scalar(select(Company).where(Company.slug == slug))
+    if company is None or company.status != CompanyStatus.ACTIVE:
+        raise HTTPException(404, "Travel agency not found")
+    return company
+
+
+def _conversation(db: Session, company: Company, token: str) -> Conversation:
+    conv = db.scalar(select(Conversation).where(Conversation.public_token == token))
+    if conv is None or conv.company_id != company.id:
+        raise HTTPException(404, "Chat not found")
+    return conv
+
+
+@router.get("", response_model=PublicCompanyOut)
+def company_info(slug: str, db: Session = Depends(get_db)):
+    c = _company(db, slug)
+    return PublicCompanyOut(
+        name=c.name,
+        slug=c.slug,
+        ai_agent_name=c.ai_agent_name,
+        welcome_message=welcome_message(c),
+        currency=c.currency,
+        whatsapp_number=c.whatsapp_display_number,
+        contact_email=c.contact_email,
+        contact_phone=c.contact_phone,
+    )
+
+
+@router.get("/packages", response_model=list[PublicPackageOut])
+def packages(slug: str, db: Session = Depends(get_db)):
+    company = _company(db, slug)
+    rows = db.scalars(select(TravelPackage).where(TravelPackage.company_id == company.id)).all()
+    today = date.today()
+    visible = [p for p in rows if is_bookable(p, today)]
+    visible.sort(key=lambda p: (not p.is_featured, p.price_per_person))
+    out = []
+    for p in visible:  # customers only need the dates still ahead
+        item = PublicPackageOut.model_validate(p)
+        item.departure_dates = [d for d in item.departure_dates if d >= today.isoformat()]
+        out.append(item)
+    return out
+
+
+@router.post("/chats", response_model=StartChatOut, status_code=201)
+def start_chat(slug: str, body: StartChatIn, request: Request, db: Session = Depends(get_db)):
+    company = _company(db, slug)
+    limiter.check(f"start:{request.client.host if request.client else '?'}", 10)
+    customer = Customer(
+        company_id=company.id,
+        name=(body.name or "").strip() or None,
+        phone=(body.phone or "").strip() or None,
+        email=body.email,
+    )
+    db.add(customer)
+    db.flush()
+    conv = Conversation(company_id=company.id, customer_id=customer.id, channel=Channel.WEB,
+                        public_token=random_token())
+    db.add(conv)
+    db.flush()
+    welcome = Message(conversation_id=conv.id, sender=Sender.AI, content=welcome_message(company))
+    db.add(welcome)
+    db.commit()
+    return StartChatOut(token=conv.public_token, status=conv.status, messages=[public_message_out(welcome)])
+
+
+@router.post("/chats/{token}/messages", response_model=ChatMessagesOut)
+def send_message(slug: str, token: str, body: CustomerMessageIn, db: Session = Depends(get_db)):
+    settings = get_settings()
+    company = _company(db, slug)
+    conv = _conversation(db, company, token)
+    text = body.content.strip()
+    if not text:
+        raise HTTPException(422, "Message is empty")
+    if len(text) > settings.public_chat_max_message_length:
+        raise HTTPException(413, "Message is too long")
+    limiter.check(f"chat:{token}", settings.public_chat_max_messages_per_minute,
+                  "Too many messages, please wait a moment")
+
+    last_id = db.scalar(select(Message.id).where(Message.conversation_id == conv.id).order_by(Message.id.desc()).limit(1)) or 0
+    handle_customer_message(db, conv, text)
+    return _messages_after(db, conv, last_id)
+
+
+@router.get("/chats/{token}/messages", response_model=ChatMessagesOut)
+def poll_messages(slug: str, token: str, after_id: int = 0, db: Session = Depends(get_db)):
+    company = _company(db, slug)
+    return _messages_after(db, _conversation(db, company, token), after_id)
+
+
+def _messages_after(db: Session, conv: Conversation, after_id: int) -> ChatMessagesOut:
+    db.refresh(conv)
+    rows = db.scalars(
+        select(Message).where(Message.conversation_id == conv.id, Message.id > after_id).order_by(Message.id)
+    ).all()
+    return ChatMessagesOut(
+        status=conv.status, messages=[public_message_out(m) for m in rows if is_customer_visible(m)]
+    )

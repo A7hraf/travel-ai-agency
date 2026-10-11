@@ -1,0 +1,70 @@
+# Full stack: PostgreSQL + Ollama (open-source AI brain) + API + web app.
+#   cp .env.example .env   # then edit the secrets
+#   docker compose up -d --build
+# Web app: http://localhost:8080   (customer page: http://localhost:8080/c/<company-slug>)
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-travel}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-travel}
+      POSTGRES_DB: ${POSTGRES_DB:-travel_ai}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-travel} -d ${POSTGRES_DB:-travel_ai}"]
+      interval: 5s
+      retries: 20
+
+  # The AI brain. Runs on CPU; for faster replies use an NVIDIA GPU (see below).
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama:/root/.ollama
+    # Uncomment to use an NVIDIA GPU (needs the NVIDIA Container Toolkit):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  # One-off job: downloads the base model and builds the "travel-agent" model.
+  ollama-setup:
+    image: ollama/ollama:latest
+    depends_on:
+      - ollama
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      BASE_MODEL: ${BASE_MODEL:-qwen2.5:7b}
+    volumes:
+      - ./ai:/ai:ro
+    entrypoint: ["/bin/sh", "/ai/setup-model.sh"]
+    restart: "no"
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-travel}:${POSTGRES_PASSWORD:-travel}@db:5432/${POSTGRES_DB:-travel_ai}
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://ollama:11434/v1}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  ollama:

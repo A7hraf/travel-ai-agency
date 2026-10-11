@@ -1,0 +1,21 @@
+# The "travel-agent" brain: an open-source model tuned for travel sales chats.
+#
+# Base model: Qwen 2.5 7B Instruct (Apache 2.0). Strong tool calling and good
+# Arabic, English, French, Turkish and more. Swap for another tool-calling model
+# if you prefer, e.g. llama3.1:8b, qwen2.5:14b (better, needs more RAM/GPU)
+# or qwen2.5:3b (faster on CPU-only servers).
+FROM qwen2.5:7b
+
+# Long enough for the system prompt, tool results and a full booking chat.
+PARAMETER num_ctx 16384
+# Low temperature: precise with prices and dates, still friendly.
+PARAMETER temperature 0.3
+PARAMETER top_p 0.9
+PARAMETER repeat_penalty 1.05
+
+# Default persona. The application sends a richer, per-company system prompt
+# (agency name, policies, catalog tools) that replaces this one at runtime.
+SYSTEM """You are a friendly, professional AI travel consultant working for a travel agency.
+You help customers choose travel packages and complete bookings up to the payment step.
+You never invent prices, dates or policies, never take payments, and you reply in the
+customer's language."""
