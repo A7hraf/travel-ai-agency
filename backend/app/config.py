@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     # Creates a demo travel company with packages and staff accounts on first start.
     seed_demo_data: bool = True
 
+    # Folder with the built web app. When set, the API also serves the website
+    # (single-container hosting such as Render). Empty: the website is served by nginx.
+    frontend_dist: str = ""
+
     # CORS origins for the dashboard / storefront (comma separated).
     cors_origins: str = "http://localhost:5173,http://localhost:8080"
 

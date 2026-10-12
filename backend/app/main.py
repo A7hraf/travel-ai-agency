@@ -1,8 +1,11 @@
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from .config import DEFAULT_SECRET_KEY, get_settings
 from .database import SessionLocal, init_db
@@ -49,3 +52,27 @@ for r in (auth, system_admin, users, company, packages, conversations, tickets, 
 def health():
     s = get_settings()
     return {"status": "ok", "llm_provider": s.llm_provider, "llm_model": s.llm_model, "demo": s.seed_demo_data}
+
+
+def mount_frontend(application: FastAPI, dist: Path) -> None:
+    """Serve the built React app: real files when they exist, index.html for app routes."""
+    index = dist / "index.html"
+    if not index.is_file():
+        log.warning("FRONTEND_DIST=%s has no index.html; the website is not served", dist)
+        return
+    root = dist.resolve()
+    if (dist / "assets").is_dir():
+        application.mount("/assets", StaticFiles(directory=dist / "assets"), name="assets")
+
+    @application.get("/{path:path}", include_in_schema=False)
+    def spa(path: str):
+        if path == "api" or path.startswith("api/"):
+            raise HTTPException(404, "Not found")
+        candidate = (root / path).resolve()
+        if path and candidate.is_file() and root in candidate.parents:
+            return FileResponse(candidate)
+        return FileResponse(index)
+
+
+if get_settings().frontend_dist:
+    mount_frontend(app, Path(get_settings().frontend_dist))

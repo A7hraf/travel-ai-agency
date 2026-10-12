@@ -1,7 +1,11 @@
-# Full stack: PostgreSQL + Ollama (open-source AI brain) + API + web app.
-#   cp .env.example .env   # then edit the secrets
-#   docker compose up -d --build
-# Web app: http://localhost:8080   (customer page: http://localhost:8080/c/<company-slug>)
+# Full stack: PostgreSQL + API + web app, plus optional parts chosen with
+# COMPOSE_PROFILES in .env:
+#   local-ai  Ollama running the open-source AI brain on this machine
+#   https     Caddy with automatic HTTPS for your domain (online servers)
+#
+# On your computer:   cp .env.example .env && docker compose up -d --build
+#                     then open http://localhost:8080
+# On a server:        sudo bash deploy/install.sh   (asks a few questions, does the rest)
 
 services:
   db:
@@ -21,6 +25,7 @@ services:
   # The AI brain. Runs on CPU; for faster replies use an NVIDIA GPU (see below).
   ollama:
     image: ollama/ollama:latest
+    profiles: ["local-ai"]
     restart: unless-stopped
     volumes:
       - ollama:/root/.ollama
@@ -36,6 +41,7 @@ services:
   # One-off job: downloads the base model and builds the "travel-agent" model.
   ollama-setup:
     image: ollama/ollama:latest
+    profiles: ["local-ai"]
     depends_on:
       - ollama
     environment:
@@ -61,10 +67,31 @@ services:
     build: ./frontend
     restart: unless-stopped
     ports:
-      - "${WEB_PORT:-8080}:80"
+      # On a server the installer sets WEB_BIND=127.0.0.1 so only HTTPS (Caddy) is public.
+      - "${WEB_BIND:-0.0.0.0}:${WEB_PORT:-8080}:80"
     depends_on:
       - backend
+
+  # HTTPS for online servers: gets and renews a free Let's Encrypt certificate.
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["https"]
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
 
 volumes:
   pgdata:
   ollama:
+  caddy_data:
+  caddy_config:

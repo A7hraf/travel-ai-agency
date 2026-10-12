@@ -53,7 +53,14 @@ Roles pre-fill permissions; the company admin can then add or remove any of them
 Company admins always have every permission. A company can't lock itself out: the last active
 admin can't be disabled, demoted or deleted.
 
-## Quick start (Docker)
+## Put it online
+
+| Guide | Cost | Best for |
+|---|---|---|
+| **[Free: Render + Neon + Groq](docs/DEPLOY_FREE.md)** | $0 | Trying it online and first customers. Browser only, no server. Every push to `main` goes live automatically. Sleeps when idle. |
+| **[Your own server, one command](docs/DEPLOY_SERVER.md)** | from a few $ / month | Always on, automatic HTTPS, optional private AI on the same machine. `sudo bash deploy/install.sh` |
+
+## Quick start on your computer (Docker)
 
 Requirements: Docker with Compose. For the AI: 8 GB RAM minimum (16 GB recommended); an NVIDIA
 GPU makes replies much faster (see `docker-compose.yml`).
@@ -77,16 +84,15 @@ With `SEED_DEMO_DATA=true` you get a demo agency, **Sunrise Travel**, with 8 pac
 
 Customer page: **http://localhost:8080/c/sunrise-travel**
 
-> For a real deployment set `SEED_DEMO_DATA=false`, a long random `SECRET_KEY`, your own system
-> admin password, `WHATSAPP_APP_SECRET`, and put the app behind HTTPS (Meta requires HTTPS for
-> WhatsApp webhooks).
+> Going online? Use one of the guides in [Put it online](#put-it-online): they set the secrets,
+> HTTPS (required by WhatsApp) and turn off the demo data for you.
 
 ### No GPU? No problem
 
 * Smaller model: set `BASE_MODEL=qwen2.5:3b` in `.env`.
 * Or use the same open-source models hosted by an OpenAI-compatible provider (Groq, OpenRouter,
-  Together…): set `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` and start without Ollama:
-  `docker compose up -d --build db backend frontend`.
+  Together…): set `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`, and `COMPOSE_PROFILES=` (empty)
+  in `.env` so Ollama is not started.
 * Or `LLM_PROVIDER=mock` to click through the whole app with a simple rule-based stand-in.
 
 ## The AI brain
@@ -124,7 +130,9 @@ backend/                 FastAPI + SQLAlchemy (PostgreSQL / SQLite)
 frontend/                React + TypeScript (Vite): staff dashboard, system console, storefront
 ai/                      Ollama Modelfile and model setup script
 docs/                    AI brain and WhatsApp guides
-docker-compose.yml       PostgreSQL + Ollama + API + web
+deploy/                  server installer (HTTPS with Caddy), update and backup scripts
+docker-compose.yml       PostgreSQL + API + web, optional Ollama and HTTPS (profiles)
+Dockerfile, render.yaml  all-in-one image and Render blueprint for free hosting
 ```
 
 ## Development

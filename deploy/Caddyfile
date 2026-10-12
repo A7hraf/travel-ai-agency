@@ -1,0 +1,14 @@
+# Public entry point: automatic HTTPS (Let's Encrypt) for your domain.
+# DOMAIN comes from .env (e.g. travel.example.com or 203-0-113-5.sslip.io).
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	reverse_proxy frontend:80
+}

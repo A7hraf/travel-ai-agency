@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Protocol
@@ -93,6 +94,16 @@ def _tool_call_from_text(content: str, tool_names: set[str]) -> ToolCall | None:
     return ToolCall(id=f"call_{uuid.uuid4().hex[:12]}", name=name, arguments=_parse_arguments(args))
 
 
+RETRY_DELAY_SECONDS = 2.0
+
+
+def _worth_retrying(resp: httpx.Response) -> bool:
+    """Rate limits, temporary server errors, and Groq's occasional malformed tool call."""
+    if resp.status_code in (429, 500, 502, 503, 504):
+        return True
+    return resp.status_code == 400 and "tool_use_failed" in resp.text
+
+
 class OpenAICompatibleClient:
     def __init__(self, base_url: str, api_key: str, model: str, temperature: float, timeout: float):
         self.base_url = base_url.rstrip("/")
@@ -107,14 +118,19 @@ class OpenAICompatibleClient:
             payload["tools"] = tools
             payload["tool_choice"] = "auto"
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
-        try:
-            resp = httpx.post(
-                f"{self.base_url}/chat/completions", json=payload, headers=headers, timeout=self.timeout
-            )
-            resp.raise_for_status()
-            message = resp.json()["choices"][0]["message"]
-        except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
-            raise LLMError(f"LLM request failed: {exc}") from exc
+        for attempt in range(2):
+            try:
+                resp = httpx.post(
+                    f"{self.base_url}/chat/completions", json=payload, headers=headers, timeout=self.timeout
+                )
+                if attempt == 0 and _worth_retrying(resp):
+                    time.sleep(RETRY_DELAY_SECONDS)
+                    continue
+                resp.raise_for_status()
+                message = resp.json()["choices"][0]["message"]
+                break
+            except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
+                raise LLMError(f"LLM request failed: {exc}") from exc
 
         tool_calls = [
             ToolCall(
