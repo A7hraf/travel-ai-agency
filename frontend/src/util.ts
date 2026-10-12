@@ -21,14 +21,6 @@ export const CONVERSATION_STATUS_LABELS: Record<string, string> = {
   closed: "Closed",
 };
 
-export function money(value: number, currency: string): string {
-  try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
-  } catch {
-    return `${value.toLocaleString()} ${currency}`;
-  }
-}
-
 export function dateTime(iso: string | null | undefined): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });

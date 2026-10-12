@@ -19,3 +19,6 @@ dist/
 .DS_Store
 .idea/
 .vscode/
+
+# Build caches
+*.tsbuildinfo

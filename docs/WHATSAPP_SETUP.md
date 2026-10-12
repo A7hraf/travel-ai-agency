@@ -1,56 +1,66 @@
 # Connecting WhatsApp
 
-The platform uses the official **WhatsApp Cloud API** from Meta. You (the platform owner) create
-one Meta app and one webhook; each travel company connects its own WhatsApp Business phone number.
+The platform uses the official **WhatsApp Cloud API** from Meta. **Every travel company has its
+own WhatsApp channel**: its own number, and (recommended) its own Meta app. A customer who writes to
+a company's number talks only to that company's AI agent, and the chat is visible only to that
+company's team.
 
-## 1. Platform owner: create the Meta app (once)
+## How a message finds the right company
 
-1. Go to <https://developers.facebook.com/apps> → **Create app** → type **Business**.
-2. Add the **WhatsApp** product.
-3. **App settings → Basic**: copy the **App secret** into `.env` as `WHATSAPP_APP_SECRET`.
-4. Choose any random string as `WHATSAPP_VERIFY_TOKEN` in `.env` and restart the backend.
-5. **WhatsApp → Configuration → Webhook**:
-   * Callback URL: `https://YOUR-DOMAIN/api/webhooks/whatsapp` (must be public HTTPS)
-   * Verify token: the value of `WHATSAPP_VERIFY_TOKEN`
-   * Click **Verify and save**, then **subscribe to the `messages` field**.
+* **Website**: each company has its own page, `https://YOUR-ADDRESS/c/<company>`. The chat started
+  there belongs to that company.
+* **WhatsApp**: each company connects its own number. Meta tells the platform which number received
+  the message, so the chat goes to the company that owns that number. A number can be connected to
+  only one company.
+* The AI never mixes companies: for every reply it only receives that company's packages, policies,
+  training answers and that one conversation.
 
-For local testing, expose your machine with a tunnel (e.g. `cloudflared tunnel --url http://localhost:8080`
-or `ngrok http 8080`) and use that HTTPS URL.
+## Option A: the company uses its own Meta app (recommended)
 
-## 2. Each travel company: connect its number
-
-1. In Meta **WhatsApp → API Setup**, add and verify the company's phone number (Meta also gives a
-   free test number for trying it out).
-2. Copy the **Phone number ID** (not the phone number itself).
-3. Create a permanent access token: **Business settings → Users → System users** → add a system
-   user → **Generate token** for your app with `whatsapp_business_messaging` and
-   `whatsapp_business_management` permissions. (The temporary token on the API Setup page expires
-   after 24 hours.)
-4. In the app, log in as the company admin → **AI & WhatsApp** → fill in:
-   * Phone number ID
-   * Public WhatsApp number (shown as a "WhatsApp us" button on the customer page)
-   * Access token
+1. The company creates (or uses) a Meta app at <https://developers.facebook.com/apps> → **Create
+   app** → type **Business** → add the **WhatsApp** product, and adds its phone number under
+   **WhatsApp → API Setup** (Meta also gives a free test number).
+2. It copies, from Meta:
+   * the **Phone number ID** (WhatsApp → API Setup),
+   * a permanent **access token** (Business settings → Users → System users → Generate token with
+     `whatsapp_business_messaging` and `whatsapp_business_management`),
+   * the **App secret** (App settings → Basic).
+3. The company admin opens **AI & WhatsApp** in the dashboard, fills in those three values and the
+   public number, and saves. Tokens and secrets are stored encrypted and are never shown again.
+4. The same page shows the company's own **Callback URL** and **Verify token**. In Meta → WhatsApp
+   → Configuration → Webhook: paste both, click **Verify and save**, and subscribe to **messages**.
 5. Send a WhatsApp message to the number: the AI answers, and the chat appears in
    **Conversations** with a 🟢 WhatsApp label.
 
-A phone number ID can only be connected to one company. Messages for a suspended company are
-ignored.
+The company's webhook only accepts messages signed with that company's app secret, and only for
+that company's own number.
 
-## How it works
+## Option B: one shared Meta app for all companies (platform owner)
 
-* Meta calls `POST /api/webhooks/whatsapp`. The signature (`X-Hub-Signature-256`) is checked with
-  the app secret, the request is answered immediately, and the AI reply is generated in the
-  background, then sent with the Graph API.
-* The receiving `phone_number_id` decides which company the message belongs to.
+Useful if you (the platform owner) onboard the companies' numbers into your own Meta app.
+
+1. Set `WHATSAPP_APP_SECRET` (your app's secret) and `WHATSAPP_VERIFY_TOKEN` (any random text) in
+   the server environment (Render → Environment, or `.env`).
+2. In your Meta app's webhook: Callback URL `https://YOUR-ADDRESS/api/webhooks/whatsapp`, the
+   verify token above, subscribe to **messages**.
+3. Each company still enters its own Phone number ID (and access token) in **AI & WhatsApp**.
+
+Online (production), the shared webhook is switched off until `WHATSAPP_APP_SECRET` is set, so
+nobody can post fake messages.
+
+## Details
+
+* Meta's signature (`X-Hub-Signature-256`) is checked on every webhook call. The request is answered
+  immediately and the AI reply is sent in the background.
 * The customer's WhatsApp number becomes their phone number, so the AI does not ask for it again.
-* Duplicate deliveries from Meta are ignored. Incoming messages are marked as read. Delivery
-  receipts (sent / delivered / read / failed) are shown under each reply in the dashboard.
+* Duplicate deliveries from Meta are ignored. Incoming messages are marked as read. Delivery receipts
+  (sent / delivered / read / failed) are shown under each reply in the dashboard.
 * Text, buttons and list replies are understood; for images, voice notes etc. the AI asks the
   customer to type their request.
 * When an employee replies from the dashboard, the message goes out on WhatsApp.
 
 ## The 24-hour rule
 
-WhatsApp only allows free-form messages within 24 hours of the customer's last message. After
-that, businesses must send an approved **template** message. If an employee replies too late, the
+WhatsApp only allows free-form messages within 24 hours of the customer's last message. After that,
+businesses must send an approved **template** message. If an employee replies too late, the
 dashboard shows that WhatsApp did not deliver it.

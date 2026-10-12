@@ -28,6 +28,7 @@ from ..models import (
     TravelPackage,
 )
 from ..security import ticket_reference
+from .text import keywords, normalize
 
 TOOL_DEFINITIONS: list[dict] = [
     {
@@ -111,13 +112,6 @@ TOOL_DEFINITIONS: list[dict] = [
 
 TOOL_NAMES = {t["function"]["name"] for t in TOOL_DEFINITIONS}
 
-_STOPWORDS = {
-    "the", "and", "for", "with", "trip", "trips", "travel", "package", "packages", "want", "would",
-    "like", "looking", "need", "please", "some", "any", "can", "you", "show", "offer", "offers",
-    "holiday", "vacation", "tour", "tours", "about", "what", "have", "there", "from", "days", "day",
-    "night", "nights", "person", "people", "our", "this", "that", "next", "month", "year", "go",
-}
-
 MAX_RESULTS = 5
 
 
@@ -132,11 +126,6 @@ class ToolContext:
     # set when a tool handed the conversation over to a human
     handed_over: bool = False
     ticket_reference: str | None = None
-
-
-def _tokens(text: str) -> list[str]:
-    words = re.findall(r"\w+", (text or "").lower())
-    return [w for w in words if len(w) >= 3 and w not in _STOPWORDS and not w.isdigit()]
 
 
 def _money(value: Decimal | None) -> float | int | None:
@@ -215,14 +204,14 @@ def search_packages(ctx: ToolContext, query: str = "", max_price_per_person=None
         return True
 
     filtered = [p for p in packages if passes_filters(p)]
-    tokens = _tokens(query or "")
+    tokens = keywords(query or "")
     if tokens:
         scored = []
         for p in filtered:
-            haystack = " ".join(
+            haystack = normalize(" ".join(
                 [p.title, p.destination, p.country, p.description or "", p.hotel_name or "", " ".join(p.tags or [])]
-            ).lower()
-            place = f"{p.destination} {p.country}".lower()
+            ))
+            place = normalize(f"{p.destination} {p.country} {' '.join(p.tags or [])}")
             score = sum(1 for t in tokens if t in haystack) + sum(2 for t in tokens if t in place)
             if score:
                 scored.append((score, p))

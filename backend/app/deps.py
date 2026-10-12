@@ -17,12 +17,15 @@ def get_current_user(
     unauthorized = HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
     if creds is None:
         raise unauthorized
-    user_id = decode_access_token(creds.credentials)
-    if user_id is None:
+    decoded = decode_access_token(creds.credentials)
+    if decoded is None:
         raise unauthorized
+    user_id, issued_ms = decoded
     user = db.get(User, user_id)
     if user is None or not user.is_active:
         raise unauthorized
+    if user.tokens_valid_after is not None and issued_ms < int(user.tokens_valid_after.timestamp() * 1000):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Your session has ended, please log in again")
     if user.company is not None and user.company.status != CompanyStatus.ACTIVE:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Your company account is suspended")
     return user

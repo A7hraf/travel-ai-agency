@@ -6,10 +6,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ..ai.health import check_ai
 from ..database import get_db
 from ..deps import require_system_admin
 from ..models import Company, CompanyStatus, Conversation, Role, Ticket, User
+from ..ratelimit import limiter
 from ..schemas import (
+    AICheckOut,
     CompanyAdminOut,
     CompanyAdminUpdate,
     CompanyCreate,
@@ -60,6 +63,13 @@ def stats(_: User = Depends(require_system_admin), db: Session = Depends(get_db)
         conversations=db.scalar(select(func.count(Conversation.id))) or 0,
         tickets=db.scalar(select(func.count(Ticket.id))) or 0,
     )
+
+
+@router.post("/ai-check", response_model=AICheckOut)
+def ai_check(me: User = Depends(require_system_admin)):
+    """Send one real request to the AI provider and report the exact result."""
+    limiter.check(f"ai-check:{me.id}", 6, "Please wait a minute before testing again")
+    return check_ai()
 
 
 @router.get("/companies", response_model=list[CompanyAdminOut])

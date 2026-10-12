@@ -41,14 +41,14 @@ class StatusUpdate:
     status: str  # sent, delivered, read, failed
 
 
-def verify_signature(raw_body: bytes, signature_header: str | None) -> bool:
-    secret = get_settings().whatsapp_app_secret
+def verify_signature(raw_body: bytes, signature_header: str | None, secret: str | None) -> bool:
+    """Checks Meta's X-Hub-Signature-256 header with the app secret. No secret: nothing to check."""
     if not secret:
-        return True  # verification disabled (development)
+        return True
     if not signature_header or not signature_header.startswith("sha256="):
         return False
-    expected = hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(expected, signature_header.removeprefix("sha256="))
+    expected = hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest().encode()
+    return hmac.compare_digest(expected, signature_header.removeprefix("sha256=").encode("utf-8", "replace"))
 
 
 def _message_text(m: dict) -> str:

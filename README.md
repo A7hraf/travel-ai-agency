@@ -22,16 +22,18 @@ Customer (web chat / WhatsApp)
 
 | Who | What they can do |
 |---|---|
-| **Customer** | Browse the agency's offers page (`/c/<company>`), chat with the AI on the website or on WhatsApp, get recommendations, book. The AI never takes payments. |
+| **Customer** | Browse the agency's offers page (`/c/<company>`, English / العربية, prices in Omani rials with the official rial sign), chat with the AI on the website or on WhatsApp, get recommendations, book. The AI never takes payments. |
 | **AI agent** | Understands the trip (destination, dates, travelers, budget), searches the catalog, answers questions from the package details and the company's policies, collects traveler details, confirms the total, creates the booking ticket and hands over to a human for payment. Replies in the customer's language (Arabic, English, French…). Hands over to a human when asked, on complaints, or when stuck. |
-| **Company admin** | Creates, edits, disables and deletes employee accounts; picks a role and ticks individual permissions per employee; manages packages, the AI persona and knowledge, and the company's WhatsApp number. |
+| **Company admin** | Creates, edits, disables and deletes employee accounts; picks a role and ticks individual permissions per employee; manages packages, **AI training** (questions & approved answers), the AI persona and knowledge, and the company's own WhatsApp channel. |
 | **Support** | Watches AI conversations live, takes over any chat, replies (on web or WhatsApp), hands the chat back to the AI. |
 | **Ticket employee** | Works the booking tickets: takes them, records the payment, confirms or cancels (seats are adjusted automatically). |
 | **System admin (you)** | Creates travel companies, sets **how many accounts each company may create**, suspends / re-activates / deletes companies, manages any company's accounts. |
 
-Every company has its own accounts, packages, customers, conversations, tickets, AI persona and
-WhatsApp number, all served by the **same AI brain**. Data is isolated per company on every
-request, and the AI's tools can only ever see the company the conversation belongs to.
+Every company has its own accounts, packages, customers, conversations, tickets, AI persona,
+AI training and WhatsApp channel, all served by the **same AI brain**. A customer reaches a company
+through that company's own link (`/c/<company>`) or its own WhatsApp number, so every chat belongs
+to exactly one company. Data is isolated per company on every request, and the AI only ever sees the
+company the conversation belongs to. See [docs/SECURITY.md](docs/SECURITY.md).
 
 ### Permissions
 
@@ -73,7 +75,9 @@ docker compose logs -f ollama-setup   # first run downloads the model (~4.7 GB)
 
 Open **http://localhost:8080**.
 
-With `SEED_DEMO_DATA=true` you get a demo agency, **Sunrise Travel**, with 8 packages:
+With `SEED_DEMO_DATA=true` you get a demo agency in Muscat, **Sunrise Travel**, with 10 packages in
+Omani rials. On your computer (`ENVIRONMENT=development`) these logins are shown on the login page;
+online (production) the demo staff get random passwords:
 
 | Login | Password | Role |
 |---|---|---|
@@ -127,9 +131,9 @@ backend/                 FastAPI + SQLAlchemy (PostgreSQL / SQLite)
                          tickets, company settings, public storefront/chat, WhatsApp webhook)
   app/services/          conversation handling, WhatsApp Cloud API, account rules
   tests/                 pytest suite (accounts, AI agent, WhatsApp, tickets)
-frontend/                React + TypeScript (Vite): staff dashboard, system console, storefront
+frontend/                React + TypeScript (Vite): staff dashboard, system console, storefront (EN/AR)
 ai/                      Ollama Modelfile and model setup script
-docs/                    AI brain and WhatsApp guides
+docs/                    AI brain, WhatsApp, security and deployment guides
 deploy/                  server installer (HTTPS with Caddy), update and backup scripts
 docker-compose.yml       PostgreSQL + API + web, optional Ollama and HTTPS (profiles)
 Dockerfile, render.yaml  all-in-one image and Render blueprint for free hosting
@@ -151,7 +155,7 @@ npm install
 npm run dev        # http://localhost:5173, proxies /api to :8000
 ```
 
-API docs (Swagger): http://localhost:8000/docs
+API docs (Swagger): http://localhost:8000/docs (development only; switched off in production)
 
 ## Configuration
 

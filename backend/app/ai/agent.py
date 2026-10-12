@@ -14,6 +14,7 @@ from ..models import Company, Conversation, Message, MessageKind, Sender
 from .llm import LLMClient, LLMError, get_llm_client
 from .prompts import FALLBACK_REPLY, build_system_prompt
 from .tools import TOOL_DEFINITIONS, ToolContext, run_tool
+from .training import relevant_examples
 
 log = logging.getLogger(__name__)
 
@@ -73,9 +74,23 @@ def _closing_text(ctx: ToolContext) -> str:
     if ctx.ticket_reference:
         return (
             f"Your booking request is registered with reference {ctx.ticket_reference}. "
-            f"A {ctx.company.name} consultant will contact you shortly to complete the payment."
+            f"A {ctx.company.name} consultant will contact you shortly to complete the payment.\n"
+            f"تم تسجيل طلب الحجز برقم {ctx.ticket_reference}. "
+            f"سيتواصل معك أحد مستشاري {ctx.company.name} قريباً لإتمام الدفع."
         )
-    return "Thank you! One of our travel consultants will reply to you here shortly."
+    return (
+        "Thank you! One of our travel consultants will reply to you here shortly.\n"
+        "شكراً لك! سيرد عليك أحد مستشاري السفر هنا قريباً."
+    )
+
+
+def _latest_customer_text(db: Session, conversation: Conversation) -> str:
+    return db.scalar(
+        select(Message.content)
+        .where(Message.conversation_id == conversation.id, Message.sender == Sender.CUSTOMER)
+        .order_by(Message.id.desc())
+        .limit(1)
+    ) or ""
 
 
 def run_agent(db: Session, conversation: Conversation, llm: LLMClient | None = None,
@@ -92,7 +107,9 @@ def run_agent(db: Session, conversation: Conversation, llm: LLMClient | None = N
     ctx = ToolContext(db=db, company=company, conversation=conversation, customer=conversation.customer,
                       today=today or date.today())
 
-    messages = [{"role": "system", "content": build_system_prompt(company, ctx.customer, conversation.channel, ctx.today)}]
+    training = relevant_examples(db, company.id, _latest_customer_text(db, conversation))
+    system = build_system_prompt(company, ctx.customer, conversation.channel, ctx.today, training)
+    messages = [{"role": "system", "content": system}]
     messages += build_history(db, conversation, settings.llm_max_history_messages)
 
     final: str | None = None
@@ -113,7 +130,7 @@ def run_agent(db: Session, conversation: Conversation, llm: LLMClient | None = N
             messages.append({"role": "assistant", "content": resp.content or "", "tool_calls": calls})
             for tc in resp.tool_calls:
                 result = run_tool(ctx, tc.name, tc.arguments)
-                content = json.dumps(result, ensure_ascii=False, default=str)
+                content = json.dumps(result, ensure_ascii=False, default=str, separators=(",", ":"))
                 db.add(Message(conversation_id=conversation.id, sender=Sender.AI, kind=MessageKind.TOOL_RESULT,
                                content=content, meta={"tool_call_id": tc.id, "name": tc.name}))
                 messages.append({"role": "tool", "tool_call_id": tc.id, "content": content})

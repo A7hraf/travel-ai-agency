@@ -4,7 +4,8 @@ import { get, patch } from "../api";
 import { useAuth } from "../auth";
 import { Badge, Empty, ErrorBox, Field, Modal, PageHeader, TICKET_TONES } from "../components/ui";
 import type { Ticket, TicketStatus, User } from "../types";
-import { customerLabel, dateTime, money, shortDate, TICKET_STATUS_LABELS, usePolling } from "../util";
+import { Money } from "../components/Money";
+import { customerLabel, dateTime, shortDate, TICKET_STATUS_LABELS, usePolling } from "../util";
 
 export default function Tickets() {
   const [params, setParams] = useSearchParams();
@@ -52,7 +53,7 @@ export default function Tickets() {
                   <td>{t.package_title}</td>
                   <td>{shortDate(t.departure_date)}</td>
                   <td>{t.adults} adult{t.adults > 1 ? "s" : ""}{t.children ? `, ${t.children} child` : ""}</td>
-                  <td>{money(t.total_price, t.currency)}</td>
+                  <td><Money value={t.total_price} currency={t.currency} /></td>
                   <td><Badge tone={TICKET_TONES[t.status]}>{TICKET_STATUS_LABELS[t.status]}</Badge></td>
                   <td>{t.assigned_to?.full_name ?? <span className="muted">—</span>}</td>
                   <td className="muted small">{dateTime(t.created_at)}</td>
@@ -134,7 +135,7 @@ function TicketModal({ id, onClose, onSaved }: { id: number; onClose: () => void
               <dt>Email</dt><dd>{ticket.contact_email ?? "—"}</dd>
               <dt>Customer</dt><dd>{customerLabel(ticket.customer)}</dd>
               <dt>Special requests</dt><dd>{ticket.special_requests || "—"}</dd>
-              <dt>Total</dt><dd><strong>{money(ticket.total_price, ticket.currency)}</strong></dd>
+              <dt>Total</dt><dd><strong><Money value={ticket.total_price} currency={ticket.currency} /></strong></dd>
               <dt>Created</dt><dd>{dateTime(ticket.created_at)} by {ticket.created_by === "ai" ? "AI agent" : "staff"}</dd>
             </dl>
             {ticket.conversation_id && can("conversations.view") && (
@@ -160,7 +161,7 @@ function TicketModal({ id, onClose, onSaved }: { id: number; onClose: () => void
                 onChange={(e) => setForm({ ...form, payment_reference: e.target.value })} />
             </Field>
             <Field label={`Total price (${ticket.currency})`}>
-              <input type="number" min={0} step="0.01" value={form.total_price} disabled={!canManage}
+              <input type="number" min={0} step="0.001" value={form.total_price} disabled={!canManage}
                 onChange={(e) => setForm({ ...form, total_price: e.target.value })} />
             </Field>
             <Field label="Internal notes">

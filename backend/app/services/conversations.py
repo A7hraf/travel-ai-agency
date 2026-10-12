@@ -25,6 +25,7 @@ from ..models import (
     Sender,
     utcnow,
 )
+from ..ratelimit import limiter
 from .whatsapp import WhatsAppError, get_whatsapp_sender, parse_webhook
 
 log = logging.getLogger(__name__)
@@ -69,6 +70,16 @@ def handle_customer_message(db: Session, conversation: Conversation, text: str,
 
         if conversation.status != ConversationStatus.AI:
             return []
+
+        hourly_cap = get_settings().ai_max_replies_per_company_per_hour
+        if not limiter.allow(f"ai-replies:{conversation.company_id}", hourly_cap, window=3600):
+            log.warning("Company %s reached %s AI replies this hour", conversation.company_id, hourly_cap)
+            conversation.status = ConversationStatus.HUMAN
+            conversation.handover_reason = "AI hourly limit reached, please answer the customer"
+            reply = Message(conversation_id=conversation.id, sender=Sender.AI, content=FALLBACK_REPLY)
+            db.add(reply)
+            db.commit()
+            return [reply]
 
         try:
             reply = run_agent(db, conversation)
@@ -126,8 +137,12 @@ def _whatsapp_conversation(db: Session, company: Company, wa_id: str, profile_na
     return conversation
 
 
-def process_whatsapp_payload(payload: dict) -> None:
-    """Runs after the webhook has already answered 200 to Meta."""
+def process_whatsapp_payload(payload: dict, only_company_id: int | None = None) -> None:
+    """Runs after the webhook has already answered 200 to Meta.
+
+    only_company_id: the payload came through that company's own webhook (signed with its own
+    Meta app secret), so it may only touch that company's number and messages.
+    """
     from ..database import SessionLocal
 
     incoming, statuses = parse_webhook(payload)
@@ -135,7 +150,12 @@ def process_whatsapp_payload(payload: dict) -> None:
     db = SessionLocal()
     try:
         for status in statuses:
-            msg = db.scalar(select(Message).where(Message.external_id == status.message_id))
+            stmt = select(Message).where(Message.external_id == status.message_id)
+            if only_company_id is not None:
+                stmt = stmt.join(Conversation, Conversation.id == Message.conversation_id).where(
+                    Conversation.company_id == only_company_id
+                )
+            msg = db.scalar(stmt)
             if msg is not None and msg.delivery_status != "failed":
                 msg.delivery_status = status.status
         db.commit()
@@ -144,6 +164,10 @@ def process_whatsapp_payload(payload: dict) -> None:
             company = db.scalar(select(Company).where(Company.whatsapp_phone_number_id == item.phone_number_id))
             if company is None or company.status != CompanyStatus.ACTIVE:
                 log.info("Ignoring WhatsApp message for unknown/suspended number %s", item.phone_number_id)
+                continue
+            if only_company_id is not None and company.id != only_company_id:
+                log.warning("Company %s webhook sent a message for another company's number; ignored",
+                            only_company_id)
                 continue
             if db.scalar(select(Message.id).where(Message.external_id == item.message_id)):
                 continue  # Meta retried a delivery we already handled

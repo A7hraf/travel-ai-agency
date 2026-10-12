@@ -67,7 +67,7 @@ def company_admin_out(db: Session, company: Company) -> CompanyAdminOut:
     )
 
 
-def company_settings_out(company: Company) -> CompanySettingsOut:
+def company_settings_out(company: Company, can_manage: bool = False) -> CompanySettingsOut:
     return CompanySettingsOut(
         id=company.id,
         name=company.name,
@@ -79,11 +79,15 @@ def company_settings_out(company: Company) -> CompanySettingsOut:
         contact_phone=company.contact_phone,
         ai_agent_name=company.ai_agent_name,
         ai_welcome_message=company.ai_welcome_message,
+        ai_welcome_message_ar=company.ai_welcome_message_ar,
         ai_instructions=company.ai_instructions or "",
         knowledge_base=company.knowledge_base or "",
         whatsapp_phone_number_id=company.whatsapp_phone_number_id,
         whatsapp_display_number=company.whatsapp_display_number,
         whatsapp_token_set=bool(company.whatsapp_access_token),
+        whatsapp_app_secret_set=bool(company.whatsapp_app_secret),
+        whatsapp_webhook_path=f"/api/webhooks/whatsapp/c/{company.whatsapp_webhook_key}" if can_manage else None,
+        whatsapp_verify_token=company.whatsapp_verify_token if can_manage else None,
     )
 
 

@@ -4,10 +4,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ..ai.health import check_ai
 from ..database import get_db
 from ..deps import get_company_user, require_permission
 from ..models import Company, Conversation, ConversationStatus, Ticket, TicketStatus, TravelPackage, User
-from ..schemas import CompanySettingsOut, CompanySettingsUpdate, DashboardOut
+from ..permissions import effective_permissions
+from ..ratelimit import limiter
+from ..schemas import AICheckOut, CompanySettingsOut, CompanySettingsUpdate, DashboardOut
 from ..serializers import OPEN_TICKET_STATUSES, company_settings_out
 from ..services.users import seats_used
 
@@ -16,7 +19,7 @@ router = APIRouter(prefix="/api", tags=["company"])
 
 @router.get("/company", response_model=CompanySettingsOut)
 def get_company(me: User = Depends(get_company_user)):
-    return company_settings_out(me.company)
+    return company_settings_out(me.company, can_manage="settings.manage" in effective_permissions(me))
 
 
 @router.patch("/company", response_model=CompanySettingsOut)
@@ -34,9 +37,10 @@ def update_company(body: CompanySettingsUpdate, me: User = Depends(require_permi
             if taken:
                 raise HTTPException(409, "This WhatsApp number is already connected to another company")
         company.whatsapp_phone_number_id = number_id
-    if "whatsapp_access_token" in data:
-        token = (data.pop("whatsapp_access_token") or "").strip()
-        company.whatsapp_access_token = token or None
+    for secret in ("whatsapp_access_token", "whatsapp_app_secret"):
+        if secret in data:
+            value = (data.pop(secret) or "").strip()
+            setattr(company, secret, value or None)
     if data.get("currency"):
         data["currency"] = data["currency"].upper()
     for key, value in data.items():
@@ -44,7 +48,13 @@ def update_company(body: CompanySettingsUpdate, me: User = Depends(require_permi
             continue  # required fields can't be blanked
         setattr(company, key, value)
     db.commit()
-    return company_settings_out(company)
+    return company_settings_out(company, can_manage=True)
+
+
+@router.post("/company/ai-check", response_model=AICheckOut)
+def company_ai_check(me: User = Depends(require_permission("settings.manage"))):
+    limiter.check(f"ai-check:{me.id}", 6, "Please wait a minute before testing again")
+    return check_ai()
 
 
 @router.get("/dashboard", response_model=DashboardOut)

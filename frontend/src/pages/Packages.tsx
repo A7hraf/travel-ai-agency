@@ -3,7 +3,8 @@ import { del, get, post, put } from "../api";
 import { useAuth } from "../auth";
 import { Badge, Empty, ErrorBox, Field, Modal, PageHeader } from "../components/ui";
 import type { TravelPackage } from "../types";
-import { gradientFor, money, shortDate } from "../util";
+import { Money } from "../components/Money";
+import { gradientFor, shortDate } from "../util";
 
 type FormState = {
   title: string; destination: string; country: string; description: string; duration_days: string;
@@ -61,7 +62,7 @@ export default function Packages() {
               <div className="pkg-body">
                 <h3>{p.title}</h3>
                 <div className="muted small">{p.duration_days} days · {p.hotel_name ?? "Hotel TBA"}{p.hotel_stars ? ` ${"★".repeat(p.hotel_stars)}` : ""}</div>
-                <div className="pkg-price">{money(p.price_per_person, p.currency)} <span className="muted small">/ person</span></div>
+                <div className="pkg-price"><Money value={p.price_per_person} currency={p.currency} /> <span className="muted small">/ person</span></div>
                 <div className="muted small">
                   {p.departure_dates.length ? `Next: ${p.departure_dates.slice(0, 3).map(shortDate).join(", ")}` : "Flexible dates"}
                   {p.seats_available != null && ` · ${p.seats_available} seats`}
@@ -129,8 +130,8 @@ function PackageForm({ pkg, onClose, onSaved }: { pkg: TravelPackage | null; onC
           <Field label="Destination (city / region)"><input value={f.destination} onChange={(e) => set("destination", e.target.value)} required /></Field>
           <Field label="Country"><input value={f.country} onChange={(e) => set("country", e.target.value)} required /></Field>
           <Field label="Duration (days)"><input type="number" min={1} value={f.duration_days} onChange={(e) => set("duration_days", e.target.value)} required /></Field>
-          <Field label="Price per adult"><input type="number" min={0} step="0.01" value={f.price_per_person} onChange={(e) => set("price_per_person", e.target.value)} required /></Field>
-          <Field label="Price per child" hint="Empty = same as adult"><input type="number" min={0} step="0.01" value={f.child_price} onChange={(e) => set("child_price", e.target.value)} /></Field>
+          <Field label="Price per adult"><input type="number" min={0} step="0.001" value={f.price_per_person} onChange={(e) => set("price_per_person", e.target.value)} required /></Field>
+          <Field label="Price per child" hint="Empty = same as adult"><input type="number" min={0} step="0.001" value={f.child_price} onChange={(e) => set("child_price", e.target.value)} /></Field>
           <Field label="Currency" hint="Empty = company currency"><input maxLength={3} value={f.currency} onChange={(e) => set("currency", e.target.value.toUpperCase())} /></Field>
           <Field label="Seats available" hint="Empty = unlimited"><input type="number" min={0} value={f.seats_available} onChange={(e) => set("seats_available", e.target.value)} /></Field>
           <Field label="Hotel"><input value={f.hotel_name} onChange={(e) => set("hotel_name", e.target.value)} /></Field>

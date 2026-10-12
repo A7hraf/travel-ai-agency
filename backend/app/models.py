@@ -23,7 +23,9 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import TypeDecorator
 
+from .crypto import EncryptedText
 from .database import Base
+from .security import random_token
 
 
 def utcnow() -> datetime:
@@ -100,20 +102,27 @@ class Company(Base):
     status: Mapped[str] = mapped_column(String(20), default=CompanyStatus.ACTIVE)
     # Set by the system admin: how many employee accounts this company may have.
     max_users: Mapped[int] = mapped_column(Integer, default=5)
-    currency: Mapped[str] = mapped_column(String(3), default="USD")
+    currency: Mapped[str] = mapped_column(String(3), default="OMR")
     contact_email: Mapped[str | None] = mapped_column(String(200))
     contact_phone: Mapped[str | None] = mapped_column(String(50))
 
     # AI persona for this company (same brain, different personality and knowledge)
     ai_agent_name: Mapped[str] = mapped_column(String(80), default="Sara")
     ai_welcome_message: Mapped[str | None] = mapped_column(Text)
+    ai_welcome_message_ar: Mapped[str | None] = mapped_column(Text)
     ai_instructions: Mapped[str] = mapped_column(Text, default="")
     knowledge_base: Mapped[str] = mapped_column(Text, default="")
 
-    # WhatsApp Cloud API
+    # WhatsApp Cloud API: every company has its own channel (number + Meta app credentials).
     whatsapp_phone_number_id: Mapped[str | None] = mapped_column(String(64), unique=True)
-    whatsapp_access_token: Mapped[str | None] = mapped_column(Text)
+    whatsapp_access_token: Mapped[str | None] = mapped_column(EncryptedText())
+    whatsapp_app_secret: Mapped[str | None] = mapped_column(EncryptedText())
     whatsapp_display_number: Mapped[str | None] = mapped_column(String(50))
+    # The company's own webhook address (/api/webhooks/whatsapp/c/<key>) and verify token.
+    whatsapp_webhook_key: Mapped[str | None] = mapped_column(
+        String(64), unique=True, index=True, default=lambda: random_token(18)
+    )
+    whatsapp_verify_token: Mapped[str | None] = mapped_column(String(64), default=lambda: random_token(18))
 
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
@@ -122,6 +131,7 @@ class Company(Base):
     customers: Mapped[list["Customer"]] = relationship(cascade="all, delete-orphan")
     conversations: Mapped[list["Conversation"]] = relationship(cascade="all, delete-orphan")
     tickets: Mapped[list["Ticket"]] = relationship(cascade="all, delete-orphan")
+    training_examples: Mapped[list["TrainingExample"]] = relationship(cascade="all, delete-orphan")
 
 
 class User(Base):
@@ -138,6 +148,8 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
     last_login_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    # Login tokens issued before this moment are rejected (set on password change).
+    tokens_valid_after: Mapped[datetime | None] = mapped_column(UTCDateTime())
 
     company: Mapped[Company | None] = relationship(back_populates="users")
 
@@ -152,9 +164,10 @@ class TravelPackage(Base):
     country: Mapped[str] = mapped_column(String(120))
     description: Mapped[str] = mapped_column(Text, default="")
     duration_days: Mapped[int] = mapped_column(Integer)
-    price_per_person: Mapped[Decimal] = mapped_column(Numeric(12, 2))
-    child_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
-    currency: Mapped[str] = mapped_column(String(3), default="USD")
+    # 3 decimals: the Omani rial has 1000 baisa.
+    price_per_person: Mapped[Decimal] = mapped_column(Numeric(12, 3))
+    child_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
+    currency: Mapped[str] = mapped_column(String(3), default="OMR")
     # ISO dates (YYYY-MM-DD). Empty list means "flexible dates on request".
     departure_dates: Mapped[list[str]] = mapped_column(JSON, default=list)
     includes: Mapped[list[str]] = mapped_column(JSON, default=list)
@@ -245,7 +258,7 @@ class Ticket(Base):
     contact_phone: Mapped[str | None] = mapped_column(String(50))
     contact_email: Mapped[str | None] = mapped_column(String(200))
     special_requests: Mapped[str] = mapped_column(Text, default="")
-    total_price: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    total_price: Mapped[Decimal] = mapped_column(Numeric(12, 3))
     currency: Mapped[str] = mapped_column(String(3))
     status: Mapped[str] = mapped_column(String(20), default=TicketStatus.PENDING_PAYMENT, index=True)
     assigned_to_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
@@ -259,3 +272,16 @@ class Ticket(Base):
     package: Mapped[TravelPackage | None] = relationship()
     assigned_to: Mapped[User | None] = relationship()
     conversation: Mapped[Conversation | None] = relationship()
+
+
+class TrainingExample(Base):
+    """A question and the company's approved answer. The AI uses the closest ones when it replies."""
+
+    __tablename__ = "training_examples"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    question: Mapped[str] = mapped_column(Text)
+    answer: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, onupdate=utcnow)

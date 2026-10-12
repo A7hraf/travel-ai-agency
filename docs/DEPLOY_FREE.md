@@ -6,7 +6,7 @@ Total cost: **$0**. Time: about 20 minutes. You only need a browser.
 |---|---|---|
 | Website + API | [Render](https://render.com) | Runs the app from your GitHub repo and gives it an `https://….onrender.com` address |
 | Database | [Neon](https://neon.tech) | Free PostgreSQL that does not expire |
-| AI brain | [Groq](https://console.groq.com) | Runs the open-source Llama 3.3 70B model |
+| AI brain | [Groq](https://console.groq.com) | Runs the open-source gpt-oss model (Apache 2.0) |
 
 After this setup, **every change pushed to the `main` branch on GitHub goes live automatically**
 (Render rebuilds the site by itself).
@@ -18,10 +18,14 @@ Free plans change often; check each provider's pricing page if something below l
 * **Render free**: the site **sleeps after 15 minutes without visitors**. The next visitor waits
   about a minute while it wakes up. A WhatsApp message that arrives while it sleeps is answered once
   it is awake (Meta retries). A paid Render plan keeps it always on.
-* **Groq free**: about 1,000 AI requests and ~100,000 tokens per day for Llama 3.3 70B. One
-  customer message uses 2–3 AI requests, so this is roughly **10–25 customer messages a day**. When
-  the limit is reached, customers get a polite "a consultant will reply" message and the chat goes
-  to your team. For more, switch to Groq's paid pay-as-you-go plan (same settings, no code change).
+* **Groq free**: limited requests and tokens per minute and per day (check your limits in the Groq
+  console). One customer message uses 2–3 AI requests, so this is enough for testing and a few
+  dozen customer messages a day. When the limit is reached, customers get a polite "a consultant
+  will reply" message and the chat goes to your team. For more, switch to Groq's paid
+  pay-as-you-go plan (same settings, no code change).
+* **Models get retired.** Groq retired Llama 3.3 70B in August 2026. The app now uses
+  `openai/gpt-oss-120b` with `openai/gpt-oss-20b` as automatic backup, and the **Test AI** button
+  (platform console and "AI & WhatsApp") shows the exact error if a model stops working.
 * **Neon free**: about 0.5–1 GB of data, which is plenty for thousands of chats and bookings.
 
 ## Step 1: Database (Neon)
@@ -62,28 +66,33 @@ Free plans change often; check each provider's pricing page if something below l
 ## Step 4: First login
 
 1. Log in with your `SYSTEM_ADMIN_EMAIL` and `SYSTEM_ADMIN_PASSWORD`.
-2. The demo agency **Sunrise Travel** is there to try things:
-   * Customer page with the AI chat: `https://YOUR-ADDRESS/c/sunrise-travel`
-   * Demo logins are shown on the login page.
-3. Create your first real company: **Companies → + New company** (name, account limit, and the
-   company admin's login). The company admin then adds packages, AI settings and employees.
+2. On the **Companies** page click **Test AI**. It must say **✓ Working**. If not, it shows the
+   exact problem (wrong key, retired model…).
+3. The demo agency **Sunrise Travel** (Muscat, prices in Omani rials) is there to try things:
+   * Customer page with the AI chat: `https://YOUR-ADDRESS/c/sunrise-travel` (English / العربية)
+   * Online, its staff logins get random passwords. To use them: **Companies → Sunrise Travel →
+     Manage → Edit** an account and set a new password.
+4. Create your first real company: **Companies → + New company** (name, account limit, and the
+   company admin's login). The company admin then adds packages, AI training, AI settings and
+   employees.
 
 ## Step 5: Before real customers
 
-1. In Render → your service → **Environment**: set `SEED_DEMO_DATA` to `false` and save
-   (the service restarts).
-2. Then log in as owner → **Companies → Sunrise Travel → Delete company permanently**.
-   (Do it in this order: while `SEED_DEMO_DATA` is `true` the demo is re-created at every restart,
-   and its logins are public on the login page.)
-3. Change your password in **My account**.
+1. Make your GitHub repository **private**: GitHub → your repo → **Settings → General → Danger
+   Zone → Change visibility → Private**. Render keeps working.
+2. If you don't need the demo: in Render → **Environment** set `SEED_DEMO_DATA` to `false`, then
+   **Companies → Sunrise Travel → Delete company permanently**.
+3. Change your password in **My account** (this logs out every other device).
 
 ## Step 6: WhatsApp (optional)
 
 Follow [WHATSAPP_SETUP.md](WHATSAPP_SETUP.md) with:
 
 * Webhook URL: `https://YOUR-ADDRESS/api/webhooks/whatsapp`
-* Verify token: in Render → **Environment** → `WHATSAPP_VERIFY_TOKEN` (generated for you)
-* App secret: add a new variable `WHATSAPP_APP_SECRET` in Render → **Environment**
+* Easiest: each company connects its own Meta app in **AI & WhatsApp**, which shows the company's
+  own webhook URL and verify token.
+* Shared platform app (optional): webhook `https://YOUR-ADDRESS/api/webhooks/whatsapp`, verify
+  token in Render → **Environment** → `WHATSAPP_VERIFY_TOKEN`, and add `WHATSAPP_APP_SECRET`.
 
 ## Your own domain (optional)
 
@@ -97,7 +106,8 @@ Render → your service → **Environment**. Useful ones:
 
 | Variable | Meaning |
 |---|---|
-| `LLM_MODEL` | AI model at Groq, e.g. `llama-3.3-70b-versatile` (best) or `llama-3.1-8b-instant` (faster, higher free limits, weaker at bookings) |
+| `LLM_MODEL` | AI model at Groq, e.g. `openai/gpt-oss-120b` (best) or `openai/gpt-oss-20b` (faster) |
+| `LLM_FALLBACK_MODELS` | backup models tried automatically if the main one is retired |
 | `LLM_BASE_URL`, `LLM_API_KEY` | use another OpenAI-compatible AI provider |
 | `SEED_DEMO_DATA` | `true` / `false` |
 

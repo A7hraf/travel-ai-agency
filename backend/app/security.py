@@ -28,16 +28,26 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 def create_access_token(user_id: int) -> str:
     settings = get_settings()
-    expires = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_minutes)
-    return jwt.encode({"sub": str(user_id), "exp": expires}, settings.secret_key, algorithm=ALGORITHM)
+    now = datetime.now(timezone.utc)
+    expires = now + timedelta(minutes=settings.access_token_minutes)
+    claims = {"sub": str(user_id), "iat": int(now.timestamp()), "iat_ms": int(now.timestamp() * 1000), "exp": expires}
+    return jwt.encode(claims, settings.secret_key, algorithm=ALGORITHM)
 
 
-def decode_access_token(token: str) -> int | None:
+def decode_access_token(token: str) -> tuple[int, int] | None:
+    """(user id, issued-at in unix milliseconds) for a valid token, else None."""
     try:
-        payload = jwt.decode(token, get_settings().secret_key, algorithms=[ALGORITHM])
-        return int(payload["sub"])
-    except (jwt.PyJWTError, KeyError, ValueError):
+        payload = jwt.decode(
+            token, get_settings().secret_key, algorithms=[ALGORITHM], options={"require": ["exp", "iat", "sub"]}
+        )
+        return int(payload["sub"]), int(payload.get("iat_ms") or int(payload["iat"]) * 1000)
+    except (jwt.PyJWTError, KeyError, ValueError, TypeError):
         return None
+
+
+def revoke_sessions_now() -> datetime:
+    """Value for User.tokens_valid_after: every token issued before this moment stops working."""
+    return datetime.now(timezone.utc)
 
 
 def random_token(nbytes: int = 24) -> str:

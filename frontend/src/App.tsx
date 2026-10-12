@@ -10,6 +10,7 @@ import Packages from "./pages/Packages";
 import Settings from "./pages/Settings";
 import Storefront from "./pages/Storefront";
 import Tickets from "./pages/Tickets";
+import Training from "./pages/Training";
 import Users from "./pages/Users";
 import Companies from "./pages/system/Companies";
 import CompanyDetail from "./pages/system/CompanyDetail";
@@ -52,6 +53,7 @@ export default function App() {
         <Route path="packages" element={<RequireUser permission="packages.view"><Packages /></RequireUser>} />
         <Route path="users" element={<RequireUser permission="users.manage"><Users /></RequireUser>} />
         <Route path="settings" element={<RequireUser permission="settings.manage"><Settings /></RequireUser>} />
+        <Route path="training" element={<RequireUser permission="settings.manage"><Training /></RequireUser>} />
         <Route path="account" element={<Account />} />
       </Route>
 

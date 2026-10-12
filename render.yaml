@@ -21,21 +21,27 @@ services:
         sync: false
       - key: SYSTEM_ADMIN_PASSWORD
         sync: false
-      # Demo company "Sunrise Travel" for a first look. Set to false before real use.
+      # Demo company "Sunrise Travel" (Muscat, prices in OMR). In production its staff logins
+      # get random passwords; reset them from the platform console if you want to use them.
       - key: SEED_DEMO_DATA
         value: "true"
-      # AI brain: open-source Llama 3.3 70B hosted by Groq (free tier).
+      # AI brain: open-source gpt-oss (Apache 2.0) hosted by Groq (free tier).
+      # Groq retired Llama 3.3 70B in August 2026; the fallback is used if a model is retired again.
       - key: LLM_PROVIDER
         value: openai_compatible
       - key: LLM_BASE_URL
         value: https://api.groq.com/openai/v1
       - key: LLM_MODEL
-        value: llama-3.3-70b-versatile
+        value: openai/gpt-oss-120b
+      - key: LLM_FALLBACK_MODELS
+        value: openai/gpt-oss-20b
+      - key: LLM_REASONING_EFFORT
+        value: low
       - key: LLM_API_KEY
         sync: false
       # Shorter history = fewer tokens = more chats within the free AI limits.
       - key: LLM_MAX_HISTORY_MESSAGES
-        value: "24"
+        value: "20"
       # Faster logins on the small free instance.
       - key: BCRYPT_ROUNDS
         value: "10"

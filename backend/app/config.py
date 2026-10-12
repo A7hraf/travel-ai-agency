@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     secret_key: str = DEFAULT_SECRET_KEY
     access_token_minutes: int = 60 * 12
     bcrypt_rounds: int = 12
+    # Key for encrypting secrets in the database (Fernet, urlsafe base64 of 32 bytes).
+    # Empty: derived from SECRET_KEY.
+    encryption_key: str = ""
 
     # The platform owner account, created on first start if it does not exist.
     system_admin_email: str = "owner@example.com"
@@ -44,9 +47,13 @@ class Settings(BaseSettings):
     llm_base_url: str = "http://localhost:11434/v1"
     llm_api_key: str = "ollama"
     llm_model: str = "travel-agent"
+    # Tried in order when the main model has been retired by the provider (comma separated).
+    llm_fallback_models: str = ""
+    # For reasoning models such as gpt-oss on Groq: "low" keeps replies fast and cheap.
+    llm_reasoning_effort: str = ""
     llm_temperature: float = 0.3
     llm_timeout_seconds: float = 120.0
-    llm_max_history_messages: int = 40
+    llm_max_history_messages: int = 24
     llm_max_tool_rounds: int = 6
 
     # --- WhatsApp Cloud API (Meta) --------------------------------------------
@@ -59,8 +66,10 @@ class Settings(BaseSettings):
     # Fallback access token when a company has not stored its own.
     whatsapp_default_access_token: str = ""
 
-    # Public chat abuse protection
+    # Abuse protection (also protects your AI provider quota)
     public_chat_max_messages_per_minute: int = 12
+    public_chat_max_messages_per_ip_per_minute: int = 30
+    ai_max_replies_per_company_per_hour: int = 300
     public_chat_max_message_length: int = 2000
 
     @property

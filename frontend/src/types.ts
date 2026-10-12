@@ -69,11 +69,36 @@ export interface CompanySettings {
   contact_phone: string | null;
   ai_agent_name: string;
   ai_welcome_message: string | null;
+  ai_welcome_message_ar: string | null;
   ai_instructions: string;
   knowledge_base: string;
   whatsapp_phone_number_id: string | null;
   whatsapp_display_number: string | null;
   whatsapp_token_set: boolean;
+  whatsapp_app_secret_set: boolean;
+  whatsapp_webhook_path: string | null;
+  whatsapp_verify_token: string | null;
+}
+
+export interface TrainingExample {
+  id: number;
+  question: string;
+  answer: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AICheck {
+  ok: boolean;
+  provider: string;
+  model: string;
+  fallback_models: string[];
+  server: string;
+  api_key_set: boolean;
+  uses_tools: boolean;
+  answered_by: string | null;
+  message: string;
+  seconds: number;
 }
 
 export interface TravelPackage {

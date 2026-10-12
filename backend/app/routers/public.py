@@ -27,6 +27,8 @@ from ..services.conversations import handle_customer_message, is_customer_visibl
 router = APIRouter(prefix="/api/public/companies/{slug}", tags=["public"])
 
 
+def client_ip(request: Request) -> str:
+    return request.client.host if request.client else "?"
 
 
 def _company(db: Session, slug: str) -> Company:
@@ -76,7 +78,7 @@ def packages(slug: str, db: Session = Depends(get_db)):
 @router.post("/chats", response_model=StartChatOut, status_code=201)
 def start_chat(slug: str, body: StartChatIn, request: Request, db: Session = Depends(get_db)):
     company = _company(db, slug)
-    limiter.check(f"start:{request.client.host if request.client else '?'}", 10)
+    limiter.check(f"start:{client_ip(request)}", 10)
     customer = Customer(
         company_id=company.id,
         name=(body.name or "").strip() or None,
@@ -89,14 +91,14 @@ def start_chat(slug: str, body: StartChatIn, request: Request, db: Session = Dep
                         public_token=random_token())
     db.add(conv)
     db.flush()
-    welcome = Message(conversation_id=conv.id, sender=Sender.AI, content=welcome_message(company))
+    welcome = Message(conversation_id=conv.id, sender=Sender.AI, content=welcome_message(company, body.lang))
     db.add(welcome)
     db.commit()
     return StartChatOut(token=conv.public_token, status=conv.status, messages=[public_message_out(welcome)])
 
 
 @router.post("/chats/{token}/messages", response_model=ChatMessagesOut)
-def send_message(slug: str, token: str, body: CustomerMessageIn, db: Session = Depends(get_db)):
+def send_message(slug: str, token: str, body: CustomerMessageIn, request: Request, db: Session = Depends(get_db)):
     settings = get_settings()
     company = _company(db, slug)
     conv = _conversation(db, company, token)
@@ -106,6 +108,8 @@ def send_message(slug: str, token: str, body: CustomerMessageIn, db: Session = D
     if len(text) > settings.public_chat_max_message_length:
         raise HTTPException(413, "Message is too long")
     limiter.check(f"chat:{token}", settings.public_chat_max_messages_per_minute,
+                  "Too many messages, please wait a moment")
+    limiter.check(f"chat-ip:{client_ip(request)}", settings.public_chat_max_messages_per_ip_per_minute,
                   "Too many messages, please wait a moment")
 
     last_id = db.scalar(select(Message.id).where(Message.conversation_id == conv.id).order_by(Message.id.desc()).limit(1)) or 0

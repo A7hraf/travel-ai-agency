@@ -1,12 +1,20 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { ApiError, get, post } from "../api";
+import { Lang, Money } from "../components/Money";
 import { ChatText, Modal } from "../components/ui";
+import { STOREFRONT_TEXT, StorefrontText, useLang } from "../i18n";
 import type { PublicCompany, PublicMessage, TravelPackage } from "../types";
-import { gradientFor, money, shortDate } from "../util";
+import { gradientFor, shortDate } from "../util";
+
+function cover(p: TravelPackage) {
+  return p.image_url ? `center / cover no-repeat url(${JSON.stringify(p.image_url)})` : gradientFor(p.destination);
+}
 
 export default function Storefront() {
   const { slug = "" } = useParams();
+  const [lang, setLang] = useLang();
+  const t = STOREFRONT_TEXT[lang];
   const [company, setCompany] = useState<PublicCompany | null>(null);
   const [packages, setPackages] = useState<TravelPackage[]>([]);
   const [notFound, setNotFound] = useState(false);
@@ -19,13 +27,13 @@ export default function Storefront() {
   useEffect(() => {
     get<PublicCompany>(`/api/public/companies/${slug}`).then((c) => {
       setCompany(c);
-      document.title = `${c.name} · Travel packages`;
+      document.title = c.name;
     }).catch(() => setNotFound(true));
     get<TravelPackage[]>(`/api/public/companies/${slug}/packages`).then(setPackages).catch(() => {});
   }, [slug]);
 
-  if (notFound) return <div className="sf-missing">This travel agency page does not exist.</div>;
-  if (!company) return <div className="loading-screen">Loading…</div>;
+  if (notFound) return <div className="sf-missing">{t.notFound}</div>;
+  if (!company) return <div className="loading-screen">{t.loading}</div>;
 
   const shown = packages.filter((p) => {
     const text = `${p.title} ${p.destination} ${p.country} ${p.tags.join(" ")} ${p.description}`.toLowerCase();
@@ -34,51 +42,56 @@ export default function Storefront() {
 
   const askAbout = (p: TravelPackage) => {
     setSelected(null);
-    setPrefill(`Hi! I'm interested in the "${p.title}" package (${p.duration_days} days). Can you tell me more?`);
+    setPrefill(t.interested(p.title, p.duration_days));
     setChatOpen(true);
   };
   const waDigits = company.whatsapp_number?.replace(/\D/g, "");
+  const agent = company.ai_agent_name;
 
   return (
-    <div className="sf">
+    <div className="sf" dir={lang === "ar" ? "rtl" : "ltr"} lang={lang}>
       <header className="sf-hero">
         <div className="sf-nav">
           <div className="sf-logo">✈ {company.name}</div>
           <div className="sf-contact">
-            {company.contact_phone && <span>☎ {company.contact_phone}</span>}
-            {waDigits && <a className="btn btn-wa btn-sm" href={`https://wa.me/${waDigits}`} target="_blank" rel="noreferrer">WhatsApp us</a>}
+            {company.contact_phone && <span dir="ltr">☎ {company.contact_phone}</span>}
+            {waDigits && <a className="btn btn-wa btn-sm" href={`https://wa.me/${waDigits}`} target="_blank" rel="noreferrer">{t.whatsapp}</a>}
+            <button className="btn btn-sm lang-switch" onClick={() => setLang(lang === "ar" ? "en" : "ar")}>{t.switchTo}</button>
           </div>
         </div>
         <div className="sf-hero-text">
-          <h1>Where do you want to go next?</h1>
-          <p>Browse our packages or chat with {company.ai_agent_name}, our AI travel consultant. Available 24/7, in your language.</p>
+          <h1>{t.heroTitle}</h1>
+          <p>{t.heroText(agent)}</p>
           <div className="sf-search">
-            <input placeholder="Destination, country or trip type (beach, honeymoon, family…)" value={query} onChange={(e) => setQuery(e.target.value)} />
-            <input type="number" min={0} placeholder={`Max budget (${company.currency})`} value={budget} onChange={(e) => setBudget(e.target.value)} />
-            <button className="btn btn-primary" onClick={() => setChatOpen(true)}>Chat with {company.ai_agent_name}</button>
+            <input placeholder={t.searchPlaceholder} value={query} onChange={(e) => setQuery(e.target.value)} />
+            <input type="number" min={0} placeholder={t.budgetPlaceholder} value={budget} onChange={(e) => setBudget(e.target.value)} />
+            <button className="btn btn-primary" onClick={() => setChatOpen(true)}>{t.chatWith(agent)}</button>
           </div>
         </div>
       </header>
 
       <main className="sf-main">
-        <h2>Our offers</h2>
+        <div className="sf-offers-head">
+          <h2>{t.offers}</h2>
+          {company.currency === "OMR" && <span className="muted small">{t.pricesNote}</span>}
+        </div>
         {shown.length === 0 ? (
-          <p className="muted">No package matches your search. <button className="link-btn" onClick={() => setChatOpen(true)}>Ask {company.ai_agent_name}</button> for a custom trip.</p>
+          <p className="muted">{t.noMatch} <button className="link-btn" onClick={() => setChatOpen(true)}>{t.askFor(agent)}</button> {t.customTrip}</p>
         ) : (
           <div className="pkg-grid">
             {shown.map((p) => (
               <article key={p.id} className="pkg-card sf-card" onClick={() => setSelected(p)}>
-                <div className="pkg-cover" style={{ background: p.image_url ? `center / cover no-repeat url(${JSON.stringify(p.image_url)})` : gradientFor(p.destination) }}>
+                <div className="pkg-cover" style={{ background: cover(p) }}>
                   <span>{p.destination}, {p.country}</span>
-                  {p.is_featured && <span className="pkg-flag">★ Featured</span>}
+                  {p.is_featured && <span className="pkg-flag">{t.featured}</span>}
                 </div>
                 <div className="pkg-body">
                   <h3>{p.title}</h3>
-                  <div className="muted small">{p.duration_days} days{p.hotel_stars ? ` · ${"★".repeat(p.hotel_stars)} hotel` : ""}</div>
-                  <div className="tag-row">{p.tags.slice(0, 4).map((t) => <span key={t} className="tag">{t}</span>)}</div>
+                  <div className="muted small">{t.days(p.duration_days)}{p.hotel_stars ? ` · ${"★".repeat(p.hotel_stars)} ${t.starHotel}` : ""}</div>
+                  <div className="tag-row">{p.tags.slice(0, 4).map((tag) => <span key={tag} className="tag">{tag}</span>)}</div>
                   <div className="row-between">
-                    <div className="pkg-price">{money(p.price_per_person, p.currency)}<span className="muted small"> / person</span></div>
-                    <button className="btn btn-sm btn-primary" onClick={(e) => { e.stopPropagation(); askAbout(p); }}>Book</button>
+                    <div className="pkg-price"><Money value={p.price_per_person} currency={p.currency} lang={lang} /><span className="muted small"> {t.perPerson}</span></div>
+                    <button className="btn btn-sm btn-primary" onClick={(e) => { e.stopPropagation(); askAbout(p); }}>{t.book}</button>
                   </div>
                 </div>
               </article>
@@ -88,49 +101,53 @@ export default function Storefront() {
       </main>
 
       <footer className="sf-footer">
-        {company.name} · {company.contact_email ?? ""} · Payments are handled by our team, never by the chat.
+        {company.name}{company.contact_email ? ` · ${company.contact_email}` : ""} · {t.footer}
       </footer>
 
       {selected && (
         <Modal title={selected.title} onClose={() => setSelected(null)} wide>
-          <div className="pkg-cover big" style={{ background: selected.image_url ? `center / cover no-repeat url(${JSON.stringify(selected.image_url)})` : gradientFor(selected.destination) }}>
-            <span>{selected.destination}, {selected.country} · {selected.duration_days} days</span>
-          </div>
-          <p>{selected.description}</p>
-          <div className="grid-2">
-            <div>
-              <h4>Included</h4>
-              <ul className="ticks">{selected.includes.map((i) => <li key={i}>{i}</li>)}</ul>
+          <div dir={lang === "ar" ? "rtl" : "ltr"}>
+            <div className="pkg-cover big" style={{ background: cover(selected) }}>
+              <span>{selected.destination}, {selected.country} · {t.days(selected.duration_days)}</span>
             </div>
-            <div>
-              <h4>Not included</h4>
-              <ul className="crosses">{selected.excludes.map((i) => <li key={i}>{i}</li>)}</ul>
+            <p>{selected.description}</p>
+            <div className="grid-2">
+              <div>
+                <h4>{t.included}</h4>
+                <ul className="ticks">{selected.includes.map((i) => <li key={i}>{i}</li>)}</ul>
+              </div>
+              <div>
+                <h4>{t.notIncluded}</h4>
+                <ul className="crosses">{selected.excludes.map((i) => <li key={i}>{i}</li>)}</ul>
+              </div>
             </div>
-          </div>
-          <dl className="details">
-            <dt>Hotel</dt><dd>{selected.hotel_name ?? "—"} {selected.hotel_stars ? "★".repeat(selected.hotel_stars) : ""}</dd>
-            <dt>Departures</dt><dd>{selected.departure_dates.length ? selected.departure_dates.map(shortDate).join(" · ") : "Flexible, on request"}</dd>
-            <dt>Price</dt><dd><strong>{money(selected.price_per_person, selected.currency)}</strong> per adult
-              {selected.child_price != null && <> · {money(selected.child_price, selected.currency)} per child</>}</dd>
-            {selected.seats_available != null && <><dt>Seats left</dt><dd>{selected.seats_available}</dd></>}
-          </dl>
-          <div className="modal-actions"><span className="spacer" />
-            <button className="btn btn-primary" onClick={() => askAbout(selected)}>Book with {company.ai_agent_name}</button>
+            <dl className="details">
+              <dt>{t.hotel}</dt><dd>{selected.hotel_name ?? "—"} {selected.hotel_stars ? "★".repeat(selected.hotel_stars) : ""}</dd>
+              <dt>{t.departures}</dt><dd>{selected.departure_dates.length ? selected.departure_dates.map(shortDate).join(" · ") : t.flexible}</dd>
+              <dt>{t.price}</dt><dd><strong><Money value={selected.price_per_person} currency={selected.currency} lang={lang} /></strong> {t.perAdult}
+                {selected.child_price != null && <> · <Money value={selected.child_price} currency={selected.currency} lang={lang} /> {t.perChild}</>}</dd>
+              {selected.seats_available != null && <><dt>{t.seatsLeft}</dt><dd>{selected.seats_available}</dd></>}
+            </dl>
+            <div className="modal-actions"><span className="spacer" />
+              <button className="btn btn-primary" onClick={() => askAbout(selected)}>{t.bookWith(agent)}</button>
+            </div>
           </div>
         </Modal>
       )}
 
       {chatOpen ? (
-        <ChatWidget slug={slug} company={company} prefill={prefill} onPrefillUsed={() => setPrefill(null)} onClose={() => setChatOpen(false)} />
+        <ChatWidget slug={slug} company={company} lang={lang} t={t} prefill={prefill}
+          onPrefillUsed={() => setPrefill(null)} onClose={() => setChatOpen(false)} />
       ) : (
-        <button className="chat-fab" onClick={() => setChatOpen(true)}>💬 Chat with {company.ai_agent_name}</button>
+        <button className="chat-fab" onClick={() => setChatOpen(true)}>💬 {t.chatWith(agent)}</button>
       )}
     </div>
   );
 }
 
-function ChatWidget({ slug, company, prefill, onPrefillUsed, onClose }: {
-  slug: string; company: PublicCompany; prefill: string | null; onPrefillUsed: () => void; onClose: () => void;
+function ChatWidget({ slug, company, lang, t, prefill, onPrefillUsed, onClose }: {
+  slug: string; company: PublicCompany; lang: Lang; t: StorefrontText; prefill: string | null;
+  onPrefillUsed: () => void; onClose: () => void;
 }) {
   const storageKey = `travel_chat_${slug}`;
   const [token, setToken] = useState<string | null>(null);
@@ -152,13 +169,13 @@ function ChatWidget({ slug, company, prefill, onPrefillUsed, onClose }: {
   }, []);
 
   const startNew = useCallback(async () => {
-    const res = await post<{ token: string; status: string; messages: PublicMessage[] }>(base, {});
+    const res = await post<{ token: string; status: string; messages: PublicMessage[] }>(base, { lang });
     try { localStorage.setItem(storageKey, res.token); } catch { /* ignore */ }
     setToken(res.token);
     setStatus(res.status);
     setMessages(res.messages);
     return res.token;
-  }, [base, storageKey]);
+  }, [base, storageKey, lang]);
 
   // Resume the previous chat on this device, or start a new one.
   useEffect(() => {
@@ -198,12 +215,12 @@ function ChatWidget({ slug, company, prefill, onPrefillUsed, onClose }: {
       merge(r.messages);
     } catch (e) {
       setMessages((prev) => prev.filter((m) => m.id > 0));
-      setError(e instanceof ApiError && e.status === 429 ? "You're sending messages too fast, please wait a moment." : "Message not sent, please try again.");
+      setError(e instanceof ApiError && e.status === 429 ? t.tooFast : t.notSent);
       setText(content);
     } finally {
       setWaiting(false);
     }
-  }, [token, base, merge]);
+  }, [token, base, merge, t]);
 
   useEffect(() => {
     if (prefill && token && !waiting) {
@@ -226,21 +243,21 @@ function ChatWidget({ slug, company, prefill, onPrefillUsed, onClose }: {
   };
 
   return (
-    <div className="chat-widget">
+    <div className="chat-widget" dir={lang === "ar" ? "rtl" : "ltr"}>
       <div className="cw-head">
         <div className="cw-avatar">{company.ai_agent_name.charAt(0)}</div>
         <div>
           <div className="cw-name">{company.ai_agent_name} · {company.name}</div>
-          <div className="cw-sub">{status === "human" ? "A travel consultant is with you" : "AI travel consultant · replies instantly"}</div>
+          <div className="cw-sub">{status === "human" ? t.humanSub : t.aiSub}</div>
         </div>
-        <button className="icon-btn light" title="New conversation" onClick={restart}>↻</button>
-        <button className="icon-btn light" onClick={onClose} aria-label="Close chat">×</button>
+        <button className="icon-btn light" title={t.newChat} onClick={restart}>↻</button>
+        <button className="icon-btn light" onClick={onClose} aria-label={t.close}>×</button>
       </div>
       <div className="cw-body">
         {messages.map((m) => (
           <div key={m.id} className={`cw-msg ${m.sender === "customer" ? "me" : "them"}`}>
-            {m.sender === "agent" && <div className="cw-who">Travel consultant</div>}
-            <div className="cw-bubble"><ChatText text={m.content} /></div>
+            {m.sender === "agent" && <div className="cw-who">{t.consultant}</div>}
+            <div className="cw-bubble" dir="auto"><ChatText text={m.content} /></div>
           </div>
         ))}
         {waiting && status !== "human" && <div className="cw-msg them"><div className="cw-bubble typing"><span /><span /><span /></div></div>}
@@ -248,8 +265,8 @@ function ChatWidget({ slug, company, prefill, onPrefillUsed, onClose }: {
       </div>
       {error && <div className="cw-error">{error}</div>}
       <form className="cw-input" onSubmit={submit}>
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Type your message…" disabled={!token} maxLength={2000} />
-        <button className="btn btn-primary" disabled={!text.trim() || waiting || !token}>Send</button>
+        <input value={text} onChange={(e) => setText(e.target.value)} placeholder={t.typeHere} disabled={!token} maxLength={2000} dir="auto" />
+        <button className="btn btn-primary" disabled={!text.trim() || waiting || !token}>{t.send}</button>
       </form>
     </div>
   );

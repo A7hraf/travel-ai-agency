@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react";
-import { post } from "../api";
+import { post, setToken } from "../api";
 import { useAuth } from "../auth";
 import { ErrorBox, Field, PageHeader } from "../components/ui";
 import { ROLE_LABELS } from "../util";
@@ -17,7 +17,9 @@ export default function Account() {
     setError(null);
     setOk(false);
     try {
-      await post("/api/auth/change-password", { current_password: current, new_password: next });
+      // Other devices are logged out; this one gets a fresh login token.
+      const res = await post<{ access_token: string }>("/api/auth/change-password", { current_password: current, new_password: next });
+      setToken(res.access_token);
       setOk(true);
       setCurrent("");
       setNext("");
@@ -43,7 +45,7 @@ export default function Account() {
         <Field label="Current password"><input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} required /></Field>
         <Field label="New password" hint="At least 8 characters"><input type="password" minLength={8} value={next} onChange={(e) => setNext(e.target.value)} required /></Field>
         <ErrorBox error={error} />
-        {ok && <div className="ok-box">Password changed.</div>}
+        {ok && <div className="ok-box">Password changed. Your other devices were logged out.</div>}
         <button className="btn btn-primary">Change password</button>
       </form>
     </div>

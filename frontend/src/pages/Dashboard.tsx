@@ -4,7 +4,8 @@ import { get } from "../api";
 import { useAuth } from "../auth";
 import { Badge, CONVERSATION_TONES, PageHeader, TICKET_TONES } from "../components/ui";
 import type { Dashboard as DashboardData } from "../types";
-import { CONVERSATION_STATUS_LABELS, money, TICKET_STATUS_LABELS, usePolling } from "../util";
+import { Money } from "../components/Money";
+import { CONVERSATION_STATUS_LABELS, TICKET_STATUS_LABELS, usePolling } from "../util";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -27,11 +28,11 @@ export default function Dashboard() {
         <Link to="/app/tickets" className="stat stat-link">
           <div className="stat-label">Open booking tickets</div>
           <div className="stat-value">{openTickets}</div>
-          <div className="stat-sub">{money(data.pipeline_value, data.currency)} to collect</div>
+          <div className="stat-sub"><Money value={data.pipeline_value} currency={data.currency} /> to collect</div>
         </Link>
         <div className="stat">
           <div className="stat-label">Confirmed sales</div>
-          <div className="stat-value">{money(data.confirmed_value, data.currency)}</div>
+          <div className="stat-value"><Money value={data.confirmed_value} currency={data.currency} /></div>
         </div>
         <div className="stat">
           <div className="stat-label">My open tickets</div>

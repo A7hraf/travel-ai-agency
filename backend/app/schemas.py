@@ -1,5 +1,6 @@
 import re
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
@@ -93,7 +94,7 @@ class CompanyCreate(BaseModel):
     name: str = Field(min_length=2, max_length=200)
     slug: str | None = Field(default=None, max_length=80)
     max_users: int = Field(default=5, ge=1, le=10000)
-    currency: str = Field(default="USD", min_length=3, max_length=3)
+    currency: str = Field(default="OMR", min_length=3, max_length=3)
     contact_email: EmailStr | None = None
     contact_phone: str | None = None
     admin_email: EmailStr
@@ -156,11 +157,16 @@ class CompanySettingsOut(ORM):
     contact_phone: str | None
     ai_agent_name: str
     ai_welcome_message: str | None
+    ai_welcome_message_ar: str | None
     ai_instructions: str
     knowledge_base: str
     whatsapp_phone_number_id: str | None
     whatsapp_display_number: str | None
     whatsapp_token_set: bool
+    whatsapp_app_secret_set: bool
+    # Only shown to employees allowed to manage settings.
+    whatsapp_webhook_path: str | None = None
+    whatsapp_verify_token: str | None = None
 
 
 class CompanySettingsUpdate(BaseModel):
@@ -169,12 +175,14 @@ class CompanySettingsUpdate(BaseModel):
     contact_phone: str | None = Field(default=None, max_length=50)
     ai_agent_name: str | None = Field(default=None, min_length=1, max_length=80)
     ai_welcome_message: str | None = Field(default=None, max_length=1000)
+    ai_welcome_message_ar: str | None = Field(default=None, max_length=1000)
     ai_instructions: str | None = Field(default=None, max_length=8000)
     knowledge_base: str | None = Field(default=None, max_length=30000)
     whatsapp_phone_number_id: str | None = Field(default=None, max_length=64)
     whatsapp_display_number: str | None = Field(default=None, max_length=50)
-    # Write-only; send "" to remove the stored token.
-    whatsapp_access_token: str | None = None
+    # Write-only; send "" to remove the stored value.
+    whatsapp_access_token: str | None = Field(default=None, max_length=2000)
+    whatsapp_app_secret: str | None = Field(default=None, max_length=200)
 
 
 # --- Packages -------------------------------------------------------------------------
@@ -379,6 +387,7 @@ class PublicPackageOut(ORM):
 
 
 class StartChatIn(BaseModel):
+    lang: Literal["en", "ar"] = "en"
     name: str | None = Field(default=None, max_length=200)
     phone: str | None = Field(default=None, max_length=50)
     email: EmailStr | None = None
@@ -404,3 +413,39 @@ class CustomerMessageIn(BaseModel):
 class ChatMessagesOut(BaseModel):
     status: str
     messages: list[PublicMessageOut]
+
+
+# --- AI training and diagnostics ----------------------------------------------------------------
+
+
+class TrainingIn(BaseModel):
+    question: str = Field(min_length=2, max_length=1000)
+    answer: str = Field(min_length=1, max_length=4000)
+
+
+class TrainingOut(ORM):
+    id: int
+    question: str
+    answer: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class AICheckOut(BaseModel):
+    ok: bool
+    provider: str
+    model: str
+    fallback_models: list[str]
+    server: str
+    api_key_set: bool
+    uses_tools: bool
+    answered_by: str | None = None
+    message: str
+    seconds: float
+
+
+class DemoAccount(BaseModel):
+    label: str
+    email: str
+    password: str
+

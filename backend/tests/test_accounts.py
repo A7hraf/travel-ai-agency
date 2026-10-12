@@ -135,15 +135,30 @@ def test_delete_company_removes_everything(client, owner):
     assert r.status_code == 401
 
 
-def test_change_password(client, company_a):
+def test_change_password_logs_out_other_sessions(client, company_a):
     _, admin = company_a
+    other_device = login(client, "admin@bluesky.com", "AdminPass123!")
     r = client.post("/api/auth/change-password", headers=admin,
                     json={"current_password": "wrong", "new_password": "Whatever123"})
     assert r.status_code == 400
     r = client.post("/api/auth/change-password", headers=admin,
                     json={"current_password": "AdminPass123!", "new_password": "Whatever123"})
-    assert r.status_code == 204
+    assert r.status_code == 200
+    fresh = {"Authorization": f"Bearer {r.json()['access_token']}"}
+    assert client.get("/api/auth/me", headers=fresh).status_code == 200
+    assert client.get("/api/auth/me", headers=admin).status_code == 401
+    assert client.get("/api/auth/me", headers=other_device).status_code == 401
     login(client, "admin@bluesky.com", "Whatever123")
+
+
+def test_password_reset_by_admin_ends_the_employee_sessions(client, company_a):
+    _, admin = company_a
+    r = client.post("/api/users", headers=admin, json={
+        "email": "s@bluesky.com", "full_name": "S", "password": "Password123", "role": "support"})
+    employee = login(client, "s@bluesky.com", "Password123")
+    client.patch(f"/api/users/{r.json()['id']}", headers=admin, json={"password": "NewPassword123"})
+    assert client.get("/api/auth/me", headers=employee).status_code == 401
+    login(client, "s@bluesky.com", "NewPassword123")
 
 
 def test_login_attempts_are_limited(client, company_a):

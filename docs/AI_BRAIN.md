@@ -7,10 +7,14 @@ around it: a travel-sales prompt, tools bound to one company's catalog, and the 
 
 | | |
 |---|---|
-| Default | **Qwen 2.5 7B Instruct** (`qwen2.5:7b`, Apache 2.0) |
-| Why | Reliable tool (function) calling, strong multilingual chat incl. Arabic, runs on one consumer GPU or a 16 GB CPU server |
-| Server | [Ollama](https://ollama.com) via its OpenAI-compatible API (`/v1/chat/completions`) |
-| Alternatives | `qwen2.5:3b` (fast on CPU), `qwen2.5:14b` / `qwen2.5:32b` (smarter, more GPU), `llama3.1:8b`, `qwen3:8b`, Llama 3.3 70B on a hosted provider |
+| Hosted (Render guide) | **gpt-oss 120B** (`openai/gpt-oss-120b`, Apache 2.0) on Groq, backup `openai/gpt-oss-20b`, reasoning effort `low` |
+| Self-hosted (server guide) | **Qwen 2.5 7B Instruct** (`qwen2.5:7b`, Apache 2.0) in [Ollama](https://ollama.com) |
+| Why | Reliable tool (function) calling and good Arabic; all open-weight models |
+| Alternatives | `qwen2.5:3b` (fast on CPU), `qwen2.5:14b` (smarter, more GPU), `qwen3:8b`, `llama3.1:8b` |
+
+Hosted providers retire models: Groq retired Llama 3.3 70B in August 2026. `LLM_FALLBACK_MODELS`
+are tried automatically when the main model is gone, and the **Test AI** button shows the exact
+error from the provider.
 
 The app speaks the OpenAI chat-completions protocol, so any server that does too works: Ollama,
 vLLM, llama.cpp server, LocalAI, or hosted open models (Groq, OpenRouter, Together, Fireworks).
@@ -52,7 +56,24 @@ reply from:
   **Extra instructions**, both editable by the company admin in **AI & WhatsApp**,
 * what we already know about the customer (e.g. the phone number on WhatsApp).
 
-## 4. Tools (grounding)
+## 4. Training: how a company teaches the AI
+
+Without retraining the model, each company shapes its AI with:
+
+* **Packages**: titles, descriptions, inclusions and tags (Arabic tags such as «شهر عسل» or
+  «صلالة» let Arabic questions find the right trips).
+* **Knowledge & policies** and **Extra instructions** (AI & WhatsApp page).
+* **AI training** page: questions with the company's approved answers. For every customer message
+  the 3 closest questions (Arabic or English, by keywords) are added to the prompt, so the AI
+  answers the company's way.
+* Built-in travel-consultant skills in the prompt: needs discovery, family/honeymoon/Umrah tips,
+  passport and insurance reminders, honest budget suggestions, Gulf Arabic style, Omani rial prices.
+
+A company's training is used only for that company. Real fine-tuning of the shared model on
+company chats is deliberately not done: it could leak one company's information to another
+company's customers.
+
+## 5. Tools (grounding)
 
 [`backend/app/ai/tools.py`](../backend/app/ai/tools.py)
 
@@ -66,7 +87,7 @@ reply from:
 Tools receive the company and conversation from the server, never from the model, so a customer
 cannot make the AI read or book another company's data, whatever they type.
 
-## 5. The agent loop
+## 6. The agent loop
 
 [`backend/app/ai/agent.py`](../backend/app/ai/agent.py): model → tools → model … (max 6 rounds) →
 reply. Tool calls and results are stored with the conversation so the AI remembers earlier search
@@ -79,7 +100,7 @@ activity"). Robustness for small open models:
 * if the model is unreachable or produces nothing, the customer gets a polite reply and the
   conversation is handed to a human. A ticket created before a failure is kept.
 
-## 6. Going further
+## 7. Going further
 
 * **Fine-tuning**: export good conversations (staff can see them all) as chat-format JSONL and
   fine-tune with LoRA (e.g. Unsloth/Axolotl) on top of the base model, then import the GGUF into

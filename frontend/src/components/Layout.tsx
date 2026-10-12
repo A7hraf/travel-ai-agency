@@ -15,6 +15,7 @@ const COMPANY_NAV: NavItem[] = [
   { to: "/app/tickets", label: "Tickets", icon: "🎫", permission: "tickets.view" },
   { to: "/app/packages", label: "Packages", icon: "🧳", permission: "packages.view" },
   { to: "/app/users", label: "Team & accounts", icon: "👥", permission: "users.manage" },
+  { to: "/app/training", label: "AI training", icon: "🎓", permission: "settings.manage" },
   { to: "/app/settings", label: "AI & WhatsApp", icon: "⚙", permission: "settings.manage" },
   { to: "/app/account", label: "My account", icon: "🔑" },
 ];

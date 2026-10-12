@@ -3,12 +3,11 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { get } from "../api";
 import { homePath, useAuth } from "../auth";
 
-const DEMO_ACCOUNTS = [
-  { label: "Platform owner", email: "owner@example.com", password: "ChangeMe123!" },
-  { label: "Company admin", email: "admin@sunrise-travel.example", password: "Admin123!" },
-  { label: "Support", email: "support@sunrise-travel.example", password: "Support123!" },
-  { label: "Ticket employee", email: "tickets@sunrise-travel.example", password: "Tickets123!" },
-];
+interface DemoAccount {
+  label: string;
+  email: string;
+  password: string;
+}
 
 export default function Login() {
   const { user, login } = useAuth();
@@ -17,10 +16,11 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [demo, setDemo] = useState(false);
+  // Demo logins come from the server, only on development setups: they are never in the website code.
+  const [demo, setDemo] = useState<DemoAccount[]>([]);
 
   useEffect(() => {
-    get<{ demo: boolean }>("/api/health").then((h) => setDemo(h.demo)).catch(() => {});
+    get<DemoAccount[]>("/api/auth/demo-accounts").then(setDemo).catch(() => {});
   }, []);
 
   if (user) return <Navigate to={homePath(user)} replace />;
@@ -59,10 +59,10 @@ export default function Login() {
         {error && <div className="error-box">{error}</div>}
         <button className="btn btn-primary btn-block" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
 
-        {demo && (
+        {demo.length > 0 && (
           <div className="demo-box">
             <div className="muted small">Demo accounts (click to fill)</div>
-            {DEMO_ACCOUNTS.map((a) => (
+            {demo.map((a) => (
               <button type="button" key={a.email} className="demo-account"
                 onClick={() => { setEmail(a.email); setPassword(a.password); }}>
                 <strong>{a.label}</strong> <span className="muted">{a.email}</span>

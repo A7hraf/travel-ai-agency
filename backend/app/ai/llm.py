@@ -95,51 +95,105 @@ def _tool_call_from_text(content: str, tool_names: set[str]) -> ToolCall | None:
 
 
 RETRY_DELAY_SECONDS = 2.0
+MAX_RETRY_WAIT_SECONDS = 20.0
+_MODEL_GONE = ("model_decommissioned", "decommissioned", "model_not_found", "does not exist", "not supported")
 
 
-def _worth_retrying(resp: httpx.Response) -> bool:
-    """Rate limits, temporary server errors, and Groq's occasional malformed tool call."""
-    if resp.status_code in (429, 500, 502, 503, 504):
-        return True
-    return resp.status_code == 400 and "tool_use_failed" in resp.text
+def provider_error(resp: httpx.Response) -> str:
+    """The provider's own error text, e.g. Groq's {"error": {"message": ...}}."""
+    try:
+        body = resp.json()
+        err = body.get("error") if isinstance(body, dict) else None
+        if isinstance(err, dict) and err.get("message"):
+            return f"{resp.status_code}: {err['message']}"
+        if isinstance(err, str):
+            return f"{resp.status_code}: {err}"
+    except ValueError:
+        pass
+    return f"{resp.status_code}: {resp.text[:300]}"
+
+
+def _retry_wait(resp: httpx.Response, attempt: int) -> float | None:
+    """Seconds to wait before retrying, or None when retrying will not help."""
+    transient = resp.status_code in (429, 500, 502, 503, 504) or (
+        resp.status_code == 400 and "tool_use_failed" in resp.text
+    )
+    if not transient:
+        return None
+    try:
+        wait = float(resp.headers.get("retry-after", ""))
+    except ValueError:
+        wait = RETRY_DELAY_SECONDS * (attempt + 1)
+    return min(max(wait, 0.0), MAX_RETRY_WAIT_SECONDS)
+
+
+def _model_gone(resp: httpx.Response) -> bool:
+    return resp.status_code in (400, 404) and any(word in resp.text.lower() for word in _MODEL_GONE)
 
 
 class OpenAICompatibleClient:
-    def __init__(self, base_url: str, api_key: str, model: str, temperature: float, timeout: float):
-        self.base_url = base_url.rstrip("/")
-        self.api_key = api_key
-        self.model = model
+    def __init__(self, base_url: str, api_key: str, model: str, temperature: float, timeout: float,
+                 fallback_models: list[str] | None = None, reasoning_effort: str = ""):
+        self.base_url = base_url.strip().rstrip("/")
+        self.api_key = api_key.strip()
+        self.models = [m for m in [model.strip(), *(fallback_models or [])] if m]
         self.temperature = temperature
         self.timeout = timeout
+        self.reasoning_effort = reasoning_effort.strip()
+        self.last_model: str | None = None
+
+    @property
+    def model(self) -> str:
+        return self.models[0]
 
     def chat(self, messages: list[dict], tools: list[dict]) -> LLMResponse:
-        payload: dict = {"model": self.model, "messages": messages, "temperature": self.temperature}
-        if tools:
-            payload["tools"] = tools
-            payload["tool_choice"] = "auto"
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
-        for attempt in range(2):
-            try:
-                resp = httpx.post(
-                    f"{self.base_url}/chat/completions", json=payload, headers=headers, timeout=self.timeout
-                )
-                if attempt == 0 and _worth_retrying(resp):
-                    time.sleep(RETRY_DELAY_SECONDS)
-                    continue
-                resp.raise_for_status()
-                message = resp.json()["choices"][0]["message"]
-                break
-            except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
-                raise LLMError(f"LLM request failed: {exc}") from exc
+        last_error = "no model configured"
+        for model in self.models:
+            payload: dict = {"model": model, "messages": messages, "temperature": self.temperature}
+            if tools:
+                payload["tools"] = tools
+                payload["tool_choice"] = "auto"
+            if self.reasoning_effort:
+                payload["reasoning_effort"] = self.reasoning_effort
+            waited = 0.0
+            for attempt in range(3):
+                try:
+                    resp = httpx.post(
+                        f"{self.base_url}/chat/completions", json=payload, headers=headers, timeout=self.timeout
+                    )
+                except httpx.HTTPError as exc:
+                    raise LLMError(f"Cannot reach the AI server at {self.base_url}: {exc}") from exc
+                if resp.is_success:
+                    try:
+                        parsed = self._parse(resp.json()["choices"][0]["message"], tools)
+                        self.last_model = model
+                        return parsed
+                    except (KeyError, IndexError, ValueError, TypeError) as exc:
+                        raise LLMError(f"Unexpected answer from the AI server: {exc}") from exc
+                last_error = f"{model} -> {provider_error(resp)}"
+                wait = _retry_wait(resp, attempt)
+                if wait is None or attempt == 2 or waited + wait > MAX_RETRY_WAIT_SECONDS:
+                    break
+                log.info("AI busy (%s), retrying in %.1fs", resp.status_code, wait)
+                time.sleep(wait)
+                waited += wait
+            if _model_gone(resp) and model != self.models[-1]:
+                log.warning("AI model %s is not available, trying the next one: %s", model, last_error)
+                continue
+            break
+        raise LLMError(last_error)
 
+    @staticmethod
+    def _parse(message: dict, tools: list[dict]) -> LLMResponse:
         tool_calls = [
             ToolCall(
                 id=tc.get("id") or f"call_{uuid.uuid4().hex[:12]}",
-                name=tc["function"]["name"],
+                name=tc["function"]["name"].removeprefix("functions."),
                 arguments=_parse_arguments(tc["function"].get("arguments")),
             )
             for tc in (message.get("tool_calls") or [])
-            if tc.get("function", {}).get("name")
+            if (tc.get("function") or {}).get("name")
         ]
         content = clean_content(message.get("content"))
         if not tool_calls and content:
@@ -173,10 +227,11 @@ class MockTravelLLM:
             items = data.get("results") or data.get("alternatives") or []
             if not items:
                 return LLMResponse("I couldn't find a matching trip right now. Could you tell me another destination?")
-            lines = [
-                f"• {p['title']} ({p['duration_days']} days) from {p['price_per_person']} {p['currency']}"
-                for p in items[:5]
-            ]
+            def price(p: dict) -> str:
+                amount = float(p["price_per_person"])
+                return f"{p['currency']} {amount:,.3f}" if p["currency"] == "OMR" else f"{amount:,.2f} {p['currency']}"
+
+            lines = [f"• {p['title']} ({p['duration_days']} days) from {price(p)}" for p in items[:5]]
             intro = "Here are some trips you may like:" if data.get("results") else "No exact match, but you may like:"
             return LLMResponse(intro + "\n" + "\n".join(lines) + "\nWhich one interests you?")
         return LLMResponse("How can I help you plan your trip?")
@@ -203,4 +258,6 @@ def get_llm_client() -> LLMClient:
         model=s.llm_model,
         temperature=s.llm_temperature,
         timeout=s.llm_timeout_seconds,
+        fallback_models=[m.strip() for m in s.llm_fallback_models.split(",") if m.strip()],
+        reasoning_effort=s.llm_reasoning_effort,
     )

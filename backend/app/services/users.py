@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from ..models import Company, Role, User
 from ..permissions import COMPANY_ROLES, ROLE_DEFAULT_PERMISSIONS, clean_permissions
 from ..schemas import UserCreate, UserUpdate
-from ..security import hash_password
+from ..security import hash_password, revoke_sessions_now
 
 
 def seats_used(db: Session, company_id: int) -> int:
@@ -78,6 +78,7 @@ def update_company_user(db: Session, user: User, data: UserUpdate, acting_user: 
         user.full_name = data.full_name.strip()
     if data.password:
         user.password_hash = hash_password(data.password)
+        user.tokens_valid_after = revoke_sessions_now()
     if data.role is not None and data.role != user.role:
         user.role = data.role
         if data.permissions is None:

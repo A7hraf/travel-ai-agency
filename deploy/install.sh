@@ -78,7 +78,7 @@ OWNER_PASSWORD=${OWNER_PASSWORD:-$(random_hex 6)}
 
 echo
 echo "Which AI brain?"
-echo "  1) Groq cloud: open-source Llama 3.3, fast, has a free tier   (recommended)"
+echo "  1) Groq cloud: open-source gpt-oss, fast, has a free tier   (recommended)"
 echo "  2) Ollama on this server: fully private, needs 16 GB RAM, slow without a GPU"
 echo "  3) Demo mode: no real AI, to try the screens"
 old_choice=1
@@ -103,10 +103,10 @@ case "$AI_CHOICE" in
     fi
     if [ -z "$GROQ_API_KEY" ]; then
       warn "No Groq key given: starting in demo mode. Run the installer again when you have a key."
-      llm_provider=mock; llm_url=https://api.groq.com/openai/v1; llm_key=""; llm_model=llama-3.3-70b-versatile
+      llm_provider=mock; llm_url=https://api.groq.com/openai/v1; llm_key=""; llm_model=openai/gpt-oss-120b
     else
       llm_url=https://api.groq.com/openai/v1; llm_key=$GROQ_API_KEY
-      [ -n "$llm_model" ] && [ "$llm_model" != travel-agent ] || llm_model=llama-3.3-70b-versatile
+      case "$llm_model" in ""|travel-agent|llama-3.3-70b-versatile|llama-3.1-8b-instant) llm_model=openai/gpt-oss-120b ;; esac
     fi
     ;;
   2)
@@ -156,6 +156,8 @@ LLM_PROVIDER=$llm_provider
 LLM_BASE_URL=$llm_url
 LLM_API_KEY=$llm_key
 LLM_MODEL=$llm_model
+LLM_FALLBACK_MODELS=$([ "$llm_url" = "https://api.groq.com/openai/v1" ] && echo "openai/gpt-oss-20b")
+LLM_REASONING_EFFORT=$([ "$llm_url" = "https://api.groq.com/openai/v1" ] && echo "low")
 LLM_TEMPERATURE=0.3
 BASE_MODEL=$(current BASE_MODEL | grep . || echo "qwen2.5:7b")
 

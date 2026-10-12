@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { get, post } from "../../api";
+import AICheckCard from "../../components/AICheckCard";
 import { Badge, Empty, ErrorBox, Field, Modal, PageHeader } from "../../components/ui";
 import type { CompanyAdmin, PlatformStats } from "../../types";
 import { shortDate } from "../../util";
@@ -28,6 +29,7 @@ export default function Companies() {
           <div className="stat"><div className="stat-label">Booking tickets</div><div className="stat-value">{stats.tickets}</div></div>
         </div>
       )}
+      <AICheckCard path="/api/system/ai-check" />
       {companies === null ? <div className="loading">Loading…</div> : companies.length === 0 ? <Empty>No companies yet.</Empty> : (
         <div className="table-wrap">
           <table className="table">
@@ -55,7 +57,7 @@ export default function Companies() {
 }
 
 function CreateCompany({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [f, setF] = useState({ name: "", slug: "", max_users: "5", currency: "USD", contact_email: "",
+  const [f, setF] = useState({ name: "", slug: "", max_users: "5", currency: "OMR", contact_email: "",
     admin_full_name: "", admin_email: "", admin_password: "" });
   const [error, setError] = useState<string | null>(null);
   const set = (k: keyof typeof f, v: string) => setF({ ...f, [k]: v });
