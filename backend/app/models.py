@@ -15,6 +15,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    LargeBinary,
     Numeric,
     String,
     Text,
@@ -124,6 +125,9 @@ class Company(Base):
     )
     whatsapp_verify_token: Mapped[str | None] = mapped_column(String(64), default=lambda: random_token(18))
 
+    # Logo, colours and customer-page content (see app/branding.py).
+    branding: Mapped[dict | None] = mapped_column(JSON)
+
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
     users: Mapped[list["User"]] = relationship(back_populates="company", cascade="all, delete-orphan")
@@ -132,6 +136,7 @@ class Company(Base):
     conversations: Mapped[list["Conversation"]] = relationship(cascade="all, delete-orphan")
     tickets: Mapped[list["Ticket"]] = relationship(cascade="all, delete-orphan")
     training_examples: Mapped[list["TrainingExample"]] = relationship(cascade="all, delete-orphan")
+    media: Mapped[list["MediaFile"]] = relationship(cascade="all, delete-orphan")
 
 
 class User(Base):
@@ -285,3 +290,19 @@ class TrainingExample(Base):
     answer: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, onupdate=utcnow)
+
+
+class MediaFile(Base):
+    """An uploaded image (logo, package photo, page banner). Kept in the database so it survives
+    redeploys on hosts without a permanent disk."""
+
+    __tablename__ = "media_files"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    key: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    content_type: Mapped[str] = mapped_column(String(30))
+    size: Mapped[int] = mapped_column(Integer)
+    data: Mapped[bytes] = mapped_column(LargeBinary)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+

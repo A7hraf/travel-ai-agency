@@ -1,4 +1,5 @@
 import { ReactNode, useEffect } from "react";
+import { tr } from "../lang";
 
 export function Modal({ title, onClose, children, wide }: {
   title: string;
@@ -16,7 +17,7 @@ export function Modal({ title, onClose, children, wide }: {
       <div className={`modal ${wide ? "modal-wide" : ""}`} onMouseDown={(e) => e.stopPropagation()} role="dialog">
         <div className="modal-head">
           <h2>{title}</h2>
-          <button className="icon-btn" onClick={onClose} aria-label="Close">×</button>
+          <button className="icon-btn" onClick={onClose} aria-label={tr("Close")}>×</button>
         </div>
         <div className="modal-body">{children}</div>
       </div>

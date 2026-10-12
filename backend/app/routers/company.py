@@ -1,18 +1,41 @@
 """The logged-in employee's company: settings and dashboard."""
 
+from datetime import date, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..ai.health import check_ai
+from ..branding import Branding, BrandingUpdate, apply_update, get_branding
 from ..database import get_db
 from ..deps import get_company_user, require_permission
-from ..models import Company, Conversation, ConversationStatus, Ticket, TicketStatus, TravelPackage, User
+from ..models import (
+    Channel,
+    Company,
+    Conversation,
+    ConversationStatus,
+    Ticket,
+    TicketStatus,
+    TravelPackage,
+    User,
+    utcnow,
+)
 from ..permissions import effective_permissions
 from ..ratelimit import limiter
-from ..schemas import AICheckOut, CompanySettingsOut, CompanySettingsUpdate, DashboardOut
+from ..schemas import (
+    AICheckOut,
+    AnalyticsOut,
+    CompanySettingsOut,
+    CompanySettingsUpdate,
+    DailyPoint,
+    DashboardOut,
+    FunnelOut,
+    TopPackage,
+)
 from ..serializers import OPEN_TICKET_STATUSES, company_settings_out
 from ..services.users import seats_used
+from .media import media_belongs_to
 
 router = APIRouter(prefix="/api", tags=["company"])
 
@@ -97,3 +120,91 @@ def dashboard(me: User = Depends(require_permission("reports.view")), db: Sessio
             )
         ) or 0,
     )
+
+
+@router.get("/company/branding", response_model=Branding)
+def read_branding(me: User = Depends(require_permission("settings.manage"))):
+    return get_branding(me.company)
+
+
+@router.patch("/company/branding", response_model=Branding)
+def update_branding(body: BrandingUpdate, me: User = Depends(require_permission("settings.manage")),
+                    db: Session = Depends(get_db)):
+    """The company admin edits the customer page; dashboard colours stay with the platform owner."""
+    for url in (body.logo, body.hero_image):
+        if not media_belongs_to(db, url, me.company_id):
+            raise HTTPException(400, "Use an image uploaded by your company")
+    branding = apply_update(me.company, body, allow_dashboard=False)
+    db.commit()
+    return branding
+
+
+PAID = (TicketStatus.PAID, TicketStatus.CONFIRMED)
+
+
+@router.get("/dashboard/analytics", response_model=AnalyticsOut)
+def analytics(days: int = 30, me: User = Depends(require_permission("reports.view")), db: Session = Depends(get_db)):
+    """Daily activity, sales funnel and best-selling packages of the last `days` days."""
+    days = max(7, min(days, 365))
+    cid = me.company_id
+    first_day = utcnow().date() - timedelta(days=days - 1)
+    since = utcnow() - timedelta(days=days)
+
+    convs = db.execute(
+        select(Conversation.id, Conversation.channel, Conversation.created_at, Conversation.handover_reason,
+               Conversation.status)
+        .where(Conversation.company_id == cid, Conversation.created_at >= since)
+    ).all()
+    tickets = db.execute(
+        select(Ticket.conversation_id, Ticket.created_at, Ticket.total_price, Ticket.status, Ticket.package_title)
+        .where(Ticket.company_id == cid, Ticket.created_at >= since)
+    ).all()
+
+    daily: dict[date, dict] = {
+        first_day + timedelta(days=i): {"web": 0, "whatsapp": 0, "bookings": 0, "booked_value": 0.0}
+        for i in range(days)
+    }
+    for _, channel, created, _, _ in convs:
+        day = daily.get(created.date())
+        if day is not None:
+            day["whatsapp" if channel == Channel.WHATSAPP else "web"] += 1
+    packages: dict[str, dict] = {}
+    booked_conversations = set()
+    paid_conversations = set()
+    booked_value = confirmed_value = 0.0
+    for conversation_id, created, total, status, title in tickets:
+        if status == TicketStatus.CANCELLED:
+            continue
+        value = float(total)
+        booked_value += value
+        if status in PAID:
+            confirmed_value += value
+            paid_conversations.add(conversation_id)
+        booked_conversations.add(conversation_id)
+        day = daily.get(created.date())
+        if day is not None:
+            day["bookings"] += 1
+            day["booked_value"] += value
+        entry = packages.setdefault(title, {"bookings": 0, "value": 0.0})
+        entry["bookings"] += 1
+        entry["value"] += value
+
+    conversation_ids = {c[0] for c in convs}
+    handed = sum(1 for c in convs if c[3] is not None or c[4] == ConversationStatus.HUMAN)
+    top = sorted(packages.items(), key=lambda kv: (-kv[1]["value"], kv[0]))[:5]
+    return AnalyticsOut(
+        days=days,
+        currency=me.company.currency,
+        daily=[DailyPoint(date=d.isoformat(), **v) for d, v in sorted(daily.items())],
+        funnel=FunnelOut(
+            conversations=len(convs),
+            with_booking=len(booked_conversations & conversation_ids),
+            paid_or_confirmed=len(paid_conversations & conversation_ids),
+        ),
+        top_packages=[TopPackage(title=t, bookings=v["bookings"], value=round(v["value"], 3)) for t, v in top],
+        handled_by_ai=len(convs) - handed,
+        handed_to_team=handed,
+        booked_value=round(booked_value, 3),
+        confirmed_value=round(confirmed_value, 3),
+    )
+

@@ -3,10 +3,12 @@ import { Link } from "react-router-dom";
 import { get, post } from "../../api";
 import AICheckCard from "../../components/AICheckCard";
 import { Badge, Empty, ErrorBox, Field, Modal, PageHeader } from "../../components/ui";
+import { useI18n } from "../../lang";
 import type { CompanyAdmin, PlatformStats } from "../../types";
 import { shortDate } from "../../util";
 
 export default function Companies() {
+  const { t } = useI18n();
   const [companies, setCompanies] = useState<CompanyAdmin[] | null>(null);
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [creating, setCreating] = useState(false);
@@ -19,32 +21,32 @@ export default function Companies() {
 
   return (
     <div>
-      <PageHeader title="Travel companies" subtitle="Every company has its own accounts, packages and customers, served by the same AI brain."
-        actions={<button className="btn btn-primary" onClick={() => setCreating(true)}>+ New company</button>} />
+      <PageHeader title={t("Travel companies")} subtitle={t("Every company has its own accounts, packages and customers, served by the same AI brain.")}
+        actions={<button className="btn btn-primary" onClick={() => setCreating(true)}>+ {t("New company")}</button>} />
       {stats && (
         <div className="stats">
-          <div className="stat"><div className="stat-label">Companies</div><div className="stat-value">{stats.active_companies}<span className="stat-of"> / {stats.companies} active</span></div></div>
-          <div className="stat"><div className="stat-label">Employee accounts</div><div className="stat-value">{stats.users}</div></div>
-          <div className="stat"><div className="stat-label">Conversations</div><div className="stat-value">{stats.conversations}</div></div>
-          <div className="stat"><div className="stat-label">Booking tickets</div><div className="stat-value">{stats.tickets}</div></div>
+          <div className="stat"><div className="stat-label">{t("Companies")}</div><div className="stat-value">{stats.active_companies}<span className="stat-of"> / {stats.companies} {t("active")}</span></div></div>
+          <div className="stat"><div className="stat-label">{t("Employee accounts")}</div><div className="stat-value">{stats.users}</div></div>
+          <div className="stat"><div className="stat-label">{t("Conversations")}</div><div className="stat-value">{stats.conversations}</div></div>
+          <div className="stat"><div className="stat-label">{t("Booking tickets")}</div><div className="stat-value">{stats.tickets}</div></div>
         </div>
       )}
       <AICheckCard path="/api/system/ai-check" />
-      {companies === null ? <div className="loading">Loading…</div> : companies.length === 0 ? <Empty>No companies yet.</Empty> : (
+      {companies === null ? <div className="loading">{t("Loading…")}</div> : companies.length === 0 ? <Empty>{t("No companies yet.")}</Empty> : (
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>Company</th><th>Status</th><th>Accounts</th><th>Packages</th><th>Open tickets</th><th>WhatsApp</th><th>Created</th><th /></tr></thead>
+            <thead><tr><th>{t("Company")}</th><th>{t("Status")}</th><th>{t("Accounts")}</th><th>{t("Packages")}</th><th>{t("Open tickets")}</th><th>WhatsApp</th><th>{t("Created")}</th><th /></tr></thead>
             <tbody>
               {companies.map((c) => (
                 <tr key={c.id}>
                   <td><strong>{c.name}</strong><div className="muted small">/c/{c.slug}</div></td>
-                  <td>{c.status === "active" ? <Badge tone="green">Active</Badge> : <Badge tone="red">Suspended</Badge>}</td>
+                  <td>{c.status === "active" ? <Badge tone="green">{t("Active")}</Badge> : <Badge tone="red">{t("Suspended")}</Badge>}</td>
                   <td>{c.user_count} / {c.max_users}</td>
                   <td>{c.package_count}</td>
                   <td>{c.open_tickets}</td>
-                  <td>{c.whatsapp_connected ? "Connected" : <span className="muted">—</span>}</td>
+                  <td>{c.whatsapp_connected ? t("Connected") : <span className="muted">—</span>}</td>
                   <td className="small muted">{shortDate(c.created_at)}</td>
-                  <td><Link className="btn btn-sm" to={`/system/companies/${c.id}`}>Manage</Link></td>
+                  <td><Link className="btn btn-sm" to={`/system/companies/${c.id}`}>{t("Manage")}</Link></td>
                 </tr>
               ))}
             </tbody>
@@ -57,6 +59,7 @@ export default function Companies() {
 }
 
 function CreateCompany({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const { t } = useI18n();
   const [f, setF] = useState({ name: "", slug: "", max_users: "5", currency: "OMR", contact_email: "",
     admin_full_name: "", admin_email: "", admin_password: "" });
   const [error, setError] = useState<string | null>(null);
@@ -76,29 +79,29 @@ function CreateCompany({ onClose, onCreated }: { onClose: () => void; onCreated:
   };
 
   return (
-    <Modal title="New travel company" onClose={onClose} wide>
+    <Modal title={t("New travel company")} onClose={onClose} wide>
       <form onSubmit={submit}>
         <div className="form-grid">
-          <Field label="Company name"><input value={f.name} onChange={(e) => set("name", e.target.value)} required /></Field>
-          <Field label="Web address (slug)" hint="Optional. Customer page: /c/your-slug">
-            <input value={f.slug} placeholder="auto from name" onChange={(e) => set("slug", e.target.value.toLowerCase())} />
+          <Field label={t("Company name")}><input value={f.name} onChange={(e) => set("name", e.target.value)} required /></Field>
+          <Field label={t("Web address (slug)")} hint={t("Optional. Customer page: {path}", { path: "/c/your-slug" })}>
+            <input value={f.slug} placeholder={t("auto from name")} onChange={(e) => set("slug", e.target.value.toLowerCase())} />
           </Field>
-          <Field label="Account limit" hint="How many employee accounts this company may create (admin included).">
+          <Field label={t("Account limit")} hint={t("How many employee accounts this company may create (admin included).")}>
             <input type="number" min={1} value={f.max_users} onChange={(e) => set("max_users", e.target.value)} required />
           </Field>
-          <Field label="Currency"><input maxLength={3} value={f.currency} onChange={(e) => set("currency", e.target.value.toUpperCase())} required /></Field>
-          <Field label="Contact email"><input type="email" value={f.contact_email} onChange={(e) => set("contact_email", e.target.value)} /></Field>
+          <Field label={t("Currency")}><input maxLength={3} value={f.currency} onChange={(e) => set("currency", e.target.value.toUpperCase())} required /></Field>
+          <Field label={t("Contact email")}><input type="email" value={f.contact_email} onChange={(e) => set("contact_email", e.target.value)} /></Field>
         </div>
-        <h3>First company admin</h3>
+        <h3>{t("First company admin")}</h3>
         <div className="form-grid">
-          <Field label="Full name"><input value={f.admin_full_name} onChange={(e) => set("admin_full_name", e.target.value)} required /></Field>
-          <Field label="Email (login)"><input type="email" value={f.admin_email} onChange={(e) => set("admin_email", e.target.value)} required /></Field>
-          <Field label="Temporary password" hint="At least 8 characters. Ask them to change it."><input minLength={8} value={f.admin_password} onChange={(e) => set("admin_password", e.target.value)} required /></Field>
+          <Field label={t("Full name")}><input value={f.admin_full_name} onChange={(e) => set("admin_full_name", e.target.value)} required /></Field>
+          <Field label={t("Email (login)")}><input type="email" value={f.admin_email} onChange={(e) => set("admin_email", e.target.value)} required /></Field>
+          <Field label={t("Temporary password")} hint={t("At least 8 characters. Ask them to change it.")}><input minLength={8} value={f.admin_password} onChange={(e) => set("admin_password", e.target.value)} required /></Field>
         </div>
         <ErrorBox error={error} />
         <div className="modal-actions"><span className="spacer" />
-          <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary">Create company</button>
+          <button type="button" className="btn btn-ghost" onClick={onClose}>{t("Cancel")}</button>
+          <button className="btn btn-primary">{t("Create company")}</button>
         </div>
       </form>
     </Modal>

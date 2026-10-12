@@ -6,11 +6,14 @@ from ..database import get_db
 from ..deps import require_permission
 from ..models import Ticket, TravelPackage, User
 from ..schemas import PackageIn, PackageOut
+from .media import media_belongs_to
 
 router = APIRouter(prefix="/api/packages", tags=["packages"])
 
 
-def _apply(pkg: TravelPackage, body: PackageIn, default_currency: str) -> None:
+def _apply(pkg: TravelPackage, body: PackageIn, default_currency: str, db: Session | None = None) -> None:
+    if db is not None and not media_belongs_to(db, body.image_url, pkg.company_id):
+        raise HTTPException(400, "Use a photo uploaded by your company")
     data = body.model_dump()
     data["currency"] = (data.get("currency") or default_currency).upper()
     data["departure_dates"] = sorted({d.isoformat() for d in body.departure_dates})
@@ -45,7 +48,7 @@ def get_package(package_id: int, me: User = Depends(require_permission("packages
 def create_package(body: PackageIn, me: User = Depends(require_permission("packages.manage")),
                    db: Session = Depends(get_db)):
     pkg = TravelPackage(company_id=me.company_id)
-    _apply(pkg, body, me.company.currency)
+    _apply(pkg, body, me.company.currency, db)
     db.add(pkg)
     db.commit()
     db.refresh(pkg)
@@ -56,7 +59,7 @@ def create_package(body: PackageIn, me: User = Depends(require_permission("packa
 def update_package(package_id: int, body: PackageIn, me: User = Depends(require_permission("packages.manage")),
                    db: Session = Depends(get_db)):
     pkg = _get(db, me, package_id)
-    _apply(pkg, body, me.company.currency)
+    _apply(pkg, body, me.company.currency, db)
     db.commit()
     db.refresh(pkg)
     return pkg

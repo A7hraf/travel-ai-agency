@@ -14,6 +14,7 @@ from .routers import (
     auth,
     company,
     conversations,
+    media,
     packages,
     public,
     system_admin,
@@ -88,7 +89,7 @@ class SecurityHeaders:
                 for key, value in self.headers:
                     headers.setdefault(key, value)
                 if is_api:
-                    headers["Cache-Control"] = "no-store"
+                    headers.setdefault("Cache-Control", "no-store")
             await send(message)
 
         await self.app(scope, receive, send_with_headers)
@@ -112,7 +113,7 @@ app.add_middleware(
 )
 app.add_middleware(SecurityHeaders, hsts=PRODUCTION)
 
-for r in (auth, system_admin, users, company, packages, conversations, tickets, training, public, whatsapp):
+for r in (auth, system_admin, users, company, packages, conversations, tickets, training, media, public, whatsapp):
     app.include_router(r.router)
 
 

@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { get, post } from "../api";
 import { useAuth } from "../auth";
 import { Badge, ChatText, CONVERSATION_TONES, Empty, ErrorBox } from "../components/ui";
+import { useI18n } from "../lang";
 import type { ConversationDetail, ConversationSummary, Message } from "../types";
 import { CONVERSATION_STATUS_LABELS, customerLabel, dateTime, timeAgo, usePolling } from "../util";
 
@@ -15,6 +16,7 @@ const FILTERS = [
 
 export default function Conversations() {
   const { id } = useParams();
+  const { t } = useI18n();
   const [params, setParams] = useSearchParams();
   const status = params.get("status") ?? "";
   const [search, setSearch] = useState("");
@@ -31,20 +33,20 @@ export default function Conversations() {
     <div className="split">
       <div className="split-list">
         <div className="split-list-head">
-          <h1>Conversations</h1>
+          <h1>{t("Conversations")}</h1>
           <div className="tabs">
             {FILTERS.map((f) => (
               <button key={f.value} className={`tab ${status === f.value ? "active" : ""}`}
                 onClick={() => setParams(f.value ? { status: f.value } : {})}>
-                {f.label}
+                {t(f.label)}
               </button>
             ))}
           </div>
-          <input placeholder="Search name, phone, email" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input placeholder={t("Search name, phone, email")} value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <div className="conv-list">
-          {list === null && <div className="loading">Loading…</div>}
-          {list?.length === 0 && <Empty>No conversations yet.</Empty>}
+          {list === null && <div className="loading">{t("Loading…")}</div>}
+          {list?.length === 0 && <Empty>{t("No conversations yet.")}</Empty>}
           {list?.map((c) => (
             <Link key={c.id} to={`/app/conversations/${c.id}${status ? `?status=${status}` : ""}`}
               className={`conv-item ${String(c.id) === id ? "selected" : ""}`}>
@@ -54,8 +56,8 @@ export default function Conversations() {
               </div>
               <div className="conv-preview">{c.last_message_preview || "…"}</div>
               <div className="conv-tags">
-                <Badge tone={CONVERSATION_TONES[c.status]}>{CONVERSATION_STATUS_LABELS[c.status]}</Badge>
-                <span className="channel">{c.channel === "whatsapp" ? "🟢 WhatsApp" : "🌐 Web"}</span>
+                <Badge tone={CONVERSATION_TONES[c.status]}>{t(CONVERSATION_STATUS_LABELS[c.status])}</Badge>
+                <span className="channel">{c.channel === "whatsapp" ? `🟢 ${t("WhatsApp")}` : `🌐 ${t("Web")}`}</span>
                 {c.assigned_to && <span className="muted small">→ {c.assigned_to.full_name}</span>}
               </div>
             </Link>
@@ -63,7 +65,7 @@ export default function Conversations() {
         </div>
       </div>
       <div className="split-detail">
-        {id ? <ConversationView key={id} id={Number(id)} /> : <Empty>Select a conversation to see the chat.</Empty>}
+        {id ? <ConversationView key={id} id={Number(id)} /> : <Empty>{t("Select a conversation to see the chat.")}</Empty>}
       </div>
     </div>
   );
@@ -71,6 +73,7 @@ export default function Conversations() {
 
 function ConversationView({ id }: { id: number }) {
   const { can } = useAuth();
+  const { t } = useI18n();
   const navigate = useNavigate();
   const [conv, setConv] = useState<ConversationDetail | null>(null);
   const [showTools, setShowTools] = useState(false);
@@ -93,7 +96,7 @@ function ConversationView({ id }: { id: number }) {
     }
   }, [conv]);
 
-  if (!conv) return <div className="loading">Loading…</div>;
+  if (!conv) return <div className="loading">{t("Loading…")}</div>;
 
   const action = async (path: string) => {
     setError(null);
@@ -112,7 +115,7 @@ function ConversationView({ id }: { id: number }) {
     try {
       const msg = await post<Message>(`/api/conversations/${id}/messages`, { content: text });
       if (msg.delivery_status === "failed") {
-        setError("Saved, but WhatsApp did not deliver it. If the customer's last message is older than 24 hours, WhatsApp only allows approved template messages.");
+        setError(t("Saved, but WhatsApp did not deliver it. If the customer's last message is older than 24 hours, WhatsApp only allows approved template messages."));
       }
       setText("");
       await load();
@@ -132,29 +135,29 @@ function ConversationView({ id }: { id: number }) {
         <div>
           <h2>{customerLabel(c)}</h2>
           <div className="muted small">
-            {conv.channel === "whatsapp" ? "WhatsApp" : "Website chat"}
-            {c.phone && ` · ${c.phone}`}{c.email && ` · ${c.email}`} · started {dateTime(conv.created_at)}
+            {conv.channel === "whatsapp" ? t("WhatsApp") : t("Website chat")}
+            {c.phone && ` · ${c.phone}`}{c.email && ` · ${c.email}`} · {t("started {date}", { date: dateTime(conv.created_at) })}
           </div>
           <div className="conv-tags">
-            <Badge tone={CONVERSATION_TONES[conv.status]}>{CONVERSATION_STATUS_LABELS[conv.status]}</Badge>
+            <Badge tone={CONVERSATION_TONES[conv.status]}>{t(CONVERSATION_STATUS_LABELS[conv.status])}</Badge>
             {conv.handover_reason && <span className="muted small">{conv.handover_reason}</span>}
-            {conv.assigned_to && <span className="small">Handled by <strong>{conv.assigned_to.full_name}</strong></span>}
-            {conv.tickets.map((t) => (
-              <Link key={t.id} to={`/app/tickets?open=${t.id}`} className="ticket-chip">🎫 {t.reference}</Link>
+            {conv.assigned_to && <span className="small">{t("Handled by")} <strong>{conv.assigned_to.full_name}</strong></span>}
+            {conv.tickets.map((tk) => (
+              <Link key={tk.id} to={`/app/tickets?open=${tk.id}`} className="ticket-chip">🎫 {tk.reference}</Link>
             ))}
           </div>
         </div>
         {can("conversations.reply") && (
           <div className="chat-actions">
-            {conv.status !== "human" && <button className="btn btn-sm" onClick={() => action("takeover")}>Take over</button>}
-            {conv.status !== "ai" && <button className="btn btn-sm" onClick={() => action("release")}>Hand back to AI</button>}
-            {conv.status !== "closed" && <button className="btn btn-sm btn-ghost" onClick={() => action("close")}>Close</button>}
+            {conv.status !== "human" && <button className="btn btn-sm" onClick={() => action("takeover")}>{t("Take over")}</button>}
+            {conv.status !== "ai" && <button className="btn btn-sm" onClick={() => action("release")}>{t("Hand back to AI")}</button>}
+            {conv.status !== "closed" && <button className="btn btn-sm btn-ghost" onClick={() => action("close")}>{t("Close")}</button>}
           </div>
         )}
       </div>
 
       <label className="tool-toggle small">
-        <input type="checkbox" checked={showTools} onChange={(e) => setShowTools(e.target.checked)} /> Show AI tool activity
+        <input type="checkbox" checked={showTools} onChange={(e) => setShowTools(e.target.checked)} /> {t("Show AI tool activity")}
       </label>
 
       <div className="chat-messages">
@@ -167,7 +170,7 @@ function ConversationView({ id }: { id: number }) {
         <form className="chat-input" onSubmit={send}>
           <textarea
             value={text}
-            placeholder={conv.status === "ai" ? "Writing here takes the chat over from the AI…" : "Write to the customer…"}
+            placeholder={conv.status === "ai" ? t("Writing here takes the chat over from the AI…") : t("Write to the customer…")}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
@@ -176,7 +179,7 @@ function ConversationView({ id }: { id: number }) {
               }
             }}
           />
-          <button className="btn btn-primary" disabled={busy || !text.trim()}>Send</button>
+          <button className="btn btn-primary" disabled={busy || !text.trim()}>{t("Send")}</button>
         </form>
       )}
     </div>
@@ -184,6 +187,7 @@ function ConversationView({ id }: { id: number }) {
 }
 
 function StaffMessage({ m }: { m: Message }) {
+  const { t } = useI18n();
   if (m.sender === "system") return <div className="msg-system">{m.content} · {timeAgo(m.created_at)}</div>;
   if (m.kind === "tool_call") {
     const calls = ((m.meta?.tool_calls as { function: { name: string; arguments: string } }[]) || []);
@@ -194,9 +198,9 @@ function StaffMessage({ m }: { m: Message }) {
     );
   }
   if (m.kind === "tool_result") {
-    return <div className="msg-tool"><details><summary>↳ result of {String(m.meta?.name ?? "tool")}</summary><pre>{m.content}</pre></details></div>;
+    return <div className="msg-tool"><details><summary>↳ {t("result of {name}", { name: String(m.meta?.name ?? t("tool")) })}</summary><pre>{m.content}</pre></details></div>;
   }
-  const who = m.sender === "customer" ? "Customer" : m.sender === "ai" ? "AI agent" : m.author_name ?? "Employee";
+  const who = m.sender === "customer" ? t("Customer") : m.sender === "ai" ? t("AI agent") : m.author_name ?? t("Employee");
   return (
     <div className={`msg msg-${m.sender}`}>
       <div className="msg-who">{who}</div>

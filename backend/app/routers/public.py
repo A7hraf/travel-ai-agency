@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from ..ai.prompts import welcome_message
 from ..ai.tools import is_bookable
+from ..branding import public_branding
 from ..config import get_settings
 from ..database import get_db
 from ..models import Channel, Company, CompanyStatus, Conversation, Customer, Message, Sender, TravelPackage
@@ -57,6 +58,7 @@ def company_info(slug: str, db: Session = Depends(get_db)):
         whatsapp_number=c.whatsapp_display_number,
         contact_email=c.contact_email,
         contact_phone=c.contact_phone,
+        branding=public_branding(c),
     )
 
 

@@ -1,14 +1,37 @@
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { CSSProperties, FormEvent, ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { ApiError, get, post } from "../api";
 import { Lang, Money } from "../components/Money";
 import { ChatText, Modal } from "../components/ui";
 import { STOREFRONT_TEXT, StorefrontText, useLang } from "../i18n";
+import { storefrontVars } from "../theme";
 import type { PublicCompany, PublicMessage, TravelPackage } from "../types";
 import { gradientFor, shortDate } from "../util";
 
 function cover(p: TravelPackage) {
   return p.image_url ? `center / cover no-repeat url(${JSON.stringify(p.image_url)})` : gradientFor(p.destination);
+}
+
+function PackageCard({ p, lang, t, onOpen, onBook }: {
+  p: TravelPackage; lang: Lang; t: StorefrontText; onOpen: () => void; onBook: () => void;
+}) {
+  return (
+    <article className="pkg-card sf-card" onClick={onOpen}>
+      <div className="pkg-cover" style={{ background: cover(p) }}>
+        <span>{p.destination}, {p.country}</span>
+        {p.is_featured && <span className="pkg-flag">{t.featured}</span>}
+      </div>
+      <div className="pkg-body">
+        <h3>{p.title}</h3>
+        <div className="muted small">{t.days(p.duration_days)}{p.hotel_stars ? ` · ${"★".repeat(p.hotel_stars)} ${t.starHotel}` : ""}</div>
+        <div className="tag-row">{p.tags.slice(0, 4).map((tag) => <span key={tag} className="tag">{tag}</span>)}</div>
+        <div className="row-between">
+          <div className="pkg-price"><Money value={p.price_per_person} currency={p.currency} lang={lang} /><span className="muted small"> {t.perPerson}</span></div>
+          <button className="btn btn-sm btn-primary" onClick={(e) => { e.stopPropagation(); onBook(); }}>{t.book}</button>
+        </div>
+      </div>
+    </article>
+  );
 }
 
 export default function Storefront() {
@@ -35,10 +58,12 @@ export default function Storefront() {
   if (notFound) return <div className="sf-missing">{t.notFound}</div>;
   if (!company) return <div className="loading-screen">{t.loading}</div>;
 
+  const b = company.branding;
   const shown = packages.filter((p) => {
     const text = `${p.title} ${p.destination} ${p.country} ${p.tags.join(" ")} ${p.description}`.toLowerCase();
     return (!query || text.includes(query.toLowerCase())) && (!budget || p.price_per_person <= Number(budget));
   });
+  const featured = packages.filter((p) => p.is_featured);
 
   const askAbout = (p: TravelPackage) => {
     setSelected(null);
@@ -47,30 +72,27 @@ export default function Storefront() {
   };
   const waDigits = company.whatsapp_number?.replace(/\D/g, "");
   const agent = company.ai_agent_name;
+  const heroTitle = (lang === "ar" ? b.hero_title_ar : b.hero_title_en) || t.heroTitle;
+  const heroText = (lang === "ar" ? b.hero_text_ar : b.hero_text_en) || t.heroText(agent);
+  const aboutTitle = (lang === "ar" ? b.about_title_ar : b.about_title_en) || t.aboutTitle;
+  const aboutText = lang === "ar" ? b.about_ar || b.about_en : b.about_en || b.about_ar;
+  const heroStyle: CSSProperties | undefined = b.hero_style === "image" && b.hero_image
+    ? { backgroundImage: `linear-gradient(rgb(0 0 0 / 35%), rgb(0 0 0 / 60%)), url(${JSON.stringify(b.hero_image)})` }
+    : undefined;
+  const gridClass = `pkg-grid ${b.layout === "list" ? "list" : ""} ${b.card_style === "square" ? "square" : ""}`;
+  const card = (p: TravelPackage) => (
+    <PackageCard key={p.id} p={p} lang={lang} t={t} onOpen={() => setSelected(p)} onBook={() => askAbout(p)} />
+  );
 
-  return (
-    <div className="sf" dir={lang === "ar" ? "rtl" : "ltr"} lang={lang}>
-      <header className="sf-hero">
-        <div className="sf-nav">
-          <div className="sf-logo">✈ {company.name}</div>
-          <div className="sf-contact">
-            {company.contact_phone && <span dir="ltr">☎ {company.contact_phone}</span>}
-            {waDigits && <a className="btn btn-wa btn-sm" href={`https://wa.me/${waDigits}`} target="_blank" rel="noreferrer">{t.whatsapp}</a>}
-            <button className="btn btn-sm lang-switch" onClick={() => setLang(lang === "ar" ? "en" : "ar")}>{t.switchTo}</button>
-          </div>
-        </div>
-        <div className="sf-hero-text">
-          <h1>{t.heroTitle}</h1>
-          <p>{t.heroText(agent)}</p>
-          <div className="sf-search">
-            <input placeholder={t.searchPlaceholder} value={query} onChange={(e) => setQuery(e.target.value)} />
-            <input type="number" min={0} placeholder={t.budgetPlaceholder} value={budget} onChange={(e) => setBudget(e.target.value)} />
-            <button className="btn btn-primary" onClick={() => setChatOpen(true)}>{t.chatWith(agent)}</button>
-          </div>
-        </div>
-      </header>
-
-      <main className="sf-main">
+  const sections: Record<string, ReactNode> = {
+    featured: featured.length > 0 && (
+      <section key="featured" className="sf-section">
+        <h2>{t.featuredTitle}</h2>
+        <div className={gridClass}>{featured.slice(0, 3).map(card)}</div>
+      </section>
+    ),
+    offers: (
+      <section key="offers" className="sf-section">
         <div className="sf-offers-head">
           <h2>{t.offers}</h2>
           {company.currency === "OMR" && <span className="muted small">{t.pricesNote}</span>}
@@ -78,26 +100,64 @@ export default function Storefront() {
         {shown.length === 0 ? (
           <p className="muted">{t.noMatch} <button className="link-btn" onClick={() => setChatOpen(true)}>{t.askFor(agent)}</button> {t.customTrip}</p>
         ) : (
-          <div className="pkg-grid">
-            {shown.map((p) => (
-              <article key={p.id} className="pkg-card sf-card" onClick={() => setSelected(p)}>
-                <div className="pkg-cover" style={{ background: cover(p) }}>
-                  <span>{p.destination}, {p.country}</span>
-                  {p.is_featured && <span className="pkg-flag">{t.featured}</span>}
-                </div>
-                <div className="pkg-body">
-                  <h3>{p.title}</h3>
-                  <div className="muted small">{t.days(p.duration_days)}{p.hotel_stars ? ` · ${"★".repeat(p.hotel_stars)} ${t.starHotel}` : ""}</div>
-                  <div className="tag-row">{p.tags.slice(0, 4).map((tag) => <span key={tag} className="tag">{tag}</span>)}</div>
-                  <div className="row-between">
-                    <div className="pkg-price"><Money value={p.price_per_person} currency={p.currency} lang={lang} /><span className="muted small"> {t.perPerson}</span></div>
-                    <button className="btn btn-sm btn-primary" onClick={(e) => { e.stopPropagation(); askAbout(p); }}>{t.book}</button>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
+          <div className={gridClass}>{shown.map(card)}</div>
         )}
+      </section>
+    ),
+    about: aboutText && (
+      <section key="about" className="sf-section sf-about">
+        <h2>{aboutTitle}</h2>
+        <p dir="auto">{aboutText}</p>
+      </section>
+    ),
+    contact: (
+      <section key="contact" className="sf-section sf-contact-card">
+        <div>
+          <h2>{t.contactTitle}</h2>
+          <p className="muted">{t.contactText}</p>
+        </div>
+        <div className="sf-contact-actions">
+          {company.contact_phone && <a className="btn" href={`tel:${company.contact_phone.replace(/[^\d+]/g, "")}`} dir="ltr">☎ {company.contact_phone}</a>}
+          {company.contact_email && <a className="btn" href={`mailto:${company.contact_email}`}>✉ {company.contact_email}</a>}
+          {waDigits && <a className="btn btn-wa" href={`https://wa.me/${waDigits}`} target="_blank" rel="noreferrer">{t.whatsapp}</a>}
+          <button className="btn btn-primary" onClick={() => setChatOpen(true)}>💬 {t.chatWith(agent)}</button>
+        </div>
+      </section>
+    ),
+  };
+
+  return (
+    <div className={`sf ${b.card_style === "square" ? "sf-square" : ""}`} dir={lang === "ar" ? "rtl" : "ltr"} lang={lang}
+      style={storefrontVars(b.primary_color, b.accent_color) as CSSProperties}>
+      <header className={`sf-hero hero-${b.hero_style}`} style={heroStyle}>
+        <div className="sf-nav">
+          <div className="sf-logo">
+            {b.logo ? <img src={b.logo} alt="" /> : <span>✈</span>}
+            <span>{company.name}</span>
+          </div>
+          <div className="sf-contact">
+            {company.contact_phone && <span dir="ltr">☎ {company.contact_phone}</span>}
+            {waDigits && <a className="btn btn-wa btn-sm" href={`https://wa.me/${waDigits}`} target="_blank" rel="noreferrer">{t.whatsapp}</a>}
+            <button className="btn btn-sm lang-switch" onClick={() => setLang(lang === "ar" ? "en" : "ar")}>{t.switchTo}</button>
+          </div>
+        </div>
+        <div className="sf-hero-text">
+          <h1 dir="auto">{heroTitle}</h1>
+          <p dir="auto">{heroText}</p>
+          {b.sections.includes("search") ? (
+            <div className="sf-search">
+              <input placeholder={t.searchPlaceholder} value={query} onChange={(e) => setQuery(e.target.value)} />
+              <input type="number" min={0} placeholder={t.budgetPlaceholder} value={budget} onChange={(e) => setBudget(e.target.value)} />
+              <button className="btn btn-primary" onClick={() => setChatOpen(true)}>{t.chatWith(agent)}</button>
+            </div>
+          ) : (
+            <button className="btn btn-primary sf-hero-cta" onClick={() => setChatOpen(true)}>{t.chatWith(agent)}</button>
+          )}
+        </div>
+      </header>
+
+      <main className="sf-main">
+        {b.sections.filter((s) => s !== "search").map((s) => sections[s])}
       </main>
 
       <footer className="sf-footer">

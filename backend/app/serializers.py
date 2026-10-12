@@ -3,6 +3,7 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from .branding import dashboard_branding
 from .models import Company, Conversation, Message, MessageKind, Sender, Ticket, TicketStatus, TravelPackage, User
 from .permissions import effective_permissions
 from .schemas import (
@@ -38,7 +39,10 @@ def user_out(user: User) -> UserOut:
 
 
 def me_out(user: User) -> MeOut:
-    company = CompanyBrief.model_validate(user.company) if user.company else None
+    company = None
+    if user.company:
+        c = user.company
+        company = CompanyBrief(id=c.id, name=c.name, slug=c.slug, status=c.status, branding=dashboard_branding(c))
     return MeOut(**user_out(user).model_dump(), company=company)
 
 

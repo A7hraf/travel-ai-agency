@@ -1,8 +1,10 @@
 import { ReactNode } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { homePath, useAuth } from "./auth";
+import { useI18n } from "./lang";
 import Layout from "./components/Layout";
 import Account from "./pages/Account";
+import Branding from "./pages/Branding";
 import Conversations from "./pages/Conversations";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
@@ -17,7 +19,8 @@ import CompanyDetail from "./pages/system/CompanyDetail";
 
 function RequireUser({ system, permission, children }: { system?: boolean; permission?: string; children: ReactNode }) {
   const { user, loading, can } = useAuth();
-  if (loading) return <div className="loading-screen">Loading…</div>;
+  const { t } = useI18n();
+  if (loading) return <div className="loading-screen">{t("Loading…")}</div>;
   if (!user) return <Navigate to="/login" replace />;
   const isSystem = user.role === "system_admin";
   if (system !== undefined && system !== isSystem) return <Navigate to={homePath(user)} replace />;
@@ -27,7 +30,8 @@ function RequireUser({ system, permission, children }: { system?: boolean; permi
 
 function Home() {
   const { user, loading } = useAuth();
-  if (loading) return <div className="loading-screen">Loading…</div>;
+  const { t } = useI18n();
+  if (loading) return <div className="loading-screen">{t("Loading…")}</div>;
   return <Navigate to={user ? homePath(user) : "/login"} replace />;
 }
 
@@ -53,6 +57,7 @@ export default function App() {
         <Route path="packages" element={<RequireUser permission="packages.view"><Packages /></RequireUser>} />
         <Route path="users" element={<RequireUser permission="users.manage"><Users /></RequireUser>} />
         <Route path="settings" element={<RequireUser permission="settings.manage"><Settings /></RequireUser>} />
+        <Route path="branding" element={<RequireUser permission="settings.manage"><Branding /></RequireUser>} />
         <Route path="training" element={<RequireUser permission="settings.manage"><Training /></RequireUser>} />
         <Route path="account" element={<Account />} />
       </Route>

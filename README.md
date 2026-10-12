@@ -24,13 +24,13 @@ Customer (web chat / WhatsApp)
 |---|---|
 | **Customer** | Browse the agency's offers page (`/c/<company>`, English / العربية, prices in Omani rials with the official rial sign), chat with the AI on the website or on WhatsApp, get recommendations, book. The AI never takes payments. |
 | **AI agent** | Understands the trip (destination, dates, travelers, budget), searches the catalog, answers questions from the package details and the company's policies, collects traveler details, confirms the total, creates the booking ticket and hands over to a human for payment. Replies in the customer's language (Arabic, English, French…). Hands over to a human when asked, on complaints, or when stuck. |
-| **Company admin** | Creates, edits, disables and deletes employee accounts; picks a role and ticks individual permissions per employee; manages packages, **AI training** (questions & approved answers), the AI persona and knowledge, and the company's own WhatsApp channel. |
+| **Company admin** | Creates, edits, disables and deletes employee accounts; picks a role and ticks individual permissions per employee; manages packages (with **photos uploaded from the device**), **AI training** (questions & approved answers), the AI persona and knowledge, and the company's own WhatsApp channel. **Designs the customer page**: colours (or a ready theme), logo, banner (gradient, colour or photo), titles and texts in English and Arabic, an *About us* section, which sections show and in what order, grid or list, rounded or square cards — with a live preview. Sees a **dashboard with charts**: booked and confirmed value, conversations per day (website / WhatsApp), booked value per day, chat-to-sale funnel, top packages, share handled by the AI (7 / 30 / 90 days). |
 | **Support** | Watches AI conversations live, takes over any chat, replies (on web or WhatsApp), hands the chat back to the AI. |
 | **Ticket employee** | Works the booking tickets: takes them, records the payment, confirms or cancels (seats are adjusted automatically). |
-| **System admin (you)** | Creates travel companies, sets **how many accounts each company may create**, suspends / re-activates / deletes companies, manages any company's accounts. |
+| **System admin (you)** | Creates travel companies, sets **how many accounts each company may create**, suspends / re-activates / deletes companies, manages any company's accounts, edits any company's customer page design and sets the **colours and logo of each company's employee dashboard**. |
 
 Every company has its own accounts, packages, customers, conversations, tickets, AI persona,
-AI training and WhatsApp channel, all served by the **same AI brain**. A customer reaches a company
+AI training, WhatsApp channel and look, all served by the **same AI brain**. Every page, staff and customer, switches between **English and العربية** (right-to-left). A customer reaches a company
 through that company's own link (`/c/<company>`) or its own WhatsApp number, so every chat belongs
 to exactly one company. Data is isolated per company on every request, and the AI only ever sees the
 company the conversation belongs to. See [docs/SECURITY.md](docs/SECURITY.md).

@@ -20,6 +20,7 @@ NEW_COLUMNS = [
     ("companies", "whatsapp_webhook_key", "VARCHAR(64)"),
     ("companies", "whatsapp_verify_token", "VARCHAR(64)"),
     ("users", "tokens_valid_after", "TIMESTAMP WITH TIME ZONE"),
+    ("companies", "branding", "JSON"),
 ]
 
 # Omani rial prices need 3 decimals (1 rial = 1000 baisa).

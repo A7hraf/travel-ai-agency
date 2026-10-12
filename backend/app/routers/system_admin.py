@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..ai.health import check_ai
+from ..branding import Branding, BrandingUpdate, apply_update, get_branding
 from ..database import get_db
 from ..deps import require_system_admin
 from ..models import Company, CompanyStatus, Conversation, Role, Ticket, User
@@ -159,3 +160,24 @@ def update_any_user(user_id: int, body: UserUpdate, me: User = Depends(require_s
 @router.delete("/users/{user_id}", status_code=204)
 def delete_any_user(user_id: int, me: User = Depends(require_system_admin), db: Session = Depends(get_db)):
     delete_company_user(db, _get_company_user(db, user_id), me)
+
+
+@router.get("/companies/{company_id}/branding", response_model=Branding)
+def company_branding(company_id: int, _: User = Depends(require_system_admin), db: Session = Depends(get_db)):
+    return get_branding(_get_company(db, company_id))
+
+
+@router.patch("/companies/{company_id}/branding", response_model=Branding)
+def update_company_branding(company_id: int, body: BrandingUpdate, _: User = Depends(require_system_admin),
+                            db: Session = Depends(get_db)):
+    """The platform owner can set everything, including the employee dashboard colours."""
+    from .media import media_belongs_to
+
+    company = _get_company(db, company_id)
+    for url in (body.logo, body.hero_image):
+        if not media_belongs_to(db, url, company.id):
+            raise HTTPException(400, "Use an image uploaded for this company")
+    branding = apply_update(company, body, allow_dashboard=True)
+    db.commit()
+    return branding
+

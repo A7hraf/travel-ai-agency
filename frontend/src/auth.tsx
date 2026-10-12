@@ -8,6 +8,7 @@ interface AuthState {
   login: (email: string, password: string) => Promise<Me>;
   logout: () => void;
   can: (permission: string) => boolean;
+  refresh: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -40,9 +41,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return res.user;
   };
 
+  const refresh = useCallback(async () => {
+    setUser(await get<Me>("/api/auth/me"));
+  }, []);
+
   const can = (permission: string) => !!user && user.permissions.includes(permission);
 
-  return <AuthContext.Provider value={{ user, loading, login, logout, can }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, loading, login, logout, can, refresh }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthState {

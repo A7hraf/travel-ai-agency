@@ -2,12 +2,14 @@ import { FormEvent, useEffect, useState } from "react";
 import { del, get, patch, post } from "../api";
 import { useAuth } from "../auth";
 import { Badge, ErrorBox, Field, Modal, PageHeader } from "../components/ui";
+import { useI18n } from "../lang";
 import type { PermissionCatalog, Role, User, UserList } from "../types";
 import { dateTime, ROLE_LABELS } from "../util";
 
 /** Shared by the company admin's team page and the system admin's company page. */
 export function UserManager({ basePath, listPath, createPath }: { basePath: string; listPath: string; createPath: string }) {
   const { user: me } = useAuth();
+  const { t } = useI18n();
   const [data, setData] = useState<UserList | null>(null);
   const [catalog, setCatalog] = useState<PermissionCatalog | null>(null);
   const [editing, setEditing] = useState<User | "new" | null>(null);
@@ -19,33 +21,33 @@ export function UserManager({ basePath, listPath, createPath }: { basePath: stri
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listPath]);
 
-  if (!data) return <div className="loading">Loading…</div>;
+  if (!data) return <div className="loading">{t("Loading…")}</div>;
   const full = data.used >= data.max_users;
 
   return (
     <div>
       <div className="seat-bar">
         <div className="row-between">
-          <span><strong>{data.used}</strong> of <strong>{data.max_users}</strong> accounts used</span>
-          <button className="btn btn-primary" disabled={full} onClick={() => setEditing("new")}>+ Add account</button>
+          <span>{t("{n} of {max} accounts used", { n: data.used, max: data.max_users })}</span>
+          <button className="btn btn-primary" disabled={full} onClick={() => setEditing("new")}>+ {t("Add account")}</button>
         </div>
         <div className="meter"><div style={{ width: `${Math.min(100, (data.used / data.max_users) * 100)}%` }} /></div>
-        {full && <div className="muted small">Account limit reached. The platform admin can raise the limit.</div>}
+        {full && <div className="muted small">{t("Account limit reached. The platform admin can raise the limit.")}</div>}
       </div>
 
       <div className="table-wrap">
         <table className="table">
-          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Permissions</th><th>Status</th><th>Last login</th><th /></tr></thead>
+          <thead><tr><th>{t("Name")}</th><th>{t("Email")}</th><th>{t("Role")}</th><th>{t("Permissions")}</th><th>{t("Status")}</th><th>{t("Last login")}</th><th /></tr></thead>
           <tbody>
             {data.users.map((u) => (
               <tr key={u.id}>
-                <td><strong>{u.full_name}</strong>{u.id === me?.id && <span className="muted small"> (you)</span>}</td>
+                <td><strong>{u.full_name}</strong>{u.id === me?.id && <span className="muted small"> ({t("you")})</span>}</td>
                 <td>{u.email}</td>
-                <td>{ROLE_LABELS[u.role]}</td>
-                <td className="small muted">{u.role === "company_admin" ? "All" : `${u.permissions.length} permissions`}</td>
-                <td>{u.is_active ? <Badge tone="green">Active</Badge> : <Badge tone="gray">Disabled</Badge>}</td>
+                <td>{t(ROLE_LABELS[u.role])}</td>
+                <td className="small muted">{u.role === "company_admin" ? t("All") : t("{n} permissions", { n: u.permissions.length })}</td>
+                <td>{u.is_active ? <Badge tone="green">{t("Active")}</Badge> : <Badge tone="gray">{t("Disabled")}</Badge>}</td>
                 <td className="small muted">{dateTime(u.last_login_at)}</td>
-                <td><button className="btn btn-sm" onClick={() => setEditing(u)}>Edit</button></td>
+                <td><button className="btn btn-sm" onClick={() => setEditing(u)}>{t("Edit")}</button></td>
               </tr>
             ))}
           </tbody>
@@ -65,6 +67,7 @@ function UserForm({ user, catalog, basePath, createPath, isSelf, onClose, onSave
   user: User | null; catalog: PermissionCatalog; basePath: string; createPath: string; isSelf: boolean;
   onClose: () => void; onSaved: () => void;
 }) {
+  const { t } = useI18n();
   const [fullName, setFullName] = useState(user?.full_name ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
   const [password, setPassword] = useState("");
@@ -99,7 +102,7 @@ function UserForm({ user, catalog, basePath, createPath, isSelf, onClose, onSave
   };
 
   const remove = async () => {
-    if (!user || !confirm(`Delete the account of ${user.full_name}? This can't be undone.`)) return;
+    if (!user || !confirm(t("Delete the account of {name}? This can't be undone.", { name: user.full_name }))) return;
     try {
       await del(`${basePath}/${user.id}`);
       onSaved();
@@ -109,46 +112,46 @@ function UserForm({ user, catalog, basePath, createPath, isSelf, onClose, onSave
   };
 
   return (
-    <Modal title={user ? `Edit ${user.full_name}` : "New account"} onClose={onClose} wide>
+    <Modal title={user ? t("Edit {name}", { name: user.full_name }) : t("New account")} onClose={onClose} wide>
       <form onSubmit={save}>
         <div className="form-grid">
-          <Field label="Full name"><input value={fullName} onChange={(e) => setFullName(e.target.value)} required /></Field>
-          <Field label="Email (login)"><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></Field>
-          <Field label={user ? "New password" : "Password"} hint={user ? "Leave empty to keep the current password" : "At least 8 characters"}>
+          <Field label={t("Full name")}><input value={fullName} onChange={(e) => setFullName(e.target.value)} required /></Field>
+          <Field label={t("Email (login)")}><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></Field>
+          <Field label={user ? t("New password") : t("Password")} hint={user ? t("Leave empty to keep the current password") : t("At least 8 characters")}>
             <input type="password" value={password} minLength={8} onChange={(e) => setPassword(e.target.value)} required={!user} />
           </Field>
-          <Field label="Role">
+          <Field label={t("Role")}>
             <select value={role} disabled={isSelf} onChange={(e) => changeRole(e.target.value as Role)}>
-              <option value="company_admin">Company admin</option>
-              <option value="support">Support</option>
-              <option value="ticket_agent">Ticket employee</option>
+              <option value="company_admin">{t("Company admin")}</option>
+              <option value="support">{t("Support")}</option>
+              <option value="ticket_agent">{t("Ticket employee")}</option>
             </select>
           </Field>
         </div>
 
-        <div className="field-label">Permissions</div>
+        <div className="field-label">{t("Permissions")}</div>
         {role === "company_admin" ? (
-          <p className="muted small">Company admins always have every permission.</p>
+          <p className="muted small">{t("Company admins always have every permission.")}</p>
         ) : (
           <div className="perm-grid">
             {Object.entries(catalog.permissions).map(([key, label]) => (
               <label key={key} className="perm">
                 <input type="checkbox" checked={perms.includes(key)} onChange={() => toggle(key)} />
-                <span><strong>{label}</strong><span className="muted small"> {key}</span></span>
+                <span><strong>{t(label)}</strong><span className="muted small"> {key}</span></span>
               </label>
             ))}
           </div>
         )}
 
         {user && !isSelf && (
-          <label className="check"><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> Account active (can log in)</label>
+          <label className="check"><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> {t("Account active (can log in)")}</label>
         )}
         <ErrorBox error={error} />
         <div className="modal-actions">
-          {user && !isSelf && <button type="button" className="btn btn-danger" onClick={remove}>Delete account</button>}
+          {user && !isSelf && <button type="button" className="btn btn-danger" onClick={remove}>{t("Delete account")}</button>}
           <span className="spacer" />
-          <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary">{user ? "Save" : "Create account"}</button>
+          <button type="button" className="btn btn-ghost" onClick={onClose}>{t("Cancel")}</button>
+          <button className="btn btn-primary">{user ? t("Save") : t("Create account")}</button>
         </div>
       </form>
     </Modal>
@@ -156,9 +159,10 @@ function UserForm({ user, catalog, basePath, createPath, isSelf, onClose, onSave
 }
 
 export default function Users() {
+  const { t } = useI18n();
   return (
     <div>
-      <PageHeader title="Team & accounts" subtitle="Create accounts for your employees and choose what each one can do." />
+      <PageHeader title={t("Team & accounts")} subtitle={t("Create accounts for your employees and choose what each one can do.")} />
       <UserManager basePath="/api/users" listPath="/api/users" createPath="/api/users" />
     </div>
   );

@@ -1,8 +1,3 @@
-import { useEffect, useState } from "react";
-import type { Lang } from "./components/Money";
-
-const STORAGE_KEY = "travel_lang";
-
 /** Texts of the customer page and chat, in English and Arabic. */
 export const STOREFRONT_TEXT = {
   en: {
@@ -48,6 +43,12 @@ export const STOREFRONT_TEXT = {
     notSent: "Message not sent, please try again.",
     notFound: "This travel agency page does not exist.",
     loading: "Loading…",
+    featuredTitle: "Featured trips",
+    aboutTitle: "About us",
+    contactTitle: "Contact us",
+    contactText: "Our team and our AI consultant are ready to help you plan your trip.",
+    phone: "Phone",
+    email: "Email",
   },
   ar: {
     switchTo: "English",
@@ -92,36 +93,15 @@ export const STOREFRONT_TEXT = {
     notSent: "لم تُرسل الرسالة، حاول مرة أخرى.",
     notFound: "صفحة وكالة السفر هذه غير موجودة.",
     loading: "جارٍ التحميل…",
+    featuredTitle: "رحلات مميّزة",
+    aboutTitle: "من نحن",
+    contactTitle: "تواصل معنا",
+    contactText: "فريقنا ومستشارتنا الذكية جاهزون لمساعدتك في تخطيط رحلتك.",
+    phone: "الهاتف",
+    email: "البريد الإلكتروني",
   },
 };
 
 export type StorefrontText = (typeof STOREFRONT_TEXT)["en"];
 
-function initialLang(): Lang {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved === "ar" || saved === "en") return saved;
-  } catch {
-    /* storage unavailable */
-  }
-  return navigator.language?.toLowerCase().startsWith("ar") ? "ar" : "en";
-}
-
-/** The customer's language, remembered on this device; also sets the page direction. */
-export function useLang(): [Lang, (lang: Lang) => void] {
-  const [lang, setLang] = useState<Lang>(initialLang);
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, lang);
-    } catch {
-      /* storage unavailable */
-    }
-    document.documentElement.lang = lang;
-    document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
-    return () => {
-      document.documentElement.lang = "en";
-      document.documentElement.dir = "ltr";
-    };
-  }, [lang]);
-  return [lang, setLang];
-}
+export { useLang } from "./lang";

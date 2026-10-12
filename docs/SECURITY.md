@@ -34,6 +34,14 @@ model, so a customer cannot make the AI read or book another company's data. The
 * **Nothing internal is public online**: the API documentation (`/docs`, `/openapi.json`) is
   switched off in production; `/api/health` only says "ok"; demo logins are never in the website
   code and never listed in production; demo staff get random passwords online.
+* **Uploaded photos** (logos, banners, package photos): only JPEG, PNG and WebP, checked by their
+  real content, not the file name (SVG and HTML are refused); maximum 2.5 MB each and 300 files /
+  100 MB per company; photos are shrunk in the browser first, which also removes camera location
+  data. They are served with `nosniff` and a sandbox policy so nothing inside them can run. A
+  company can only use its own photos on its packages and page.
+* **Page design**: colours must be real `#rrggbb` values, texts have length limits, and images must
+  be uploaded files or `https://` addresses, so a design cannot inject code into the customer page.
+  Only the platform owner can change the colours of a company's employee dashboard.
 * **Startup checks in production**: the server refuses to start with the default `SECRET_KEY` or
   the default owner password.
 

@@ -4,6 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from .branding import DashboardBranding, PublicBranding
 from .models import CompanyStatus, Role, TicketStatus
 
 
@@ -29,6 +30,7 @@ class CompanyBrief(ORM):
     name: str
     slug: str
     status: str
+    branding: DashboardBranding | None = None
 
 
 class UserOut(ORM):
@@ -211,8 +213,8 @@ class PackageBase(BaseModel):
     @field_validator("image_url")
     @classmethod
     def check_image_url(cls, v: str | None) -> str | None:
-        if v and not v.startswith(("https://", "http://")):
-            raise ValueError("image_url must start with https://")
+        if v and not v.startswith(("https://", "http://", "/api/media/")):
+            raise ValueError("image_url must be an uploaded image or start with https://")
         return v or None
 
 
@@ -363,6 +365,7 @@ class PublicCompanyOut(BaseModel):
     whatsapp_number: str | None
     contact_email: str | None
     contact_phone: str | None
+    branding: PublicBranding
 
 
 class PublicPackageOut(ORM):
@@ -448,4 +451,36 @@ class DemoAccount(BaseModel):
     label: str
     email: str
     password: str
+
+
+class DailyPoint(BaseModel):
+    date: str
+    web: int
+    whatsapp: int
+    bookings: int
+    booked_value: float
+
+
+class FunnelOut(BaseModel):
+    conversations: int
+    with_booking: int
+    paid_or_confirmed: int
+
+
+class TopPackage(BaseModel):
+    title: str
+    bookings: int
+    value: float
+
+
+class AnalyticsOut(BaseModel):
+    days: int
+    currency: str
+    daily: list[DailyPoint]
+    funnel: FunnelOut
+    top_packages: list[TopPackage]
+    handled_by_ai: int
+    handed_to_team: int
+    booked_value: float
+    confirmed_value: float
 

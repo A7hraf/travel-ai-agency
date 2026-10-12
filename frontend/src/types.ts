@@ -1,10 +1,55 @@
 export type Role = "system_admin" | "company_admin" | "support" | "ticket_agent";
 
+export interface DashboardBranding {
+  logo: string | null;
+  dashboard_color: string;
+  dashboard_sidebar: string;
+}
+
 export interface CompanyBrief {
   id: number;
   name: string;
   slug: string;
   status: string;
+  branding?: DashboardBranding | null;
+}
+
+export type Section = "search" | "featured" | "offers" | "about" | "contact";
+
+export interface PublicBranding {
+  primary_color: string;
+  accent_color: string;
+  logo: string | null;
+  hero_style: "gradient" | "image" | "solid";
+  hero_image: string | null;
+  hero_title_en: string;
+  hero_title_ar: string;
+  hero_text_en: string;
+  hero_text_ar: string;
+  about_title_en: string;
+  about_title_ar: string;
+  about_en: string;
+  about_ar: string;
+  sections: Section[];
+  card_style: "rounded" | "square";
+  layout: "grid" | "list";
+}
+
+export interface Branding extends PublicBranding {
+  dashboard_color: string;
+  dashboard_sidebar: string;
+}
+
+export interface Analytics {
+  days: number;
+  currency: string;
+  daily: { date: string; web: number; whatsapp: number; bookings: number; booked_value: number }[];
+  funnel: { conversations: number; with_booking: number; paid_or_confirmed: number };
+  top_packages: { title: string; bookings: number; value: number }[];
+  handled_by_ai: number;
+  handed_to_team: number;
+  booked_value: number;
+  confirmed_value: number;
 }
 
 export interface User {
@@ -215,6 +260,7 @@ export interface PublicCompany {
   whatsapp_number: string | null;
   contact_email: string | null;
   contact_phone: string | null;
+  branding: PublicBranding;
 }
 
 export interface PublicMessage {
