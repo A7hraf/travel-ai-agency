@@ -12,30 +12,45 @@ export default function Training() {
   const [answer, setAnswer] = useState("");
   const [filter, setFilter] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const load = () => get<TrainingExample[]>("/api/training").then(setItems).catch((e) => setError(e.message));
+  const load = () => get<TrainingExample[]>("/api/training").then(setItems).catch((e) => setListError(e.message));
   useEffect(() => { load(); }, []);
 
   const reset = () => { setEditing(null); setQuestion(""); setAnswer(""); };
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
+    if (busy) return;
     setError(null);
+    setNotice(null);
+    setBusy(true);
     try {
       if (editing) await put(`/api/training/${editing.id}`, { question, answer });
       else await post("/api/training", { question, answer });
+      setNotice(editing ? t("Answer saved. The AI uses it from the next customer message.") : t("Answer added. The AI uses it from the next customer message."));
       reset();
       load();
     } catch (err) {
       setError((err as Error).message);
+    } finally {
+      setBusy(false);
     }
   };
 
   const remove = async (item: TrainingExample) => {
     if (!confirm(t("Delete this answer?"))) return;
-    await del(`/api/training/${item.id}`);
-    if (editing?.id === item.id) reset();
-    load();
+    setListError(null);
+    setNotice(null);
+    try {
+      await del(`/api/training/${item.id}`);
+      if (editing?.id === item.id) reset();
+      load();
+    } catch (err) {
+      setListError((err as Error).message);
+    }
   };
 
   const shown = (items ?? []).filter((i) => `${i.question} ${i.answer}`.toLowerCase().includes(filter.toLowerCase()));
@@ -54,15 +69,17 @@ export default function Training() {
           <textarea rows={4} value={answer} onChange={(e) => setAnswer(e.target.value)} required maxLength={4000} dir="auto" />
         </Field>
         <ErrorBox error={error} />
+        {notice && <div className="ok-box" role="status">{notice}</div>}
         <div className="row-gap">
-          <button className="btn btn-primary">{editing ? t("Save") : t("Add to training")}</button>
+          <button className="btn btn-primary" disabled={busy}>{busy ? t("Saving…") : editing ? t("Save") : t("Add to training")}</button>
           {editing && <button type="button" className="btn btn-ghost" onClick={reset}>{t("Cancel")}</button>}
         </div>
       </form>
 
-      <div className="toolbar"><input placeholder={t("Search answers")} value={filter} onChange={(e) => setFilter(e.target.value)} /></div>
-      {items === null ? <div className="loading">{t("Loading…")}</div> : shown.length === 0 ? (
-        <Empty>{t("No answers yet. Add the questions customers ask you most.")}</Empty>
+      <div className="toolbar"><input placeholder={t("Search answers")} aria-label={t("Search answers")} value={filter} onChange={(e) => setFilter(e.target.value)} /></div>
+      <ErrorBox error={listError} />
+      {items === null ? <div className="loading">{listError ? "" : t("Loading…")}</div> : shown.length === 0 ? (
+        <Empty>{filter.trim() && items.length > 0 ? t("No results for this filter.") : t("No answers yet. Add the questions customers ask you most.")}</Empty>
       ) : (
         <div className="qa-list">
           {shown.map((item) => (
@@ -70,7 +87,7 @@ export default function Training() {
               <div className="qa-q" dir="auto">{item.question}</div>
               <div className="qa-a" dir="auto">{item.answer}</div>
               <div className="qa-actions">
-                <button className="btn btn-sm" onClick={() => { setEditing(item); setQuestion(item.question); setAnswer(item.answer); window.scrollTo(0, 0); }}>{t("Edit")}</button>
+                <button className="btn btn-sm" onClick={() => { setEditing(item); setQuestion(item.question); setAnswer(item.answer); setNotice(null); window.scrollTo(0, 0); }}>{t("Edit")}</button>
                 <button className="btn btn-sm btn-danger" onClick={() => remove(item)}>{t("Delete")}</button>
               </div>
             </div>

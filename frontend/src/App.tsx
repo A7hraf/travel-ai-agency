@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { homePath, useAuth } from "./auth";
 import { useI18n } from "./lang";
 import Layout from "./components/Layout";
@@ -18,10 +18,12 @@ import Companies from "./pages/system/Companies";
 import CompanyDetail from "./pages/system/CompanyDetail";
 
 function RequireUser({ system, permission, children }: { system?: boolean; permission?: string; children: ReactNode }) {
-  const { user, loading, can } = useAuth();
+  const { user, loading, can, sessionEnded } = useAuth();
   const { t } = useI18n();
+  const location = useLocation();
   if (loading) return <div className="loading-screen">{t("Loading…")}</div>;
-  if (!user) return <Navigate to="/login" replace />;
+  // After signing in again the person comes back to the page they were on.
+  if (!user) return <Navigate to="/login" replace state={{ from: location.pathname + location.search, expired: sessionEnded }} />;
   const isSystem = user.role === "system_admin";
   if (system !== undefined && system !== isSystem) return <Navigate to={homePath(user)} replace />;
   if (permission && !can(permission)) return <Navigate to={homePath(user)} replace />;

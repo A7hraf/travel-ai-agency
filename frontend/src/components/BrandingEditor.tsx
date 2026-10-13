@@ -4,6 +4,7 @@ import { useI18n } from "../lang";
 import { dashboardVars, storefrontVars } from "../theme";
 import type { Branding, Section } from "../types";
 import ImageUpload from "./ImageUpload";
+import { STOREFRONT_TEXT } from "../i18n";
 import { ErrorBox, Field } from "./ui";
 
 const ALL_SECTIONS: Section[] = ["search", "featured", "offers", "about", "contact"];
@@ -25,17 +26,23 @@ const PRESETS: { name: string; primary: string; accent: string; sidebar: string 
   { name: "Night", primary: "#1f2937", accent: "#f59e0b", sidebar: "#0b0f17" },
 ];
 
+const HEX = /^#[0-9a-fA-F]{6}$/;
+
 function ColorInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const { t } = useI18n();
   const [text, setText] = useState(value);
   useEffect(() => setText(value), [value]);
+  const invalid = !HEX.test(text);
   return (
-    <Field label={label}>
+    <Field label={label} hint={invalid
+      ? <span className="error-text">{t("Not a valid colour. Use # and 6 characters 0-9 / a-f, for example #0e7490. The last valid colour is kept.")}</span>
+      : undefined}>
       <div className="color-input">
         <input type="color" value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} />
-        <input value={text} maxLength={7} dir="ltr" onChange={(e) => {
+        <input value={text} maxLength={7} dir="ltr" aria-invalid={invalid} aria-label={`${label} (hex)`} onChange={(e) => {
           setText(e.target.value);
-          if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) onChange(e.target.value.toLowerCase());
-        }} />
+          if (HEX.test(e.target.value)) onChange(e.target.value.toLowerCase());
+        }} onBlur={() => { if (!HEX.test(text)) setText(value); }} />
       </div>
     </Field>
   );
@@ -59,16 +66,27 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
   if (!b) return error ? <ErrorBox error={error} /> : <div className="loading">{t("Loading…")}</div>;
 
   const set = <K extends keyof Branding>(k: K, v: Branding[K]) => { setSaved(false); setB({ ...b, [k]: v }); };
-  const order = [...b.sections, ...ALL_SECTIONS.filter((s) => !b.sections.includes(s))];
-  const toggle = (s: Section) =>
-    set("sections", b.sections.includes(s) ? b.sections.filter((x) => x !== s) : order.filter((x) => x === s || b.sections.includes(x)));
+  // The search bar is always at the top of the page: it can be turned on/off but not moved.
+  const searchOn = b.sections.includes("search");
+  const movable = ALL_SECTIONS.filter((s) => s !== "search");
+  const order = [...b.sections.filter((s) => s !== "search"), ...movable.filter((s) => !b.sections.includes(s))];
+  const withSearch = (list: Section[], on = searchOn): Section[] => (on ? ["search", ...list] : list);
+  const toggle = (s: Section) => {
+    if (s === "search") {
+      set("sections", withSearch(b.sections.filter((x) => x !== "search"), !searchOn));
+      return;
+    }
+    set("sections", withSearch(b.sections.includes(s)
+      ? order.filter((x) => x !== s && b.sections.includes(x))
+      : order.filter((x) => x === s || b.sections.includes(x))));
+  };
   const move = (s: Section, step: number) => {
     const list = [...order];
     const i = list.indexOf(s);
     const j = i + step;
     if (j < 0 || j >= list.length) return;
     [list[i], list[j]] = [list[j], list[i]];
-    set("sections", list.filter((x) => b.sections.includes(x)));
+    set("sections", withSearch(list.filter((x) => b.sections.includes(x))));
   };
 
   const save = async (e: FormEvent) => {
@@ -91,7 +109,8 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
     }
   };
 
-  const title = (lang === "ar" ? b.hero_title_ar : b.hero_title_en) || t("Where do you want to go next?");
+  // The same default title customers see.
+  const title = (lang === "ar" ? b.hero_title_ar : b.hero_title_en) || STOREFRONT_TEXT[lang].heroTitle;
   const text = (lang === "ar" ? b.hero_text_ar : b.hero_text_en) || t("Browse our packages or chat with our AI travel consultant.");
 
   return (
@@ -164,6 +183,11 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
           <h3>{t("Page structure")}</h3>
           <p className="muted small">{t("Choose which parts appear on the customer page and in which order.")}</p>
           <div className="section-list">
+            <div className={`section-row ${searchOn ? "" : "off"}`}>
+              <label className="check"><input type="checkbox" checked={searchOn} onChange={() => toggle("search")} /> {t(SECTION_LABELS.search)}</label>
+              <span className="spacer" />
+              <span className="muted small">{t("Always at the top")}</span>
+            </div>
             {order.map((s, i) => (
               <div key={s} className={`section-row ${b.sections.includes(s) ? "" : "off"}`}>
                 <label className="check"><input type="checkbox" checked={b.sections.includes(s)} onChange={() => toggle(s)} /> {t(SECTION_LABELS[s])}</label>

@@ -1,5 +1,5 @@
-import { CSSProperties } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { CSSProperties, useEffect, useState } from "react";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../auth";
 import { LangSwitch, useI18n } from "../lang";
 import { dashboardVars } from "../theme";
@@ -32,31 +32,54 @@ const SYSTEM_NAV: NavItem[] = [
 export default function Layout() {
   const { user, logout, can } = useAuth();
   const { t } = useI18n();
+  const location = useLocation();
+  // Phones: the menu is a drawer opened from the top bar.
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => setMenuOpen(false), [location.pathname]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMenuOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
   if (!user) return null;
   const nav = user.role === "system_admin" ? SYSTEM_NAV : COMPANY_NAV.filter((n) => !n.permission || can(n.permission));
   const branding = user.company?.branding;
   const style = dashboardVars(branding?.dashboard_color, branding?.dashboard_sidebar) as CSSProperties;
+  const brandName = user.company?.name ?? t("Travel AI Platform");
+  const logo = branding?.logo ? <img className="brand-logo" src={branding.logo} alt="" /> : <span className="brand-mark">✈</span>;
 
   return (
-    <div className="shell" style={style}>
-      <aside className="sidebar">
+    <div className={`shell ${menuOpen ? "menu-open" : ""}`} style={style}>
+      <header className="topbar">
+        <div className="topbar-brand">
+          {logo}
+          <span className="brand-name">{brandName}</span>
+        </div>
+        <button type="button" className="menu-btn" aria-expanded={menuOpen} aria-controls="app-nav"
+          aria-label={menuOpen ? t("Close menu") : t("Open menu")} onClick={() => setMenuOpen(!menuOpen)}>
+          {menuOpen ? "×" : "☰"}
+        </button>
+      </header>
+      {menuOpen && <div className="drawer-backdrop" onClick={() => setMenuOpen(false)} />}
+      <aside className="sidebar" id="app-nav">
         <div className="brand">
-          {branding?.logo ? <img className="brand-logo" src={branding.logo} alt="" /> : <span className="brand-mark">✈</span>}
+          {logo}
           <div>
-            <div className="brand-name">{user.company?.name ?? t("Travel AI Platform")}</div>
+            <div className="brand-name">{brandName}</div>
             <div className="brand-sub">{user.role === "system_admin" ? t("Platform console") : t("Agency workspace")}</div>
           </div>
         </div>
         <nav>
           {nav.map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.to === "/system"} className="nav-link">
-              <span className="nav-icon">{n.icon}</span>
+            <NavLink key={n.to} to={n.to} end={n.to === "/system"} className="nav-link" onClick={() => setMenuOpen(false)}>
+              <span className="nav-icon" aria-hidden="true">{n.icon}</span>
               {t(n.label)}
             </NavLink>
           ))}
           {user.company && (
             <a className="nav-link" href={`/c/${user.company.slug}`} target="_blank" rel="noreferrer">
-              <span className="nav-icon">↗</span>
+              <span className="nav-icon" aria-hidden="true">↗</span>
               {t("Customer page")}
             </a>
           )}

@@ -1,6 +1,6 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import type { Lang } from "./components/Money";
-import { AR } from "./locales/ar";
+import { AR, AR_PATTERNS, AR_PLURALS } from "./locales/ar";
 
 const STORAGE_KEY = "travel_lang";
 
@@ -21,6 +21,60 @@ export function tr(text: string, vars?: Record<string, string | number>): string
   let out = currentLang === "ar" ? AR[text] ?? text : text;
   if (vars) for (const [k, v] of Object.entries(vars)) out = out.split(`{${k}}`).join(String(v));
   return out;
+}
+
+export const TICKET_STATUS_LABELS: Record<string, string> = {
+  pending_payment: "Waiting for payment",
+  in_progress: "In progress",
+  paid: "Paid",
+  confirmed: "Confirmed",
+  cancelled: "Cancelled",
+};
+
+/** "1 adult" / "2 adults" in English; Arabic uses its own singular, dual, plural forms (see AR_PLURALS). */
+export function plural(n: number, one: string, other: string): string {
+  if (currentLang === "ar") {
+    const forms = AR_PLURALS[other];
+    if (forms) {
+      const category = new Intl.PluralRules("ar").select(n) as keyof typeof forms;
+      return (forms[category] ?? forms.other).split("{n}").join(String(n));
+    }
+  }
+  return tr(n === 1 ? one : other, { n });
+}
+
+// English server texts made a little friendlier (raw status values -> labels).
+const EN_PATTERNS: [RegExp, string][] = [
+  [/^Ticket (\S+): (\w+) → (\w+) by (.+)$/, "Ticket {1}: {2:status} → {3:status} by {4}"],
+  [/^A booking can't go from (\w+) to (\w+)$/, "A booking can't go from {1:status} to {2:status}"],
+];
+
+function fill(template: string, groups: string[]): string {
+  return template.replace(/\{(\d)(?::(\w+))?\}/g, (_, i: string, mode?: string) => {
+    const v = groups[Number(i)] ?? "";
+    if (mode === "t") return trServer(v);
+    if (mode === "status") return TICKET_STATUS_LABELS[v] ? tr(TICKET_STATUS_LABELS[v]) : v;
+    if (mode === "adults") return plural(Number(v), "{n} adult", "{n} adults");
+    if (mode === "children") return plural(Number(v), "{n} child", "{n} children");
+    return v;
+  });
+}
+
+/**
+ * Translates a text written by the server (error messages, chat events, handover reasons).
+ * Fixed texts come from the AR dictionary; texts with names or numbers in them from AR_PATTERNS.
+ * Unknown texts (e.g. a reason the AI wrote) are shown as they are.
+ */
+export function trServer(text: string | null | undefined): string {
+  if (!text) return text ?? "";
+  const s = text.trim();
+  const patterns = currentLang === "ar" ? AR_PATTERNS : EN_PATTERNS;
+  if (currentLang === "ar" && AR[s]) return AR[s];
+  for (const [re, template] of patterns) {
+    const m = s.match(re);
+    if (m) return fill(template, m);
+  }
+  return text;
 }
 
 export function currentLocale(): string {

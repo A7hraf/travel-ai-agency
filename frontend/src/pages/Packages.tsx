@@ -6,7 +6,7 @@ import type { TravelPackage } from "../types";
 import ImageUpload from "../components/ImageUpload";
 import { Money } from "../components/Money";
 import { useI18n } from "../lang";
-import { gradientFor, shortDate } from "../util";
+import { daysText, gradientFor, shortDate, todayIso } from "../util";
 
 type FormState = {
   title: string; destination: string; country: string; description: string; duration_days: string;
@@ -42,6 +42,7 @@ export default function Packages() {
   const [items, setItems] = useState<TravelPackage[] | null>(null);
   const [editing, setEditing] = useState<TravelPackage | "new" | null>(null);
   const [filter, setFilter] = useState("");
+  const [notice, setNotice] = useState<string | null>(null);
 
   const load = () => get<TravelPackage[]>("/api/packages").then(setItems).catch(() => {});
   useEffect(() => { load(); }, []);
@@ -53,8 +54,11 @@ export default function Packages() {
     <div>
       <PageHeader title={t("Travel packages")} subtitle={t("The AI only offers what is listed here, at these prices and dates.")}
         actions={can("packages.manage") && <button className="btn btn-primary" onClick={() => setEditing("new")}>{t("+ New package")}</button>} />
-      <div className="toolbar"><input placeholder={t("Filter packages")} value={filter} onChange={(e) => setFilter(e.target.value)} /></div>
-      {items === null ? <div className="loading">{t("Loading…")}</div> : shown.length === 0 ? <Empty>{t("No packages yet.")}</Empty> : (
+      <div className="toolbar"><input placeholder={t("Filter packages")} aria-label={t("Filter packages")} value={filter} onChange={(e) => setFilter(e.target.value)} /></div>
+      {notice && <div className="ok-box" role="status">{notice}</div>}
+      {items === null ? <div className="loading">{t("Loading…")}</div> : shown.length === 0 ? (
+        <Empty>{filter.trim() && items.length > 0 ? t("No results for this filter.") : t("No packages yet.")}</Empty>
+      ) : (
         <div className="pkg-grid">
           {shown.map((p) => (
             <div key={p.id} className={`pkg-card ${p.is_active ? "" : "inactive"}`}>
@@ -64,7 +68,7 @@ export default function Packages() {
               </div>
               <div className="pkg-body">
                 <h3>{p.title}</h3>
-                <div className="muted small">{t("{n} days", { n: p.duration_days })} · {p.hotel_name ?? t("Hotel TBA")}{p.hotel_stars ? ` ${"★".repeat(p.hotel_stars)}` : ""}</div>
+                <div className="muted small">{daysText(p.duration_days)} · {p.hotel_name ?? t("Hotel TBA")}{p.hotel_stars ? ` ${"★".repeat(p.hotel_stars)}` : ""}</div>
                 <div className="pkg-price"><Money value={p.price_per_person} currency={p.currency} /> <span className="muted small">{t("/ person")}</span></div>
                 <div className="muted small">
                   {p.departure_dates.length ? t("Next: {dates}", { dates: p.departure_dates.slice(0, 3).map(shortDate).join(lang === "ar" ? "، " : ", ") }) : t("Flexible dates")}
@@ -82,23 +86,34 @@ export default function Packages() {
       )}
       {editing && (
         <PackageForm pkg={editing === "new" ? null : editing} onClose={() => setEditing(null)}
-          onSaved={() => { setEditing(null); load(); }} />
+          onSaved={(message) => {
+            setEditing(null);
+            load();
+            setNotice(message);
+            window.setTimeout(() => setNotice(null), 5000);
+          }} />
       )}
     </div>
   );
 }
 
-function PackageForm({ pkg, onClose, onSaved }: { pkg: TravelPackage | null; onClose: () => void; onSaved: () => void }) {
+function PackageForm({ pkg, onClose, onSaved }: { pkg: TravelPackage | null; onClose: () => void; onSaved: (message: string) => void }) {
   const { t } = useI18n();
-  const [f, setF] = useState<FormState>(pkg ? toForm(pkg) : EMPTY);
+  const [initial] = useState<FormState>(pkg ? toForm(pkg) : EMPTY);
+  const [f, setF] = useState<FormState>(initial);
   const [newDate, setNewDate] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setF({ ...f, [k]: v });
+  const today = todayIso();
+  const dirty = JSON.stringify(f) !== JSON.stringify(initial) || newDate !== "";
+  const pastDates = f.departure_dates.filter((d) => d < today);
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
+    if (busy) return;
     setError(null);
-    const body = {
+    const body: Record<string, unknown> = {
       title: f.title, destination: f.destination, country: f.country, description: f.description,
       duration_days: Number(f.duration_days), price_per_person: Number(f.price_per_person),
       child_price: optNum(f.child_price), currency: f.currency.trim() || null, departure_dates: f.departure_dates,
@@ -107,52 +122,64 @@ function PackageForm({ pkg, onClose, onSaved }: { pkg: TravelPackage | null; onC
       hotel_name: f.hotel_name || null, hotel_stars: optNum(f.hotel_stars), seats_available: optNum(f.seats_available),
       image_url: f.image_url || null, is_active: f.is_active, is_featured: f.is_featured,
     };
+    // The seat count the form was opened with: if it was not changed here, the server keeps the
+    // current count (bookings made meanwhile have changed it).
+    if (pkg) body.seats_loaded = pkg.seats_available;
+    setBusy(true);
     try {
       if (pkg) await put(`/api/packages/${pkg.id}`, body);
       else await post("/api/packages", body);
-      onSaved();
+      onSaved(pkg ? t("Package saved.") : t("Package created."));
     } catch (err) {
       setError((err as Error).message);
+    } finally {
+      setBusy(false);
     }
   };
 
   const remove = async () => {
     if (!pkg || !confirm(t("Delete \"{title}\"? Packages with bookings are hidden instead of deleted.", { title: pkg.title }))) return;
+    setBusy(true);
     try {
       await del(`/api/packages/${pkg.id}`);
-      onSaved();
+      onSaved(t("Package deleted (or hidden when it has bookings)."));
     } catch (err) {
       setError((err as Error).message);
+    } finally {
+      setBusy(false);
     }
   };
 
   return (
-    <Modal title={pkg ? t("Edit {title}", { title: pkg.title }) : t("New package")} onClose={onClose} wide>
+    <Modal title={pkg ? t("Edit {title}", { title: pkg.title }) : t("New package")} onClose={onClose} wide dirty={dirty}>
       <form onSubmit={save}>
         <div className="form-grid">
-          <Field label={t("Title")}><input value={f.title} onChange={(e) => set("title", e.target.value)} required /></Field>
-          <Field label={t("Destination (city / region)")}><input value={f.destination} onChange={(e) => set("destination", e.target.value)} required /></Field>
-          <Field label={t("Country")}><input value={f.country} onChange={(e) => set("country", e.target.value)} required /></Field>
-          <Field label={t("Duration (days)")}><input type="number" min={1} value={f.duration_days} onChange={(e) => set("duration_days", e.target.value)} required /></Field>
-          <Field label={t("Price per adult")}><input type="number" min={0} step="0.001" value={f.price_per_person} onChange={(e) => set("price_per_person", e.target.value)} required /></Field>
+          <Field label={t("Title")}><input value={f.title} onChange={(e) => set("title", e.target.value)} required minLength={2} maxLength={200} dir="auto" /></Field>
+          <Field label={t("Destination (city / region)")}><input value={f.destination} onChange={(e) => set("destination", e.target.value)} required maxLength={120} dir="auto" /></Field>
+          <Field label={t("Country")}><input value={f.country} onChange={(e) => set("country", e.target.value)} required maxLength={120} dir="auto" /></Field>
+          <Field label={t("Duration (days)")}><input type="number" min={1} max={365} step={1} value={f.duration_days} onChange={(e) => set("duration_days", e.target.value)} required /></Field>
+          <Field label={t("Price per adult")} hint={t("More than 0.")}><input type="number" min={0.001} step="0.001" value={f.price_per_person} onChange={(e) => set("price_per_person", e.target.value)} required /></Field>
           <Field label={t("Price per child")} hint={t("Empty = same as adult")}><input type="number" min={0} step="0.001" value={f.child_price} onChange={(e) => set("child_price", e.target.value)} /></Field>
-          <Field label={t("Currency")} hint={t("Empty = company currency")}><input maxLength={3} value={f.currency} onChange={(e) => set("currency", e.target.value.toUpperCase())} /></Field>
-          <Field label={t("Seats available")} hint={t("Empty = unlimited")}><input type="number" min={0} value={f.seats_available} onChange={(e) => set("seats_available", e.target.value)} /></Field>
+          <Field label={t("Currency")} hint={t("Empty = company currency")}><input maxLength={3} pattern="[A-Za-z]{3}" title={t("3 English letters, for example OMR")} dir="ltr" value={f.currency} onChange={(e) => set("currency", e.target.value.toUpperCase())} /></Field>
+          <Field label={t("Seats available")} hint={t("Empty = unlimited")}><input type="number" min={0} step={1} value={f.seats_available} onChange={(e) => set("seats_available", e.target.value)} /></Field>
           <Field label={t("Hotel")}><input value={f.hotel_name} onChange={(e) => set("hotel_name", e.target.value)} /></Field>
           <Field label={t("Hotel stars")}><input type="number" min={1} max={7} value={f.hotel_stars} onChange={(e) => set("hotel_stars", e.target.value)} /></Field>
         </div>
         <Field label={t("Description / itinerary")} hint={t("The AI reads this to answer customer questions.")}>
           <textarea rows={4} value={f.description} onChange={(e) => set("description", e.target.value)} />
         </Field>
-        <Field label={t("Departure dates")} hint={t("Leave empty for flexible dates on request.")}>
+        <Field label={t("Departure dates")} hint={pastDates.length
+          ? t("Dates in the past (crossed out) are removed when you save.")
+          : t("Leave empty for flexible dates on request.")}>
           <div className="date-chips">
             {f.departure_dates.map((d) => (
-              <span key={d} className="chip">{shortDate(d)}
-                <button type="button" onClick={() => set("departure_dates", f.departure_dates.filter((x) => x !== d))}>×</button>
+              <span key={d} className={`chip ${d < today ? "chip-past" : ""}`}>{shortDate(d)}
+                <button type="button" aria-label={t("Remove {date}", { date: shortDate(d) })}
+                  onClick={() => set("departure_dates", f.departure_dates.filter((x) => x !== d))}>×</button>
               </span>
             ))}
-            <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
-            <button type="button" className="btn btn-sm" disabled={!newDate} onClick={() => {
+            <input type="date" min={today} value={newDate} aria-label={t("New departure date")} onChange={(e) => setNewDate(e.target.value)} />
+            <button type="button" className="btn btn-sm" disabled={!newDate || newDate < today} onClick={() => {
               if (!f.departure_dates.includes(newDate)) set("departure_dates", [...f.departure_dates, newDate].sort());
               setNewDate("");
             }}>{t("Add date")}</button>
@@ -174,10 +201,10 @@ function PackageForm({ pkg, onClose, onSaved }: { pkg: TravelPackage | null; onC
         </div>
         <ErrorBox error={error} />
         <div className="modal-actions">
-          {pkg && <button type="button" className="btn btn-danger" onClick={remove}>{t("Delete")}</button>}
+          {pkg && <button type="button" className="btn btn-danger" disabled={busy} onClick={remove}>{t("Delete")}</button>}
           <span className="spacer" />
           <button type="button" className="btn btn-ghost" onClick={onClose}>{t("Cancel")}</button>
-          <button className="btn btn-primary">{t("Save package")}</button>
+          <button className="btn btn-primary" disabled={busy}>{busy ? t("Saving…") : t("Save package")}</button>
         </div>
       </form>
     </Modal>

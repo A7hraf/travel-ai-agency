@@ -49,7 +49,8 @@ export interface Analytics {
   handled_by_ai: number;
   handed_to_team: number;
   booked_value: number;
-  confirmed_value: number;
+  /** Paid and confirmed bookings. */
+  paid_value: number;
 }
 
 export interface User {
@@ -238,12 +239,23 @@ export interface Ticket {
   updated_at: string;
 }
 
+export interface TicketEvent {
+  id: number;
+  actor: string;
+  action: "created" | "assigned" | "unassigned" | "payment_reference" | "price" | "status" | "notes" | string;
+  old_value: string | null;
+  new_value: string | null;
+  created_at: string;
+}
+
 export interface Dashboard {
   conversations_by_status: Record<string, number>;
   tickets_by_status: Record<string, number>;
   pipeline_value: number;
   confirmed_value: number;
   currency: string;
+  /** Open or confirmed bookings in other currencies, not included in the totals. */
+  other_currencies?: Record<string, number>;
   packages_active: number;
   users: number;
   max_users: number;

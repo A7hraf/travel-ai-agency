@@ -7,6 +7,8 @@ interface AuthState {
   loading: boolean;
   login: (email: string, password: string) => Promise<Me>;
   logout: () => void;
+  /** True after the server ended the session (401): the login page explains it. */
+  sessionEnded: boolean;
   can: (permission: string) => boolean;
   refresh: () => Promise<void>;
 }
@@ -16,6 +18,7 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sessionEnded, setSessionEnded] = useState(false);
 
   const logout = useCallback(() => {
     setToken(null);
@@ -23,7 +26,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    setUnauthorizedHandler(logout);
+    setUnauthorizedHandler(() => {
+      setSessionEnded(true);
+      logout();
+    });
     if (!getToken()) {
       setLoading(false);
       return;
@@ -37,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string) => {
     const res = await post<{ access_token: string; user: Me }>("/api/auth/login", { email, password });
     setToken(res.access_token);
+    setSessionEnded(false);
     setUser(res.user);
     return res.user;
   };
@@ -47,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const can = (permission: string) => !!user && user.permissions.includes(permission);
 
-  return <AuthContext.Provider value={{ user, loading, login, logout, can, refresh }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, loading, login, logout, sessionEnded, can, refresh }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthState {

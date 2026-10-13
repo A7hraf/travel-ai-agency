@@ -4,7 +4,7 @@ import { ReactNode, useEffect, useRef, useState } from "react";
 export const SERIES = ["#2a78d6", "#eb6834", "#1baf7a"];
 export const ORDINAL_BLUES = ["#86b6ef", "#3987e5", "#1c5cab"];
 
-const AXIS = "#94a3b8";
+const AXIS = "#64748b";
 const GRID = "#eef2f7";
 const SURFACE = "#ffffff";
 
@@ -252,16 +252,17 @@ export function HBars({ items, format = String, rtl = false }: {
 }
 
 /** Ring meter for one share (e.g. % handled by the AI). */
-export function Ring({ value, color = SERIES[0], size = 78 }: { value: number; color?: string; size?: number }) {
+export function Ring({ value, color = SERIES[0], size = 78, empty }: { value: number; color?: string; size?: number; empty?: boolean }) {
   const r = size / 2 - 6;
   const c = 2 * Math.PI * r;
-  const v = Math.max(0, Math.min(1, value));
+  const v = empty ? 0 : Math.max(0, Math.min(1, value));
+  const label = empty ? "—" : `${Math.round(v * 100)}%`;
   return (
-    <svg width={size} height={size} className="ring" role="img" aria-label={`${Math.round(v * 100)}%`}>
+    <svg width={size} height={size} className="ring" role="img" aria-label={label}>
       <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#e8eef6" strokeWidth={8} />
       <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={8} strokeLinecap="round"
         strokeDasharray={`${c * v} ${c}`} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
-      <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle" className="ring-text">{Math.round(v * 100)}%</text>
+      <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle" className="ring-text">{label}</text>
     </svg>
   );
 }

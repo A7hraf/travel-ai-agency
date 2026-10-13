@@ -1,23 +1,87 @@
-import { ReactNode, useEffect } from "react";
+import { MouseEvent, ReactNode, useEffect, useId, useRef } from "react";
 import { tr } from "../lang";
 
-export function Modal({ title, onClose, children, wide }: {
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/**
+ * Dialog window. With `dirty`, closing (Escape, ×, a tap on the background) first asks
+ * whether to discard the changes. Keyboard focus stays inside while it is open.
+ */
+export function Modal({ title, onClose, children, wide, dirty }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
   wide?: boolean;
+  dirty?: boolean;
 }) {
+  const titleId = useId();
+  const box = useRef<HTMLDivElement>(null);
+  const downOnBackdrop = useRef(false);
+  // Refs so the effects below run once per opening (re-running would move the focus).
+  const latest = useRef({ onClose, dirty });
+  latest.current = { onClose, dirty };
+
+  const requestClose = () => {
+    if (latest.current.dirty && !window.confirm(tr("Discard your changes?"))) return;
+    latest.current.onClose();
+  };
+
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const previous = document.activeElement as HTMLElement | null;
+    const el = box.current;
+    const first = el?.querySelector<HTMLElement>(
+      '.modal-body input:not([disabled]):not([type="hidden"]):not([type="checkbox"]):not([type="file"]), .modal-body select:not([disabled]), .modal-body textarea:not([disabled])',
+    );
+    (first ?? el)?.focus({ preventScroll: true });
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        requestClose();
+        return;
+      }
+      if (e.key !== "Tab" || !el) return;
+      const items = [...el.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((x) => x.offsetParent !== null);
+      if (items.length === 0) {
+        e.preventDefault();
+        return;
+      }
+      const firstItem = items[0];
+      const lastItem = items[items.length - 1];
+      if (!el.contains(document.activeElement)) {
+        e.preventDefault();
+        firstItem.focus();
+      } else if (e.shiftKey && document.activeElement === firstItem) {
+        e.preventDefault();
+        lastItem.focus();
+      } else if (!e.shiftKey && document.activeElement === lastItem) {
+        e.preventDefault();
+        firstItem.focus();
+      }
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      if (previous && document.contains(previous)) previous.focus({ preventScroll: true });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Close on a background tap only when the press started AND ended on the background
+  // (selecting text in a field and releasing outside must not close the form).
+  const onBackdropDown = (e: MouseEvent) => { downOnBackdrop.current = e.target === e.currentTarget; };
+  const onBackdropClick = (e: MouseEvent) => {
+    if (downOnBackdrop.current && e.target === e.currentTarget) requestClose();
+    downOnBackdrop.current = false;
+  };
+
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
-      <div className={`modal ${wide ? "modal-wide" : ""}`} onMouseDown={(e) => e.stopPropagation()} role="dialog">
+    <div className="modal-backdrop" onMouseDown={onBackdropDown} onClick={onBackdropClick}>
+      <div ref={box} className={`modal ${wide ? "modal-wide" : ""}`} role="dialog" aria-modal="true"
+        aria-labelledby={titleId} tabIndex={-1}>
         <div className="modal-head">
-          <h2>{title}</h2>
-          <button className="icon-btn" onClick={onClose} aria-label={tr("Close")}>×</button>
+          <h2 id={titleId}>{title}</h2>
+          <button type="button" className="icon-btn" onClick={requestClose} aria-label={tr("Close")}>×</button>
         </div>
         <div className="modal-body">{children}</div>
       </div>

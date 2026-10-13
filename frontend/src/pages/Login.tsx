@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { get } from "../api";
 import { homePath, useAuth } from "../auth";
 import { LangSwitch, useI18n } from "../lang";
@@ -14,6 +14,9 @@ export default function Login() {
   const { user, login } = useAuth();
   const { t } = useI18n();
   const navigate = useNavigate();
+  const location = useLocation();
+  const state = location.state as { from?: string; expired?: boolean } | null;
+  const from = state?.from && state.from.startsWith("/") && !state.from.startsWith("/login") ? state.from : null;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +28,7 @@ export default function Login() {
     get<DemoAccount[]>("/api/auth/demo-accounts").then(setDemo).catch(() => {});
   }, []);
 
-  if (user) return <Navigate to={homePath(user)} replace />;
+  if (user) return <Navigate to={from ?? homePath(user)} replace />;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -33,7 +36,7 @@ export default function Login() {
     setError(null);
     try {
       const me = await login(email, password);
-      navigate(homePath(me));
+      navigate(from ?? homePath(me), { replace: true });
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -51,15 +54,16 @@ export default function Login() {
       </div>
       <form className="login-card" onSubmit={submit}>
         <h2>{t("Sign in")}</h2>
+        {state?.expired && !error && <div className="info-box small" role="status">{t("Your session ended, please sign in again")}</div>}
         <label className="field">
           <span className="field-label">{t("Email")}</span>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
+          <input type="email" autoComplete="username" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
         </label>
         <label className="field">
           <span className="field-label">{t("Password")}</span>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
         </label>
-        {error && <div className="error-box">{error}</div>}
+        {error && <div className="error-box" role="alert">{error}</div>}
         <button className="btn btn-primary btn-block" disabled={busy}>{busy ? t("Signing in…") : t("Sign in")}</button>
 
         {demo.length > 0 && (
@@ -68,7 +72,7 @@ export default function Login() {
             {demo.map((a) => (
               <button type="button" key={a.email} className="demo-account"
                 onClick={() => { setEmail(a.email); setPassword(a.password); }}>
-                <strong>{a.label}</strong> <span className="muted">{a.email}</span>
+                <strong>{a.label}</strong> <span className="muted" dir="ltr">{a.email}</span>
               </button>
             ))}
             <a className="small" href="/c/sunrise-travel" target="_blank" rel="noreferrer">{t("Open the demo customer page")} ↗</a>

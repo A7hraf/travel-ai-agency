@@ -16,7 +16,13 @@ function PackageCard({ p, lang, t, onOpen, onBook }: {
   p: TravelPackage; lang: Lang; t: StorefrontText; onOpen: () => void; onBook: () => void;
 }) {
   return (
-    <article className="pkg-card sf-card" onClick={onOpen}>
+    <article className="pkg-card sf-card" onClick={onOpen} tabIndex={0} aria-label={t.openPackage(p.title)}
+      onKeyDown={(e) => {
+        if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) {
+          e.preventDefault();
+          onOpen();
+        }
+      }}>
       <div className="pkg-cover" style={{ background: cover(p) }}>
         <span>{p.destination}, {p.country}</span>
         {p.is_featured && <span className="pkg-flag">{t.featured}</span>}
@@ -63,7 +69,9 @@ export default function Storefront() {
     const text = `${p.title} ${p.destination} ${p.country} ${p.tags.join(" ")} ${p.description}`.toLowerCase();
     return (!query || text.includes(query.toLowerCase())) && (!budget || p.price_per_person <= Number(budget));
   });
-  const featured = packages.filter((p) => p.is_featured);
+  // While the visitor searches, only the matching offers are shown (no featured block above them).
+  const filtering = !!(query.trim() || budget);
+  const featured = filtering ? [] : packages.filter((p) => p.is_featured);
 
   const askAbout = (p: TravelPackage) => {
     setSelected(null);
@@ -97,7 +105,9 @@ export default function Storefront() {
           <h2>{t.offers}</h2>
           {company.currency === "OMR" && <span className="muted small">{t.pricesNote}</span>}
         </div>
-        {shown.length === 0 ? (
+        {packages.length === 0 ? (
+          <p className="muted">{t.comingSoon(agent)} <button className="link-btn" onClick={() => setChatOpen(true)}>{t.askNow}</button></p>
+        ) : shown.length === 0 ? (
           <p className="muted">{t.noMatch} <button className="link-btn" onClick={() => setChatOpen(true)}>{t.askFor(agent)}</button> {t.customTrip}</p>
         ) : (
           <div className={gridClass}>{shown.map(card)}</div>
@@ -118,7 +128,7 @@ export default function Storefront() {
         </div>
         <div className="sf-contact-actions">
           {company.contact_phone && <a className="btn" href={`tel:${company.contact_phone.replace(/[^\d+]/g, "")}`} dir="ltr">☎ {company.contact_phone}</a>}
-          {company.contact_email && <a className="btn" href={`mailto:${company.contact_email}`}>✉ {company.contact_email}</a>}
+          {company.contact_email && <a className="btn" href={`mailto:${company.contact_email}`} dir="ltr">✉ {company.contact_email}</a>}
           {waDigits && <a className="btn btn-wa" href={`https://wa.me/${waDigits}`} target="_blank" rel="noreferrer">{t.whatsapp}</a>}
           <button className="btn btn-primary" onClick={() => setChatOpen(true)}>💬 {t.chatWith(agent)}</button>
         </div>
@@ -146,8 +156,8 @@ export default function Storefront() {
           <p dir="auto">{heroText}</p>
           {b.sections.includes("search") ? (
             <div className="sf-search">
-              <input placeholder={t.searchPlaceholder} value={query} onChange={(e) => setQuery(e.target.value)} />
-              <input type="number" min={0} placeholder={t.budgetPlaceholder} value={budget} onChange={(e) => setBudget(e.target.value)} />
+              <input type="search" placeholder={t.searchPlaceholder} aria-label={t.searchLabel} value={query} onChange={(e) => setQuery(e.target.value)} />
+              <input type="number" min={0} inputMode="decimal" placeholder={t.budgetPlaceholder} aria-label={t.budgetLabel} value={budget} onChange={(e) => setBudget(e.target.value)} />
               <button className="btn btn-primary" onClick={() => setChatOpen(true)}>{t.chatWith(agent)}</button>
             </div>
           ) : (
@@ -161,7 +171,7 @@ export default function Storefront() {
       </main>
 
       <footer className="sf-footer">
-        {company.name}{company.contact_email ? ` · ${company.contact_email}` : ""} · {t.footer}
+        {company.name}{company.contact_email && <> · <bdi dir="ltr">{company.contact_email}</bdi></>} · {t.footer}
       </footer>
 
       {selected && (
@@ -199,7 +209,7 @@ export default function Storefront() {
         <ChatWidget slug={slug} company={company} lang={lang} t={t} prefill={prefill}
           onPrefillUsed={() => setPrefill(null)} onClose={() => setChatOpen(false)} />
       ) : (
-        <button className="chat-fab" onClick={() => setChatOpen(true)}>💬 {t.chatWith(agent)}</button>
+        <button className="chat-fab" onClick={() => setChatOpen(true)}><span aria-hidden="true">💬</span> <span className="chat-fab-text">{t.chatWith(agent)}</span></button>
       )}
     </div>
   );
@@ -217,6 +227,7 @@ function ChatWidget({ slug, company, lang, t, prefill, onPrefillUsed, onClose }:
   const [waiting, setWaiting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLInputElement>(null);
   const started = useRef(false);
   const base = `/api/public/companies/${slug}/chats`;
 
@@ -263,6 +274,8 @@ function ChatWidget({ slug, company, lang, t, prefill, onPrefillUsed, onClose }:
   }, [token, messages, waiting, base, merge]);
 
   useEffect(() => { bottom.current?.scrollIntoView({ block: "end" }); }, [messages, waiting]);
+  // Ready to type as soon as the chat is open.
+  useEffect(() => { if (token) input.current?.focus(); }, [token]);
 
   const send = useCallback(async (content: string) => {
     if (!content.trim() || !token) return;
@@ -297,6 +310,7 @@ function ChatWidget({ slug, company, lang, t, prefill, onPrefillUsed, onClose }:
   };
 
   const restart = () => {
+    if (messages.some((m) => m.sender === "customer") && !window.confirm(t.confirmNewChat)) return;
     try { localStorage.removeItem(storageKey); } catch { /* ignore */ }
     setMessages([]);
     startNew().catch((e) => setError(e.message));
@@ -310,10 +324,10 @@ function ChatWidget({ slug, company, lang, t, prefill, onPrefillUsed, onClose }:
           <div className="cw-name">{company.ai_agent_name} · {company.name}</div>
           <div className="cw-sub">{status === "human" ? t.humanSub : t.aiSub}</div>
         </div>
-        <button className="icon-btn light" title={t.newChat} onClick={restart}>↻</button>
+        <button className="icon-btn light" title={t.newChat} aria-label={t.newChat} onClick={restart}>↻</button>
         <button className="icon-btn light" onClick={onClose} aria-label={t.close}>×</button>
       </div>
-      <div className="cw-body">
+      <div className="cw-body" aria-live="polite" aria-relevant="additions">
         {messages.map((m) => (
           <div key={m.id} className={`cw-msg ${m.sender === "customer" ? "me" : "them"}`}>
             {m.sender === "agent" && <div className="cw-who">{t.consultant}</div>}
@@ -325,7 +339,8 @@ function ChatWidget({ slug, company, lang, t, prefill, onPrefillUsed, onClose }:
       </div>
       {error && <div className="cw-error">{error}</div>}
       <form className="cw-input" onSubmit={submit}>
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder={t.typeHere} disabled={!token} maxLength={2000} dir="auto" />
+        <input ref={input} value={text} onChange={(e) => setText(e.target.value)} placeholder={t.typeHere} aria-label={t.messageLabel}
+          disabled={!token} maxLength={2000} dir="auto" autoFocus />
         <button className="btn btn-primary" disabled={!text.trim() || waiting || !token}>{t.send}</button>
       </form>
     </div>

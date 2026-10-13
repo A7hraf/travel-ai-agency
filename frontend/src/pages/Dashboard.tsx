@@ -7,7 +7,7 @@ import { Money, moneyText } from "../components/Money";
 import { Badge, CONVERSATION_TONES, PageHeader, TICKET_TONES } from "../components/ui";
 import { currentLocale, useI18n } from "../lang";
 import type { Analytics, Dashboard as DashboardData } from "../types";
-import { CONVERSATION_STATUS_LABELS, TICKET_STATUS_LABELS, usePolling } from "../util";
+import { CONVERSATION_STATUS_LABELS, daysText, TICKET_STATUS_LABELS, usePolling } from "../util";
 
 const PERIODS = [7, 30, 90];
 
@@ -41,7 +41,9 @@ export default function Dashboard() {
   const totalChats = a ? a.daily.reduce((s, d) => s + d.web + d.whatsapp, 0) : 0;
   const totalBookings = a ? a.daily.reduce((s, d) => s + d.bookings, 0) : 0;
   const conversion = a ? pct(a.funnel.with_booking, a.funnel.conversations) : 0;
-  const aiShare = a ? pct(a.handled_by_ai, a.handled_by_ai + a.handed_to_team) : 0;
+  const handledTotal = a ? a.handled_by_ai + a.handed_to_team : 0;
+  const aiShare = a ? pct(a.handled_by_ai, handledTotal) : 0;
+  const otherCurrencies = Object.entries(data.other_currencies ?? {}).filter(([, v]) => v > 0);
   const channels = [{ label: t("Website"), color: SERIES[0] }, { label: t("WhatsApp"), color: SERIES[1] }];
   const funnel = a ? [
     { label: t("Conversations"), value: a.funnel.conversations, color: ORDINAL_BLUES[0] },
@@ -58,21 +60,21 @@ export default function Dashboard() {
         actions={
           <div className="seg" role="group" aria-label={t("Period")}>
             {PERIODS.map((p) => (
-              <button key={p} className={days === p ? "active" : ""} onClick={() => setDays(p)}>{t("{n} days", { n: p })}</button>
+              <button key={p} className={days === p ? "active" : ""} aria-pressed={days === p} onClick={() => setDays(p)}>{daysText(p)}</button>
             ))}
           </div>
         } />
 
       <div className="kpis">
         <div className="kpi kpi-hero">
-          <div className="kpi-label">{t("Booked value · last {n} days", { n: days })}</div>
+          <div className="kpi-label">{t("Booked value · last {period}", { period: daysText(days) })}</div>
           <div className="kpi-value">{a ? <Money value={a.booked_value} currency={currency} lang={lang} /> : "…"}</div>
           <div className="kpi-sub">{t("{n} booking tickets", { n: totalBookings })}</div>
         </div>
         <div className="kpi">
-          <div className="kpi-label">{t("Confirmed sales")}</div>
-          <div className="kpi-value">{a ? <Money value={a.confirmed_value} currency={currency} lang={lang} /> : "…"}</div>
-          <div className="kpi-sub">{t("Paid and confirmed")}</div>
+          <div className="kpi-label">{t("Paid sales")}</div>
+          <div className="kpi-value">{a ? <Money value={a.paid_value} currency={currency} lang={lang} /> : "…"}</div>
+          <div className="kpi-sub">{t("Paid and confirmed bookings")}</div>
         </div>
         <div className="kpi">
           <div className="kpi-label">{t("Conversations")}</div>
@@ -85,13 +87,21 @@ export default function Dashboard() {
           <div className="kpi-sub">{t("Chats that became a booking")}</div>
         </div>
         <div className="kpi kpi-ring">
-          <Ring value={aiShare} color={SERIES[2]} />
+          <Ring value={aiShare} color={SERIES[2]} empty={!a || handledTotal === 0} />
           <div>
             <div className="kpi-label">{t("Handled fully by the AI")}</div>
             <div className="kpi-sub">{t("{n} handed to your team", { n: a?.handed_to_team ?? 0 })}</div>
           </div>
         </div>
       </div>
+
+      {otherCurrencies.length > 0 && (
+        <p className="muted small other-currencies">
+          {t("Bookings in other currencies, not included in the totals: {list}", {
+            list: otherCurrencies.map(([cur, v]) => moneyText(v, cur, lang)).join(lang === "ar" ? "، " : ", "),
+          })}
+        </p>
+      )}
 
       <div className="stats stats-compact">
         <Link to="/app/conversations?status=human" className="stat stat-link">
