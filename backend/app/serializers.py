@@ -4,7 +4,17 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .branding import dashboard_branding
-from .models import Company, Conversation, Message, MessageKind, Sender, Ticket, TicketStatus, TravelPackage, User
+from .models import (
+    Company,
+    Conversation,
+    Message,
+    MessageKind,
+    Sender,
+    Ticket,
+    TicketStatus,
+    TravelPackage,
+    User,
+)
 from .permissions import effective_permissions
 from .schemas import (
     CompanyAdminOut,

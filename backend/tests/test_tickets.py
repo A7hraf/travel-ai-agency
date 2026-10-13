@@ -1,6 +1,8 @@
 """Employees finishing bookings: assignment, statuses, seats, dashboard, packages."""
 
 from app.ai.llm import LLMResponse, ToolCall
+from app.database import SessionLocal
+from app.models import TravelPackage
 from tests.conftest import future, login, make_package
 
 
@@ -90,7 +92,10 @@ def test_public_storefront_hides_unavailable_packages(client, company_a):
     make_package(client, admin, title="Open Trip")
     make_package(client, admin, title="Hidden Trip", is_active=False)
     make_package(client, admin, title="Sold Out", seats_available=0)
-    make_package(client, admin, title="Past Trip", departure_dates=["2020-01-01"])
+    past = make_package(client, admin, title="Past Trip", departure_dates=[future(3)])
+    with SessionLocal() as db:  # its dates passed since it was created
+        db.get(TravelPackage, past["id"]).departure_dates = ["2020-01-01"]
+        db.commit()
     make_package(client, admin, title="Flexible Trip", departure_dates=[])
     titles = [p["title"] for p in client.get(f"/api/public/companies/{company['slug']}/packages").json()]
     assert sorted(titles) == ["Flexible Trip", "Open Trip"]

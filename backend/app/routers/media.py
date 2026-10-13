@@ -6,6 +6,7 @@ served with headers that stop a browser from running anything inside them.
 
 import base64
 import binascii
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
@@ -14,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..deps import get_company_user, require_system_admin
-from ..models import Company, MediaFile, User
+from ..models import Company, MediaFile, TravelPackage, User, utcnow
 from ..permissions import effective_permissions
 from ..security import random_token
 
@@ -59,12 +60,41 @@ def store_image(db: Session, company: Company, body: UploadIn) -> UploadOut:
         )
     ).one()
     if count >= MAX_FILES_PER_COMPANY or total + len(data) > MAX_TOTAL_BYTES_PER_COMPANY:
+        # Make room by removing the company's photos that nothing uses any more (replaced logos,
+        # photos of deleted packages), then check again.
+        remove_unused_media(db, company.id)
+        count, total = db.execute(
+            select(func.count(MediaFile.id), func.coalesce(func.sum(MediaFile.size), 0)).where(
+                MediaFile.company_id == company.id
+            )
+        ).one()
+    if count >= MAX_FILES_PER_COMPANY or total + len(data) > MAX_TOTAL_BYTES_PER_COMPANY:
         raise HTTPException(409, "Image storage limit reached for this company")
     media = MediaFile(company_id=company.id, key=random_token(24), content_type=body.content_type,
                       size=len(data), data=data)
     db.add(media)
     db.commit()
     return UploadOut(url=f"/api/media/{media.key}", size=media.size)
+
+
+def remove_unused_media(db: Session, company_id: int, min_age: timedelta = timedelta(hours=1)) -> int:
+    """Delete the company's uploaded photos that no package and no page design uses. Recent uploads
+    are kept: they may belong to a form that is still open."""
+    company = db.get(Company, company_id)
+    used = {p.image_url for p in db.scalars(select(TravelPackage).where(TravelPackage.company_id == company_id))}
+    branding = (company.branding or {}) if company else {}
+    used |= {branding.get("logo"), branding.get("hero_image")}
+    keys = {u.removeprefix("/api/media/") for u in used if u and u.startswith("/api/media/")}
+    stale = db.scalars(
+        select(MediaFile).where(MediaFile.company_id == company_id, MediaFile.created_at < utcnow() - min_age)
+    ).all()
+    removed = 0
+    for media in stale:
+        if media.key not in keys:
+            db.delete(media)
+            removed += 1
+    db.flush()
+    return removed
 
 
 def media_belongs_to(db: Session, url: str | None, company_id: int) -> bool:

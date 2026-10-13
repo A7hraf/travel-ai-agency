@@ -19,7 +19,6 @@ from ..models import (
     TicketStatus,
     TravelPackage,
     User,
-    utcnow,
 )
 from ..permissions import effective_permissions
 from ..ratelimit import limiter
@@ -35,6 +34,7 @@ from ..schemas import (
 )
 from ..serializers import OPEN_TICKET_STATUSES, company_settings_out
 from ..services.users import seats_used
+from ..timeutil import days_back, local_date
 from .media import media_belongs_to
 
 router = APIRouter(prefix="/api", tags=["company"])
@@ -88,20 +88,30 @@ def dashboard(me: User = Depends(require_permission("reports.view")), db: Sessio
         rows = db.execute(select(column, func.count(model.id)).where(model.company_id == cid).group_by(column))
         return {str(k): v for k, v in rows}
 
+    currency = me.company.currency
+
     def total(statuses) -> float:
+        # Amounts in other currencies are never added to the company currency (see other_currencies).
         value = db.scalar(
             select(func.coalesce(func.sum(Ticket.total_price), 0)).where(
-                Ticket.company_id == cid, Ticket.status.in_(statuses)
+                Ticket.company_id == cid, Ticket.status.in_(statuses), Ticket.currency == currency
             )
         )
         return float(value or 0)
+
+    others = db.execute(
+        select(Ticket.currency, func.sum(Ticket.total_price)).where(
+            Ticket.company_id == cid, Ticket.currency != currency, Ticket.status != TicketStatus.CANCELLED
+        ).group_by(Ticket.currency)
+    ).all()
 
     return DashboardOut(
         conversations_by_status=grouped(Conversation, Conversation.status),
         tickets_by_status=grouped(Ticket, Ticket.status),
         pipeline_value=total(OPEN_TICKET_STATUSES),
         confirmed_value=total([TicketStatus.CONFIRMED]),
-        currency=me.company.currency,
+        currency=currency,
+        other_currencies={str(cur): round(float(v or 0), 3) for cur, v in others},
         packages_active=db.scalar(
             select(func.count(TravelPackage.id)).where(TravelPackage.company_id == cid, TravelPackage.is_active)
         ) or 0,
@@ -147,41 +157,41 @@ def analytics(days: int = 30, me: User = Depends(require_permission("reports.vie
     """Daily activity, sales funnel and best-selling packages of the last `days` days."""
     days = max(7, min(days, 365))
     cid = me.company_id
-    first_day = utcnow().date() - timedelta(days=days - 1)
-    since = utcnow() - timedelta(days=days)
+    currency = me.company.currency
+    # Days are the agency's local days (Oman), and every number covers exactly the days shown.
+    first_day, since = days_back(days)
 
     convs = db.execute(
-        select(Conversation.id, Conversation.channel, Conversation.created_at, Conversation.handover_reason,
-               Conversation.status)
+        select(Conversation.id, Conversation.channel, Conversation.created_at, Conversation.was_handed_over)
         .where(Conversation.company_id == cid, Conversation.created_at >= since)
     ).all()
     tickets = db.execute(
         select(Ticket.conversation_id, Ticket.created_at, Ticket.total_price, Ticket.status, Ticket.package_title)
-        .where(Ticket.company_id == cid, Ticket.created_at >= since)
+        .where(Ticket.company_id == cid, Ticket.created_at >= since, Ticket.currency == currency)
     ).all()
 
     daily: dict[date, dict] = {
         first_day + timedelta(days=i): {"web": 0, "whatsapp": 0, "bookings": 0, "booked_value": 0.0}
         for i in range(days)
     }
-    for _, channel, created, _, _ in convs:
-        day = daily.get(created.date())
+    for _, channel, created, _ in convs:
+        day = daily.get(local_date(created))
         if day is not None:
             day["whatsapp" if channel == Channel.WHATSAPP else "web"] += 1
     packages: dict[str, dict] = {}
     booked_conversations = set()
     paid_conversations = set()
-    booked_value = confirmed_value = 0.0
+    booked_value = paid_value = 0.0
     for conversation_id, created, total, status, title in tickets:
         if status == TicketStatus.CANCELLED:
             continue
         value = float(total)
         booked_value += value
         if status in PAID:
-            confirmed_value += value
+            paid_value += value
             paid_conversations.add(conversation_id)
         booked_conversations.add(conversation_id)
-        day = daily.get(created.date())
+        day = daily.get(local_date(created))
         if day is not None:
             day["bookings"] += 1
             day["booked_value"] += value
@@ -190,11 +200,11 @@ def analytics(days: int = 30, me: User = Depends(require_permission("reports.vie
         entry["value"] += value
 
     conversation_ids = {c[0] for c in convs}
-    handed = sum(1 for c in convs if c[3] is not None or c[4] == ConversationStatus.HUMAN)
+    handed = sum(1 for c in convs if c[3])
     top = sorted(packages.items(), key=lambda kv: (-kv[1]["value"], kv[0]))[:5]
     return AnalyticsOut(
         days=days,
-        currency=me.company.currency,
+        currency=currency,
         daily=[DailyPoint(date=d.isoformat(), **v) for d, v in sorted(daily.items())],
         funnel=FunnelOut(
             conversations=len(convs),
@@ -205,6 +215,6 @@ def analytics(days: int = 30, me: User = Depends(require_permission("reports.vie
         handled_by_ai=len(convs) - handed,
         handed_to_team=handed,
         booked_value=round(booked_value, 3),
-        confirmed_value=round(confirmed_value, 3),
+        paid_value=round(paid_value, 3),
     )
 

@@ -114,7 +114,7 @@ def test_dashboard_analytics(client, company_a, scripted):
     t2 = client.post(f"/api/public/companies/{slug}/chats", json={}).json()["token"]
     client.post(f"/api/public/companies/{slug}/chats/{t2}/messages", json={"content": "hi"})
     ticket = client.get("/api/tickets", headers=admin).json()[0]
-    client.patch(f"/api/tickets/{ticket['id']}", headers=admin, json={"status": "paid"})
+    client.patch(f"/api/tickets/{ticket['id']}", headers=admin, json={"status": "paid", "payment_reference": "R1"})
 
     a = client.get("/api/dashboard/analytics", headers=admin, params={"days": 7}).json()
     assert a["days"] == 7 and len(a["daily"]) == 7 and a["currency"] == "OMR"
@@ -123,4 +123,4 @@ def test_dashboard_analytics(client, company_a, scripted):
     assert a["funnel"] == {"conversations": 2, "with_booking": 1, "paid_or_confirmed": 1}
     assert a["top_packages"] == [{"title": "Salalah", "bookings": 1, "value": 200}]
     assert a["handled_by_ai"] == 1 and a["handed_to_team"] == 1
-    assert a["confirmed_value"] == 200
+    assert a["paid_value"] == 200

@@ -1,7 +1,5 @@
 """Customer-facing API: a company's offers page and web chat with the AI agent."""
 
-from datetime import date
-
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -11,7 +9,16 @@ from ..ai.tools import is_bookable
 from ..branding import public_branding
 from ..config import get_settings
 from ..database import get_db
-from ..models import Channel, Company, CompanyStatus, Conversation, Customer, Message, Sender, TravelPackage
+from ..models import (
+    Channel,
+    Company,
+    CompanyStatus,
+    Conversation,
+    Customer,
+    Message,
+    Sender,
+    TravelPackage,
+)
 from ..ratelimit import limiter
 from ..schemas import (
     ChatMessagesOut,
@@ -24,6 +31,7 @@ from ..schemas import (
 from ..security import random_token
 from ..serializers import public_message_out
 from ..services.conversations import handle_customer_message, is_customer_visible
+from ..timeutil import local_today
 
 router = APIRouter(prefix="/api/public/companies/{slug}", tags=["public"])
 
@@ -66,7 +74,7 @@ def company_info(slug: str, db: Session = Depends(get_db)):
 def packages(slug: str, db: Session = Depends(get_db)):
     company = _company(db, slug)
     rows = db.scalars(select(TravelPackage).where(TravelPackage.company_id == company.id)).all()
-    today = date.today()
+    today = local_today()
     visible = [p for p in rows if is_bookable(p, today)]
     visible.sort(key=lambda p: (not p.is_featured, p.price_per_person))
     out = []
@@ -81,6 +89,10 @@ def packages(slug: str, db: Session = Depends(get_db)):
 def start_chat(slug: str, body: StartChatIn, request: Request, db: Session = Depends(get_db)):
     company = _company(db, slug)
     limiter.check(f"start:{client_ip(request)}", 10)
+    # Limits that don't depend on the visitor's address: one sender can't flood a company with chats.
+    limiter.check(f"start-company:{company.id}", 60, "Too many new chats right now, please try again in a minute")
+    limiter.check(f"start-company-hour:{company.id}", 1000, "Too many new chats right now, please try again later",
+                  window=3600)
     customer = Customer(
         company_id=company.id,
         name=(body.name or "").strip() or None,
@@ -113,6 +125,7 @@ def send_message(slug: str, token: str, body: CustomerMessageIn, request: Reques
                   "Too many messages, please wait a moment")
     limiter.check(f"chat-ip:{client_ip(request)}", settings.public_chat_max_messages_per_ip_per_minute,
                   "Too many messages, please wait a moment")
+    limiter.check(f"chat-hour:{token}", 120, "This chat has too many messages, please call us", window=3600)
 
     last_id = db.scalar(select(Message.id).where(Message.conversation_id == conv.id).order_by(Message.id.desc()).limit(1)) or 0
     handle_customer_message(db, conv, text)

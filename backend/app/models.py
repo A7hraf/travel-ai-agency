@@ -40,8 +40,9 @@ class UTCDateTime(TypeDecorator):
     cache_ok = True
 
     def process_bind_param(self, value, dialect):
-        if value is not None and value.tzinfo is None:
-            value = value.replace(tzinfo=timezone.utc)
+        if value is not None:
+            # Always store UTC: naive values are UTC, aware values are converted.
+            value = value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
         return value
 
     def process_result_value(self, value, dialect):
@@ -130,13 +131,16 @@ class Company(Base):
 
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
-    users: Mapped[list["User"]] = relationship(back_populates="company", cascade="all, delete-orphan")
-    packages: Mapped[list["TravelPackage"]] = relationship(cascade="all, delete-orphan")
-    customers: Mapped[list["Customer"]] = relationship(cascade="all, delete-orphan")
-    conversations: Mapped[list["Conversation"]] = relationship(cascade="all, delete-orphan")
-    tickets: Mapped[list["Ticket"]] = relationship(cascade="all, delete-orphan")
-    training_examples: Mapped[list["TrainingExample"]] = relationship(cascade="all, delete-orphan")
-    media: Mapped[list["MediaFile"]] = relationship(cascade="all, delete-orphan")
+    # Deleting a company lets the database cascade (ON DELETE CASCADE) instead of loading every row.
+    users: Mapped[list["User"]] = relationship(back_populates="company", cascade="all, delete-orphan",
+                                               passive_deletes=True)
+    packages: Mapped[list["TravelPackage"]] = relationship(cascade="all, delete-orphan", passive_deletes=True)
+    customers: Mapped[list["Customer"]] = relationship(cascade="all, delete-orphan", passive_deletes=True)
+    conversations: Mapped[list["Conversation"]] = relationship(cascade="all, delete-orphan", passive_deletes=True)
+    tickets: Mapped[list["Ticket"]] = relationship(cascade="all, delete-orphan", passive_deletes=True)
+    training_examples: Mapped[list["TrainingExample"]] = relationship(cascade="all, delete-orphan",
+                                                                      passive_deletes=True)
+    media: Mapped[list["MediaFile"]] = relationship(cascade="all, delete-orphan", passive_deletes=True)
 
 
 class User(Base):
@@ -216,11 +220,13 @@ class Conversation(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
     last_message_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
     last_customer_message_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    # Stays true once the team was involved (for "handled fully by the AI" statistics).
+    was_handed_over: Mapped[bool] = mapped_column(Boolean, default=False)
 
     customer: Mapped[Customer] = relationship()
     assigned_to: Mapped[User | None] = relationship()
     messages: Mapped[list["Message"]] = relationship(
-        back_populates="conversation", cascade="all, delete-orphan", order_by="Message.id"
+        back_populates="conversation", cascade="all, delete-orphan", order_by="Message.id", passive_deletes=True
     )
 
 
@@ -269,6 +275,8 @@ class Ticket(Base):
     assigned_to_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     internal_notes: Mapped[str] = mapped_column(Text, default="")
     payment_reference: Mapped[str | None] = mapped_column(String(200))
+    # Seats this booking holds on its package (taken when booked, given back when cancelled).
+    seats_held: Mapped[int] = mapped_column(Integer, default=0)
     created_by: Mapped[str] = mapped_column(String(20), default="ai")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, onupdate=utcnow)
@@ -277,6 +285,21 @@ class Ticket(Base):
     package: Mapped[TravelPackage | None] = relationship()
     assigned_to: Mapped[User | None] = relationship()
     conversation: Mapped[Conversation | None] = relationship()
+
+
+class TicketEvent(Base):
+    """History of a booking: every status, assignment, price, payment or note change, and who made it."""
+
+    __tablename__ = "ticket_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ticket_id: Mapped[int] = mapped_column(ForeignKey("tickets.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    actor: Mapped[str] = mapped_column(String(200))
+    action: Mapped[str] = mapped_column(String(30))
+    old_value: Mapped[str | None] = mapped_column(Text)
+    new_value: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
 class TrainingExample(Base):

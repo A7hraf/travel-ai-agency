@@ -1,6 +1,6 @@
 import re
 from datetime import date, datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
@@ -10,6 +10,25 @@ from .models import CompanyStatus, Role, TicketStatus
 
 class ORM(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+
+
+# Prices are stored as NUMERIC(12, 3).
+MAX_MONEY = 999_999_999.0
+# bcrypt only uses the first 72 bytes of a password.
+Password = Annotated[str, Field(min_length=8, max_length=72)]
+OptionalPassword = Annotated[str | None, Field(default=None, min_length=8, max_length=72)]
+Currency = Annotated[str, Field(pattern=r"^[A-Za-z]{3}$")]
+OptionalCurrency = Annotated[str | None, Field(default=None, pattern=r"^[A-Za-z]{3}$")]
+RESERVED_SLUGS = {"api", "app", "system", "login", "admin", "c", "static", "assets", "docs", "health", "www"}
+
+
+def _strip_name(v: str | None) -> str | None:
+    if v is None:
+        return v
+    v = " ".join(v.split())
+    if len(v) < 2:
+        raise ValueError("Name must have at least 2 characters")
+    return v
 
 
 # --- Auth --------------------------------------------------------------------
@@ -22,7 +41,7 @@ class LoginIn(BaseModel):
 
 class ChangePasswordIn(BaseModel):
     current_password: str
-    new_password: str = Field(min_length=8, max_length=128)
+    new_password: Password
 
 
 class CompanyBrief(ORM):
@@ -61,7 +80,7 @@ class TokenOut(BaseModel):
 class UserCreate(BaseModel):
     email: EmailStr
     full_name: str = Field(min_length=1, max_length=200)
-    password: str = Field(min_length=8, max_length=128)
+    password: Password
     role: Role
     # None = use the role's default permissions
     permissions: list[str] | None = None
@@ -70,7 +89,7 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     email: EmailStr | None = None
     full_name: str | None = Field(default=None, min_length=1, max_length=200)
-    password: str | None = Field(default=None, min_length=8, max_length=128)
+    password: OptionalPassword = None
     role: Role | None = None
     permissions: list[str] | None = None
     is_active: bool | None = None
@@ -96,25 +115,38 @@ class CompanyCreate(BaseModel):
     name: str = Field(min_length=2, max_length=200)
     slug: str | None = Field(default=None, max_length=80)
     max_users: int = Field(default=5, ge=1, le=10000)
-    currency: str = Field(default="OMR", min_length=3, max_length=3)
+    currency: Currency = "OMR"
     contact_email: EmailStr | None = None
     contact_phone: str | None = None
     admin_email: EmailStr
     admin_full_name: str = Field(min_length=1, max_length=200)
-    admin_password: str = Field(min_length=8, max_length=128)
+    admin_password: Password
 
     @field_validator("slug")
     @classmethod
     def check_slug(cls, v: str | None) -> str | None:
+        v = (v or "").strip() or None
         if v is not None and not SLUG_RE.match(v):
-            raise ValueError("slug may only contain lowercase letters, digits and dashes")
+            raise ValueError("The web address may only contain English lowercase letters, digits and dashes")
+        if v in RESERVED_SLUGS:
+            raise ValueError("This web address is reserved, choose another one")
         return v
+
+    @field_validator("name", "admin_full_name")
+    @classmethod
+    def check_name(cls, v: str) -> str:
+        return _strip_name(v)
 
 
 class CompanyAdminUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=200)
     max_users: int | None = Field(default=None, ge=1, le=10000)
     status: CompanyStatus | None = None
+
+    @field_validator("name")
+    @classmethod
+    def check_name(cls, v: str | None) -> str | None:
+        return _strip_name(v)
 
 
 class CompanyAdminOut(ORM):
@@ -172,7 +204,7 @@ class CompanySettingsOut(ORM):
 
 
 class CompanySettingsUpdate(BaseModel):
-    currency: str | None = Field(default=None, min_length=3, max_length=3)
+    currency: OptionalCurrency = None
     contact_email: EmailStr | None = None
     contact_phone: str | None = Field(default=None, max_length=50)
     ai_agent_name: str | None = Field(default=None, min_length=1, max_length=80)
@@ -196,16 +228,16 @@ class PackageBase(BaseModel):
     country: str = Field(min_length=1, max_length=120)
     description: str = Field(default="", max_length=10000)
     duration_days: int = Field(ge=1, le=365)
-    price_per_person: float = Field(ge=0)
-    child_price: float | None = Field(default=None, ge=0)
-    currency: str | None = Field(default=None, min_length=3, max_length=3)
+    price_per_person: float = Field(gt=0, le=MAX_MONEY)
+    child_price: float | None = Field(default=None, ge=0, le=MAX_MONEY)
+    currency: OptionalCurrency = None
     departure_dates: list[date] = []
     includes: list[str] = []
     excludes: list[str] = []
     tags: list[str] = []
     hotel_name: str | None = Field(default=None, max_length=200)
     hotel_stars: int | None = Field(default=None, ge=1, le=7)
-    seats_available: int | None = Field(default=None, ge=0)
+    seats_available: int | None = Field(default=None, ge=0, le=100000)
     image_url: str | None = Field(default=None, max_length=500)
     is_active: bool = True
     is_featured: bool = False
@@ -213,13 +245,14 @@ class PackageBase(BaseModel):
     @field_validator("image_url")
     @classmethod
     def check_image_url(cls, v: str | None) -> str | None:
-        if v and not v.startswith(("https://", "http://", "/api/media/")):
+        if v and not v.startswith(("https://", "/api/media/")):
             raise ValueError("image_url must be an uploaded image or start with https://")
         return v or None
 
 
 class PackageIn(PackageBase):
-    pass
+    # Seat count shown when the edit form was opened (see routers/packages.py).
+    seats_loaded: int | None = None
 
 
 class PackageOut(ORM):
@@ -334,7 +367,16 @@ class TicketUpdate(BaseModel):
     unassign: bool = False
     internal_notes: str | None = Field(default=None, max_length=10000)
     payment_reference: str | None = Field(default=None, max_length=200)
-    total_price: float | None = Field(default=None, ge=0)
+    total_price: float | None = Field(default=None, ge=0, le=MAX_MONEY)
+
+
+class TicketEventOut(ORM):
+    id: int
+    actor: str
+    action: str
+    old_value: str | None
+    new_value: str | None
+    created_at: datetime
 
 
 # --- Dashboard -------------------------------------------------------------------------------
@@ -346,6 +388,8 @@ class DashboardOut(BaseModel):
     pipeline_value: float
     confirmed_value: float
     currency: str
+    # Open or confirmed bookings in other currencies (never added to the totals above).
+    other_currencies: dict[str, float] = {}
     packages_active: int
     users: int
     max_users: int
@@ -482,5 +526,6 @@ class AnalyticsOut(BaseModel):
     handled_by_ai: int
     handed_to_team: int
     booked_value: float
-    confirmed_value: float
+    # Paid and confirmed bookings.
+    paid_value: float
 

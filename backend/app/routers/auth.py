@@ -8,7 +8,12 @@ from ..deps import get_current_user
 from ..models import CompanyStatus, User, utcnow
 from ..ratelimit import limiter
 from ..schemas import ChangePasswordIn, DemoAccount, LoginIn, MeOut, TokenOut
-from ..security import create_access_token, hash_password, revoke_sessions_now, verify_password
+from ..security import (
+    create_access_token,
+    hash_password,
+    revoke_sessions_now,
+    verify_password,
+)
 from ..seed import demo_accounts
 from ..serializers import me_out
 
@@ -29,6 +34,7 @@ def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
     email = body.email.strip().lower()
     ip = request.client.host if request.client else "?"
     limiter.check(f"login:{ip}:{email}", 10, "Too many login attempts, try again in a minute")
+    limiter.check(f"login-ip:{ip}", 40, "Too many login attempts, try again in a minute")
     limiter.check(f"login-account:{email}", 30, "Too many login attempts for this account, try again later",
                   window=900)
     user = db.scalar(select(User).where(User.email == email))

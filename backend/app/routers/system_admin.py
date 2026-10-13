@@ -4,6 +4,7 @@ import re
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..ai.health import check_ai
@@ -25,7 +26,12 @@ from ..schemas import (
     UserUpdate,
 )
 from ..serializers import company_admin_out, user_out
-from ..services.users import create_company_user, delete_company_user, seats_used, update_company_user
+from ..services.users import (
+    create_company_user,
+    delete_company_user,
+    seats_used,
+    update_company_user,
+)
 
 router = APIRouter(prefix="/api/system", tags=["system admin"])
 
@@ -82,15 +88,20 @@ def list_companies(_: User = Depends(require_system_admin), db: Session = Depend
 def create_company(body: CompanyCreate, _: User = Depends(require_system_admin), db: Session = Depends(get_db)):
     if body.slug:
         if db.scalar(select(Company.id).where(Company.slug == body.slug)):
-            raise HTTPException(409, "This slug is already used by another company")
+            raise HTTPException(409, "This web address is already used by another company")
         slug = body.slug
     else:
-        slug = _unique_slug(db, _slugify(body.name))
+        base = _slugify(body.name)
+        if base == "company":
+            raise HTTPException(422, "Please choose a web address in English letters for this company, "
+                                     "for example sunrise-travel")
+        slug = _unique_slug(db, base)
     if db.scalar(select(User.id).where(User.email == body.admin_email.lower())):
         raise HTTPException(409, "An account with the admin email already exists")
 
+    # The company and its first admin are saved together: never a company without an admin.
     company = Company(
-        name=body.name.strip(),
+        name=body.name,
         slug=slug,
         max_users=body.max_users,
         currency=body.currency.upper(),
@@ -98,17 +109,27 @@ def create_company(body: CompanyCreate, _: User = Depends(require_system_admin),
         contact_phone=body.contact_phone,
     )
     db.add(company)
-    db.commit()
-    create_company_user(
-        db,
-        company,
-        UserCreate(
-            email=body.admin_email,
-            full_name=body.admin_full_name,
-            password=body.admin_password,
-            role=Role.COMPANY_ADMIN,
-        ),
-    )
+    try:
+        db.flush()
+        create_company_user(
+            db,
+            company,
+            UserCreate(
+                email=body.admin_email,
+                full_name=body.admin_full_name,
+                password=body.admin_password,
+                role=Role.COMPANY_ADMIN,
+            ),
+            commit=False,
+        )
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(409, "This web address or admin email is already used") from exc
+    except HTTPException:
+        db.rollback()
+        raise
+    db.refresh(company)
     return company_admin_out(db, company)
 
 
@@ -124,6 +145,10 @@ def update_company(company_id: int, body: CompanyAdminUpdate, _: User = Depends(
     if body.name is not None:
         company.name = body.name.strip()
     if body.max_users is not None:
+        used = seats_used(db, company.id)
+        if body.max_users < used:
+            raise HTTPException(400, f"This company has {used} active accounts. Disable or delete some "
+                                     f"before lowering the limit to {body.max_users}.")
         company.max_users = body.max_users
     if body.status is not None:
         company.status = body.status

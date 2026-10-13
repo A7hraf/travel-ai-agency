@@ -23,7 +23,12 @@ from .routers import (
     users,
     whatsapp,
 )
-from .seed import DEFAULT_ADMIN_PASSWORD, ensure_system_admin, protect_demo_accounts, seed_demo
+from .seed import (
+    DEFAULT_ADMIN_PASSWORD,
+    ensure_system_admin,
+    protect_demo_accounts,
+    seed_demo,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("travel_ai")

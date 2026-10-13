@@ -8,7 +8,12 @@ from ..models import User
 from ..permissions import PERMISSIONS, ROLE_DEFAULT_PERMISSIONS
 from ..schemas import PermissionCatalogOut, UserCreate, UserListOut, UserOut, UserUpdate
 from ..serializers import user_out
-from ..services.users import create_company_user, delete_company_user, seats_used, update_company_user
+from ..services.users import (
+    create_company_user,
+    delete_company_user,
+    seats_used,
+    update_company_user,
+)
 
 router = APIRouter(prefix="/api", tags=["users"])
 
@@ -39,7 +44,7 @@ def _company_user(db: Session, me: User, user_id: int) -> User:
 
 @router.post("/users", response_model=UserOut, status_code=201)
 def create_user(body: UserCreate, me: User = Depends(manage_users), db: Session = Depends(get_db)):
-    return user_out(create_company_user(db, me.company, body))
+    return user_out(create_company_user(db, me.company, body, acting_user=me))
 
 
 @router.patch("/users/{user_id}", response_model=UserOut)

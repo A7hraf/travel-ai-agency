@@ -70,6 +70,8 @@ class Settings(BaseSettings):
     public_chat_max_messages_per_minute: int = 12
     public_chat_max_messages_per_ip_per_minute: int = 30
     ai_max_replies_per_company_per_hour: int = 300
+    # Days, dashboards and departure dates follow the agencies' local time (Oman has no daylight saving).
+    business_timezone: str = "Asia/Muscat"
     public_chat_max_message_length: int = 2000
 
     @property

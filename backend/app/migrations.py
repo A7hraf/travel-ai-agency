@@ -21,7 +21,21 @@ NEW_COLUMNS = [
     ("companies", "whatsapp_verify_token", "VARCHAR(64)"),
     ("users", "tokens_valid_after", "TIMESTAMP WITH TIME ZONE"),
     ("companies", "branding", "JSON"),
+    ("tickets", "seats_held", "INTEGER NOT NULL DEFAULT 0"),
+    ("conversations", "was_handed_over", "BOOLEAN NOT NULL DEFAULT FALSE"),
 ]
+
+# Filled once, right after the column is added.
+BACKFILL = {
+    ("tickets", "seats_held"): (
+        "UPDATE tickets SET seats_held = adults + children WHERE status = 'confirmed' AND package_id IN "
+        "(SELECT id FROM travel_packages WHERE seats_available IS NOT NULL)"
+    ),
+    ("conversations", "was_handed_over"): (
+        "UPDATE conversations SET was_handed_over = TRUE WHERE handover_reason IS NOT NULL "
+        "OR status = 'human' OR assigned_to_id IS NOT NULL"
+    ),
+}
 
 # Omani rial prices need 3 decimals (1 rial = 1000 baisa).
 THREE_DECIMALS = [
@@ -34,13 +48,18 @@ THREE_DECIMALS = [
 def upgrade(engine: Engine) -> None:
     from .models import Company  # noqa: PLC0415 (models import the database module)
 
-    insp = inspect(engine)
-    tables = set(insp.get_table_names())
     with engine.begin() as conn:
+        if engine.dialect.name == "postgresql":
+            # Several app instances may start together: only one upgrades at a time.
+            conn.execute(text("SELECT pg_advisory_xact_lock(724501)"))
+        insp = inspect(conn)
+        tables = set(insp.get_table_names())
         for table, column, ddl in NEW_COLUMNS:
             if table in tables and column not in {c["name"] for c in insp.get_columns(table)}:
                 log.info("Database upgrade: adding %s.%s", table, column)
                 conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
+                if (table, column) in BACKFILL:
+                    conn.execute(text(BACKFILL[(table, column)]))
         if engine.dialect.name == "postgresql":
             for table, column in THREE_DECIMALS:
                 col = next((c for c in insp.get_columns(table) if c["name"] == column), None)

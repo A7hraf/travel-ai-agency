@@ -51,25 +51,39 @@ class LLMClient(Protocol):
 
 
 _THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+_OPEN_THINK_RE = re.compile(r"<think>.*\Z", re.DOTALL | re.IGNORECASE)
+_CLOSE_THINK_RE = re.compile(r"\A.*?</think>", re.DOTALL | re.IGNORECASE)
+
+# Set in the arguments when the model sent arguments that are not a JSON object.
+INVALID_ARGUMENTS = "__invalid_arguments__"
 
 
 def clean_content(text: str | None) -> str | None:
-    """Remove hidden reasoning blocks some open models (Qwen3, DeepSeek-R1) emit."""
+    """Remove hidden reasoning blocks some open models (Qwen3, DeepSeek-R1) emit, including a
+    block that was never closed or whose opening tag was cut off."""
     if text is None:
         return None
-    return _THINK_RE.sub("", text).strip()
+    text = _THINK_RE.sub("", text)
+    text = _OPEN_THINK_RE.sub("", text)
+    text = _CLOSE_THINK_RE.sub("", text)
+    return text.strip()
 
 
 def _parse_arguments(raw) -> dict:
     if isinstance(raw, dict):
         return raw
-    if not raw:
+    if raw is None or raw == "":
         return {}
-    try:
-        value = json.loads(raw)
-        return value if isinstance(value, dict) else {}
-    except (TypeError, json.JSONDecodeError):
-        return {}
+    value = raw
+    # Some models double-encode: the arguments are a JSON string that contains JSON.
+    for _ in range(2):
+        if not isinstance(value, str):
+            break
+        try:
+            value = json.loads(value)
+        except (TypeError, json.JSONDecodeError):
+            return {INVALID_ARGUMENTS: str(raw)[:300]}
+    return value if isinstance(value, dict) else {INVALID_ARGUMENTS: str(raw)[:300]}
 
 
 def _tool_call_from_text(content: str, tool_names: set[str]) -> ToolCall | None:
@@ -87,11 +101,22 @@ def _tool_call_from_text(content: str, tool_names: set[str]) -> ToolCall | None:
         return None
     if not isinstance(obj, dict):
         return None
+    if isinstance(obj.get("function"), dict):  # OpenAI shape: {"type": "function", "function": {...}}
+        obj = obj["function"]
     name = obj.get("name") or obj.get("function") or obj.get("tool")
+    if not isinstance(name, str):
+        return None
+    name = name.removeprefix("functions.")
     if name not in tool_names:
         return None
     args = obj.get("arguments", obj.get("parameters", {}))
     return ToolCall(id=f"call_{uuid.uuid4().hex[:12]}", name=name, arguments=_parse_arguments(args))
+
+
+def looks_like_tool_call(content: str) -> bool:
+    """A reply that is only a JSON object naming a function must never reach the customer."""
+    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", content.strip())
+    return text.startswith("{") and text.endswith("}") and ('"name"' in text or '"function"' in text)
 
 
 RETRY_DELAY_SECONDS = 2.0
@@ -157,13 +182,16 @@ class OpenAICompatibleClient:
             if self.reasoning_effort:
                 payload["reasoning_effort"] = self.reasoning_effort
             waited = 0.0
+            resp = None
             for attempt in range(3):
                 try:
                     resp = httpx.post(
                         f"{self.base_url}/chat/completions", json=payload, headers=headers, timeout=self.timeout
                     )
                 except httpx.HTTPError as exc:
-                    raise LLMError(f"Cannot reach the AI server at {self.base_url}: {exc}") from exc
+                    resp = None
+                    last_error = f"{model} -> cannot reach the AI server at {self.base_url}: {exc}"
+                    break
                 if resp.is_success:
                     try:
                         parsed = self._parse(resp.json()["choices"][0]["message"], tools)
@@ -178,8 +206,11 @@ class OpenAICompatibleClient:
                 log.info("AI busy (%s), retrying in %.1fs", resp.status_code, wait)
                 time.sleep(wait)
                 waited += wait
-            if _model_gone(resp) and model != self.models[-1]:
-                log.warning("AI model %s is not available, trying the next one: %s", model, last_error)
+            # Try the next model when this one is retired, busy (rate limit, server error) or unreachable.
+            # Other errors (a wrong API key, a bad request) would fail the same way on every model.
+            retry_next = resp is None or _model_gone(resp) or _retry_wait(resp, 0) is not None
+            if retry_next and model != self.models[-1]:
+                log.warning("AI model %s failed, trying the next one: %s", model, last_error)
                 continue
             break
         raise LLMError(last_error)
@@ -211,13 +242,13 @@ class MockTravelLLM:
     and hands over to a human when asked. It does not take bookings.
     """
 
-    HUMAN_WORDS = ("human", "agent", "employee", "person", "موظف", "شخص")
+    HUMAN_WORDS = re.compile(r"\b(human|agent|employee|staff)\b|موظف|انسان|إنسان", re.IGNORECASE)
 
     def chat(self, messages: list[dict], tools: list[dict]) -> LLMResponse:
         last = messages[-1]
         if last["role"] == "user":
             text = last.get("content") or ""
-            if any(w in text.lower() for w in self.HUMAN_WORDS):
+            if self.HUMAN_WORDS.search(text):
                 return LLMResponse(None, [ToolCall("mock_h", "request_human_agent", {"reason": "Customer asked"})])
             return LLMResponse(None, [ToolCall("mock_s", "search_packages", {"query": text})])
         if last["role"] == "tool":

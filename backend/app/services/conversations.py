@@ -58,6 +58,8 @@ def handle_customer_message(db: Session, conversation: Conversation, text: str,
         if conversation.status == ConversationStatus.CLOSED:
             conversation.status = ConversationStatus.AI
             conversation.handover_reason = None
+            db.add(Message(conversation_id=conversation.id, sender=Sender.SYSTEM, kind=MessageKind.TEXT,
+                           content="The customer wrote again: conversation reopened with the AI"))
         conversation.last_message_at = now
         conversation.last_customer_message_at = now
         db.add(Message(conversation_id=conversation.id, sender=Sender.CUSTOMER, content=text,
@@ -75,7 +77,11 @@ def handle_customer_message(db: Session, conversation: Conversation, text: str,
         if not limiter.allow(f"ai-replies:{conversation.company_id}", hourly_cap, window=3600):
             log.warning("Company %s reached %s AI replies this hour", conversation.company_id, hourly_cap)
             conversation.status = ConversationStatus.HUMAN
+            conversation.was_handed_over = True
             conversation.handover_reason = "AI hourly limit reached, please answer the customer"
+            db.add(Message(conversation_id=conversation.id, sender=Sender.SYSTEM, kind=MessageKind.TEXT,
+                           content=f"Handed over to the team: the AI reached its limit of {hourly_cap} "
+                                   "replies this hour"))
             reply = Message(conversation_id=conversation.id, sender=Sender.AI, content=FALLBACK_REPLY)
             db.add(reply)
             db.commit()
@@ -89,6 +95,7 @@ def handle_customer_message(db: Session, conversation: Conversation, text: str,
             log.exception("AI agent crashed for conversation %s", conversation.id)
             db.rollback()
             conversation.status = ConversationStatus.HUMAN
+            conversation.was_handed_over = True
             conversation.handover_reason = "AI error, please answer the customer"
             reply = Message(conversation_id=conversation.id, sender=Sender.AI, content=FALLBACK_REPLY)
             db.add(reply)

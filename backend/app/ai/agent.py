@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 
 from ..config import get_settings
 from ..models import Company, Conversation, Message, MessageKind, Sender
-from .llm import LLMClient, LLMError, get_llm_client
+from ..timeutil import local_today
+from .llm import LLMClient, LLMError, get_llm_client, looks_like_tool_call
 from .prompts import FALLBACK_REPLY, build_system_prompt
 from .tools import TOOL_DEFINITIONS, ToolContext, run_tool
 from .training import relevant_examples
@@ -19,21 +20,43 @@ from .training import relevant_examples
 log = logging.getLogger(__name__)
 
 
+OLD_TOOL_RESULT_CHARS = 600
+MAX_REPLY_CHARS = 4000
+
+
 def build_history(db: Session, conversation: Conversation, max_messages: int) -> list[dict]:
-    """Rebuild the chat in OpenAI format from stored messages (newest ``max_messages``)."""
-    rows = db.scalars(
-        select(Message)
-        .where(Message.conversation_id == conversation.id, Message.sender != Sender.SYSTEM)
+    """Rebuild the chat in OpenAI format from stored messages.
+
+    ``max_messages`` counts the conversation's text messages (customer and agency), so tool calls
+    don't push the customer's earlier details out of the window; tool results of earlier turns
+    are shortened to keep the prompt small.
+    """
+    text_ids = db.scalars(
+        select(Message.id)
+        .where(Message.conversation_id == conversation.id, Message.sender != Sender.SYSTEM,
+               Message.kind == MessageKind.TEXT)
         .order_by(Message.id.desc())
         .limit(max_messages)
-    ).all()[::-1]
+    ).all()
+    if not text_ids:
+        return []
+    rows = db.scalars(
+        select(Message)
+        .where(Message.conversation_id == conversation.id, Message.sender != Sender.SYSTEM,
+               Message.id >= min(text_ids))
+        .order_by(Message.id)
+    ).all()
+    last_customer = max((m.id for m in rows if m.sender == Sender.CUSTOMER), default=0)
 
     history: list[dict] = []
     for m in rows:
         if m.kind == MessageKind.TOOL_CALL:
             history.append({"role": "assistant", "content": m.content or "", "tool_calls": (m.meta or {}).get("tool_calls", [])})
         elif m.kind == MessageKind.TOOL_RESULT:
-            history.append({"role": "tool", "tool_call_id": (m.meta or {}).get("tool_call_id", ""), "content": m.content})
+            content = m.content or ""
+            if m.id < last_customer and len(content) > OLD_TOOL_RESULT_CHARS:
+                content = content[:OLD_TOOL_RESULT_CHARS] + "…(shortened)"
+            history.append({"role": "tool", "tool_call_id": (m.meta or {}).get("tool_call_id", ""), "content": content})
         elif m.sender == Sender.CUSTOMER:
             history.append({"role": "user", "content": m.content})
         else:  # AI or employee replies are both "the agency speaking"
@@ -84,13 +107,15 @@ def _closing_text(ctx: ToolContext) -> str:
     )
 
 
-def _latest_customer_text(db: Session, conversation: Conversation) -> str:
-    return db.scalar(
+def _latest_customer_texts(db: Session, conversation: Conversation) -> tuple[str, str]:
+    """The customer's last message and the one before it."""
+    texts = db.scalars(
         select(Message.content)
         .where(Message.conversation_id == conversation.id, Message.sender == Sender.CUSTOMER)
         .order_by(Message.id.desc())
-        .limit(1)
-    ) or ""
+        .limit(2)
+    ).all()
+    return (texts[0] if texts else "") or "", (texts[1] if len(texts) > 1 else "") or ""
 
 
 def run_agent(db: Session, conversation: Conversation, llm: LLMClient | None = None,
@@ -105,10 +130,11 @@ def run_agent(db: Session, conversation: Conversation, llm: LLMClient | None = N
     llm = llm or get_llm_client()
     company = db.get(Company, conversation.company_id)
     ctx = ToolContext(db=db, company=company, conversation=conversation, customer=conversation.customer,
-                      today=today or date.today())
+                      today=today or local_today())
 
-    training = relevant_examples(db, company.id, _latest_customer_text(db, conversation))
-    system = build_system_prompt(company, ctx.customer, conversation.channel, ctx.today, training)
+    customer_text, previous_text = _latest_customer_texts(db, conversation)
+    training = relevant_examples(db, company.id, customer_text, previous_text)
+    system = build_system_prompt(company, ctx.customer, conversation.channel, ctx.today, training, customer_text)
     messages = [{"role": "system", "content": system}]
     messages += build_history(db, conversation, settings.llm_max_history_messages)
 
@@ -137,6 +163,11 @@ def run_agent(db: Session, conversation: Conversation, llm: LLMClient | None = N
             continue
 
         final = (resp.content or "").strip() or None
+        if final and looks_like_tool_call(final):
+            log.warning("Model wrote a tool call as text in conversation %s; not sent", conversation.id)
+            final = None
+        if final and len(final) > MAX_REPLY_CHARS:
+            final = final[:MAX_REPLY_CHARS].rsplit("\n", 1)[0] + "…"
         break
 
     if not final:

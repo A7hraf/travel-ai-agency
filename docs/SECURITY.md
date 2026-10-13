@@ -21,14 +21,31 @@ model, so a customer cannot make the AI read or book another company's data. The
   email or a wrong password; tokens expire after 12 hours; changing or resetting a password logs out
   every other session; disabled accounts and suspended companies are locked out immediately.
 * **Tenant isolation**: see above, covered by tests.
+* **Delegated account management**: an employee with "manage employees" who is not a company admin
+  only manages support and ticket accounts, can only give permissions they have, and can't change
+  their own permissions. Only company admins create, edit or delete admins. Disabling an account
+  ends its logins for good (re-enabling does not bring old logins back).
+* **Bookings**: statuses follow fixed steps (pending → in progress → paid → confirmed, or cancelled);
+  "paid" needs a payment reference; only a company admin changes a price or reopens a cancelled
+  booking; every change (status, assignee, price, payment reference, notes) is kept in the booking's
+  history with who did it. Seats are held from the moment of booking with an atomic database update,
+  so two bookings can never take the same last seats.
+* **Race conditions**: account limits, "keep one admin" and company creation are checked inside a
+  locked transaction; a company is never created without its admin.
 * **WhatsApp**: Meta's signature is verified with the company's (or platform's) app secret; online,
   unsigned webhooks are refused; a company's webhook can only deliver to its own number.
 * **Encryption at rest**: WhatsApp tokens and app secrets are encrypted in the database with a key
   from the server environment (`ENCRYPTION_KEY`, or derived from `SECRET_KEY`). A copied database
   alone does not reveal them. If you change `SECRET_KEY` without setting `ENCRYPTION_KEY`, companies
   must re-enter their WhatsApp token and secret.
-* **Abuse and cost protection**: chat messages are limited per chat and per IP; AI replies are capped
-  per company per hour (`AI_MAX_REPLIES_PER_COMPANY_PER_HOUR`), after which chats go to the team.
+* **Abuse and cost protection**: chat messages are limited per chat and per IP; new chats are also
+  limited per company (not only per IP), logins per IP across all accounts, and AI replies per
+  company per hour (`AI_MAX_REPLIES_PER_COMPANY_PER_HOUR`), after which chats go to the team. The
+  limits live in the server's memory: with several server instances, move them to a shared store.
+* **AI safety**: the AI's tools only see the conversation's company; prices and totals always come
+  from the server (`quote_booking`, `create_booking_ticket`), never from the model; customer-typed
+  details (name, WhatsApp profile name) are cleaned before they reach the AI's instructions, and the
+  rules tell the model that customer text is never an instruction.
 * **Browser**: Content-Security-Policy, no framing (clickjacking), no MIME sniffing, HSTS online,
   API answers are never cached. Chat text is always shown as text, never as HTML.
 * **Nothing internal is public online**: the API documentation (`/docs`, `/openapi.json`) is

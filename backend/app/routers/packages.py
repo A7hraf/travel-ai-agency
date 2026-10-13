@@ -6,6 +6,7 @@ from ..database import get_db
 from ..deps import require_permission
 from ..models import Ticket, TravelPackage, User
 from ..schemas import PackageIn, PackageOut
+from ..timeutil import local_today
 from .media import media_belongs_to
 
 router = APIRouter(prefix="/api/packages", tags=["packages"])
@@ -14,9 +15,18 @@ router = APIRouter(prefix="/api/packages", tags=["packages"])
 def _apply(pkg: TravelPackage, body: PackageIn, default_currency: str, db: Session | None = None) -> None:
     if db is not None and not media_belongs_to(db, body.image_url, pkg.company_id):
         raise HTTPException(400, "Use a photo uploaded by your company")
-    data = body.model_dump()
+    data = body.model_dump(exclude={"seats_loaded"})
+    # The edit form sends the seat count it loaded. If the employee did not change it, keep the current
+    # count: bookings made while the form was open have changed it.
+    if pkg.id is not None and "seats_loaded" in body.model_fields_set and body.seats_available == body.seats_loaded:
+        data.pop("seats_available")
     data["currency"] = (data.get("currency") or default_currency).upper()
-    data["departure_dates"] = sorted({d.isoformat() for d in body.departure_dates})
+    # Past departure dates can't be sold any more: they are dropped.
+    today = local_today()
+    data["departure_dates"] = sorted({d.isoformat() for d in body.departure_dates if d >= today})
+    if body.departure_dates and not data["departure_dates"]:
+        raise HTTPException(400, "All the departure dates are in the past. Add a future date, "
+                                 "or remove every date for flexible dates on request.")
     data["includes"] = [s.strip() for s in body.includes if s.strip()]
     data["excludes"] = [s.strip() for s in body.excludes if s.strip()]
     data["tags"] = [s.strip().lower() for s in body.tags if s.strip()]

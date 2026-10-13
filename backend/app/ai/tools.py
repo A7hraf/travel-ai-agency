@@ -7,10 +7,12 @@ Prices are always computed here, never taken from the model.
 
 from __future__ import annotations
 
+import logging
+import math
 import re
 from dataclasses import dataclass
-from datetime import date
-from decimal import Decimal
+from datetime import date, timedelta
+from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -24,11 +26,19 @@ from ..models import (
     MessageKind,
     Sender,
     Ticket,
+    TicketEvent,
     TicketStatus,
     TravelPackage,
 )
 from ..security import ticket_reference
-from .text import keywords, normalize
+from ..services import seats
+from .llm import INVALID_ARGUMENTS
+from .text import Matcher, keyword_groups
+
+log = logging.getLogger(__name__)
+
+MAX_TRAVELERS = 50
+MAX_BOOKING_HORIZON_DAYS = 730
 
 TOOL_DEFINITIONS: list[dict] = [
     {
@@ -68,6 +78,24 @@ TOOL_DEFINITIONS: list[dict] = [
                 "type": "object",
                 "properties": {"package_id": {"type": "integer"}},
                 "required": ["package_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "quote_booking",
+            "description": "Check a booking and get the exact total price from the system, without booking. "
+            "Call it before showing the summary to the customer, and use only the total it returns.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "package_id": {"type": "integer"},
+                    "departure_date": {"type": "string", "description": "YYYY-MM-DD"},
+                    "adults": {"type": "integer", "minimum": 1},
+                    "children": {"type": "integer", "minimum": 0},
+                },
+                "required": ["package_id", "departure_date", "adults"],
             },
         },
     },
@@ -128,6 +156,43 @@ class ToolContext:
     ticket_reference: str | None = None
 
 
+def _text(value, limit: int = 500) -> str:
+    """Any value the model sent, as clean text (models sometimes send numbers or lists)."""
+    if value is None:
+        return ""
+    if isinstance(value, (list, tuple)):
+        value = " ".join(str(v) for v in value)
+    return str(value).strip()[:limit]
+
+
+def _number(value) -> Decimal | None:
+    """A positive amount from "300", 300, "300 OMR", "1,000" or "٣٠٠"; None when there is none."""
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return Decimal(str(value)) if math.isfinite(value) and value >= 0 else None
+    text = str(value).translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")).replace(",", "")
+    match = re.search(r"\d+(?:\.\d+)?", text)
+    try:
+        return Decimal(match.group()) if match else None
+    except InvalidOperation:
+        return None
+
+
+def _count(value, default: int | None = None) -> int | None:
+    """A whole number of people; None when the value is not one (True, 2.5, "two", 10**9...)."""
+    if value is None or value == "":
+        return default
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, float):
+        return int(value) if value.is_integer() else None
+    if isinstance(value, int):
+        return value
+    text = str(value).strip().translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789"))
+    return int(text) if text.isdigit() else None
+
+
 def _money(value: Decimal | None) -> float | int | None:
     if value is None:
         return None
@@ -172,9 +237,8 @@ def _company_packages(ctx: ToolContext) -> list[TravelPackage]:
 
 
 def _get_package(ctx: ToolContext, package_id) -> TravelPackage | None:
-    try:
-        pid = int(package_id)
-    except (TypeError, ValueError):
+    pid = _count(package_id)
+    if pid is None or not 0 < pid < 2**31:
         return None
     pkg = ctx.db.get(TravelPackage, pid)
     if pkg is None or pkg.company_id != ctx.company.id:
@@ -182,37 +246,47 @@ def _get_package(ctx: ToolContext, package_id) -> TravelPackage | None:
     return pkg
 
 
-def search_packages(ctx: ToolContext, query: str = "", max_price_per_person=None, min_days=None,
-                    max_days=None, departure_month: str | None = None, **_) -> dict:
+def search_packages(ctx: ToolContext, query="", max_price_per_person=None, min_days=None,
+                    max_days=None, departure_month=None, **_) -> dict:
     packages = _company_packages(ctx)
-    # Only a well-formed YYYY-MM month filters; anything else ("November") is ignored.
-    month = departure_month if departure_month and re.fullmatch(r"\d{4}-\d{2}", departure_month) else None
+    ignored: list[str] = []
+
+    budget = _number(max_price_per_person)
+    if max_price_per_person not in (None, "") and budget is None:
+        ignored.append("max_price_per_person (not a number)")
+    min_d = _count(min_days)
+    if min_days not in (None, "") and min_d is None:
+        ignored.append("min_days (not a whole number)")
+    max_d = _count(max_days)
+    if max_days not in (None, "") and max_d is None:
+        ignored.append("max_days (not a whole number)")
+    month_text = _text(departure_month, 20)
+    month = month_text if re.fullmatch(r"\d{4}-\d{2}", month_text) else None
+    if month_text and not month:
+        ignored.append("departure_month (use YYYY-MM)")
 
     def passes_filters(p: TravelPackage) -> bool:
-        try:
-            if max_price_per_person not in (None, "") and p.price_per_person > Decimal(str(max_price_per_person)):
-                return False
-            if min_days not in (None, "") and p.duration_days < int(min_days):
-                return False
-            if max_days not in (None, "") and p.duration_days > int(max_days):
-                return False
-        except (ValueError, ArithmeticError):
-            pass
+        if budget is not None and p.price_per_person > budget:
+            return False
+        if min_d is not None and p.duration_days < min_d:
+            return False
+        if max_d is not None and p.duration_days > max_d:
+            return False
         if month and p.departure_dates:
             if not any(d.startswith(month) for d in _upcoming_dates(p, ctx.today)):
                 return False
         return True
 
     filtered = [p for p in packages if passes_filters(p)]
-    tokens = keywords(query or "")
-    if tokens:
+    groups = keyword_groups(_text(query, 300))
+    if groups:
         scored = []
         for p in filtered:
-            haystack = normalize(" ".join(
+            everything = Matcher(" ".join(
                 [p.title, p.destination, p.country, p.description or "", p.hotel_name or "", " ".join(p.tags or [])]
             ))
-            place = normalize(f"{p.destination} {p.country} {' '.join(p.tags or [])}")
-            score = sum(1 for t in tokens if t in haystack) + sum(2 for t in tokens if t in place)
+            place = Matcher(f"{p.title} {p.destination} {p.country} {' '.join(p.tags or [])}")
+            score = sum(1 for g in groups if everything.matches(g)) + sum(2 for g in groups if place.matches(g))
             if score:
                 scored.append((score, p))
         scored.sort(key=lambda sp: (-sp[0], not sp[1].is_featured, sp[1].price_per_person))
@@ -220,8 +294,10 @@ def search_packages(ctx: ToolContext, query: str = "", max_price_per_person=None
     else:
         matches = sorted(filtered, key=lambda p: (not p.is_featured, p.price_per_person))
 
+    extra = {"ignored_filters": ignored} if ignored else {}
     if matches:
-        return {"results": [_summary(p, ctx.today) for p in matches[:MAX_RESULTS]], "total_matches": len(matches)}
+        return {"results": [_summary(p, ctx.today) for p in matches[:MAX_RESULTS]], "total_matches": len(matches),
+                **extra}
 
     alternatives = sorted(packages, key=lambda p: (not p.is_featured, p.price_per_person))[:3]
     return {
@@ -229,6 +305,7 @@ def search_packages(ctx: ToolContext, query: str = "", max_price_per_person=None
         "note": "No package matches these criteria. Tell the customer honestly and suggest the "
         "alternatives below, or offer a human consultant for a custom trip.",
         "alternatives": [_summary(p, ctx.today) for p in alternatives],
+        **extra,
     }
 
 
@@ -248,60 +325,110 @@ def get_package_details(ctx: ToolContext, package_id=None, **_) -> dict:
     return details
 
 
-def _to_int(value, default: int | None = None) -> int | None:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def create_booking_ticket(ctx: ToolContext, package_id=None, departure_date: str = "", adults=None, children=0,
-                          lead_traveler_name: str = "", contact_phone: str = "", contact_email: str = "",
-                          special_requests: str = "", **_) -> dict:
+def _check_booking(ctx: ToolContext, package_id, departure_date, adults, children):
+    """Validate a booking request. Returns (error, values)."""
     pkg = _get_package(ctx, package_id)
     if pkg is None or not is_bookable(pkg, ctx.today):
-        return {"error": f"Package {package_id} not found or not available."}
+        return {"error": f"Package {package_id} not found or not available. Use search_packages."}, None
 
-    n_adults = _to_int(adults)
-    n_children = _to_int(children, 0) or 0
-    if not n_adults or n_adults < 1 or n_children < 0:
-        return {"error": "At least one adult is required. Ask the customer how many adults and children."}
+    n_adults = _count(adults)
+    n_children = _count(children, 0)
+    if n_adults is None or n_children is None or n_adults < 1 or n_children < 0:
+        return {"error": "Give the number of adults (at least 1) and of children as whole numbers. "
+                         "Ask the customer if unsure."}, None
+    if n_adults + n_children > MAX_TRAVELERS:
+        return {"error": f"Groups of more than {MAX_TRAVELERS} travelers are handled by a consultant: "
+                         "call request_human_agent."}, None
 
-    departure_date = (departure_date or "").strip()
     try:
-        dep = date.fromisoformat(departure_date)
+        dep = date.fromisoformat(_text(departure_date, 20))
     except ValueError:
-        return {"error": "departure_date must be YYYY-MM-DD. Ask the customer to pick a date."}
+        return {"error": "departure_date must be YYYY-MM-DD. Ask the customer to pick a date."}, None
     upcoming = _upcoming_dates(pkg, ctx.today)
     if pkg.departure_dates:
-        if departure_date not in upcoming:
-            return {"error": "This date is not available.", "available_dates": upcoming}
-    elif dep < ctx.today:
-        return {"error": "The departure date is in the past."}
+        if dep.isoformat() not in upcoming:
+            return {"error": "This date is not available.", "available_dates": upcoming}, None
+    elif dep <= ctx.today:
+        return {"error": "The departure date must be after today."}, None
+    elif dep > ctx.today + timedelta(days=MAX_BOOKING_HORIZON_DAYS):
+        return {"error": "This date is too far ahead. Ask the customer for a date within two years."}, None
 
     if pkg.seats_available is not None and n_adults + n_children > pkg.seats_available:
-        return {"error": f"Only {pkg.seats_available} seats are left on this package."}
+        return {"error": f"Only {pkg.seats_available} seats are left on this package."}, None
 
-    name = (lead_traveler_name or "").strip()
-    phone = (contact_phone or "").strip() or ctx.customer.phone
+    child_unit = pkg.child_price if pkg.child_price is not None else pkg.price_per_person
+    total = pkg.price_per_person * n_adults + child_unit * n_children
+    return None, (pkg, dep.isoformat(), n_adults, n_children, total)
+
+
+def quote_booking(ctx: ToolContext, package_id=None, departure_date="", adults=None, children=0, **_) -> dict:
+    error, values = _check_booking(ctx, package_id, departure_date, adults, children)
+    if error:
+        return error
+    pkg, dep, n_adults, n_children, total = values
+    return {
+        "package": pkg.title,
+        "departure_date": dep,
+        "travelers": {"adults": n_adults, "children": n_children},
+        "price_per_adult": _money(pkg.price_per_person),
+        "price_per_child": _money(pkg.child_price if pkg.child_price is not None else pkg.price_per_person),
+        "total_price": _money(total),
+        "currency": pkg.currency,
+        "next_step": "Show this summary and total to the customer and ask them to confirm.",
+    }
+
+
+def _ticket_summary(ticket: Ticket) -> dict:
+    return {
+        "ticket_reference": ticket.reference,
+        "package": ticket.package_title,
+        "departure_date": ticket.departure_date,
+        "travelers": {"adults": ticket.adults, "children": ticket.children},
+        "total_price": _money(ticket.total_price),
+        "currency": ticket.currency,
+    }
+
+
+def create_booking_ticket(ctx: ToolContext, package_id=None, departure_date="", adults=None, children=0,
+                          lead_traveler_name="", contact_phone="", contact_email="",
+                          special_requests="", **_) -> dict:
+    if ctx.ticket_reference:
+        return {"error": f"A booking ({ctx.ticket_reference}) was already created in this reply. "
+                         "Give the customer that reference."}
+    if ctx.handed_over:
+        return {"error": "The conversation was handed to a consultant; do not book now."}
+
+    error, values = _check_booking(ctx, package_id, departure_date, adults, children)
+    if error:
+        return error
+    pkg, departure_date, n_adults, n_children, total = values
+
+    name = _text(lead_traveler_name, 200)
+    phone = _text(contact_phone, 50) or ctx.customer.phone
+    email = _text(contact_email, 200)
     if not name or not phone:
         return {"error": "The lead traveler's full name and a phone number are required."}
 
-    # The same conversation already has an open ticket: don't create a duplicate.
+    # The conversation already has an open booking: never create a second one. Changes go to a consultant.
     existing = ctx.db.scalar(
         select(Ticket).where(
             Ticket.conversation_id == ctx.conversation.id,
-            Ticket.package_id == pkg.id,
             Ticket.status.in_([TicketStatus.PENDING_PAYMENT, TicketStatus.IN_PROGRESS]),
-        )
+        ).order_by(Ticket.id.desc()).limit(1)
     )
     if existing:
+        same = (existing.package_id == pkg.id and existing.departure_date == departure_date
+                and existing.adults == n_adults and existing.children == n_children)
         ctx.ticket_reference = existing.reference
-        _hand_over(ctx, f"Payment for ticket {existing.reference}")
-        return {
-            "ticket_reference": existing.reference,
-            "note": "This booking was already created. Remind the customer of the reference.",
-        }
+        if same:
+            _hand_over(ctx, f"Payment for ticket {existing.reference}")
+            note = "This booking was already created. Remind the customer of the reference and total."
+        else:
+            _hand_over(ctx, f"Customer wants to change ticket {existing.reference}: {pkg.title}, {departure_date}, "
+                            f"{n_adults} adults, {n_children} children")
+            note = ("The customer already has this booking. A consultant will update it with the new details; "
+                    "tell the customer so, with the reference.")
+        return {**_ticket_summary(existing), "note": note}
 
     child_unit = pkg.child_price if pkg.child_price is not None else pkg.price_per_person
     total = pkg.price_per_person * n_adults + child_unit * n_children
@@ -309,8 +436,8 @@ def create_booking_ticket(ctx: ToolContext, package_id=None, departure_date: str
     customer = ctx.customer
     customer.name = customer.name or name
     customer.phone = customer.phone or phone
-    if contact_email and not customer.email:
-        customer.email = contact_email.strip()
+    if email and not customer.email:
+        customer.email = email
 
     ref = ticket_reference()
     while ctx.db.scalar(select(Ticket.id).where(Ticket.reference == ref)):
@@ -328,8 +455,8 @@ def create_booking_ticket(ctx: ToolContext, package_id=None, departure_date: str
         children=n_children,
         lead_traveler_name=name,
         contact_phone=phone,
-        contact_email=(contact_email or "").strip() or None,
-        special_requests=(special_requests or "").strip(),
+        contact_email=email or None,
+        special_requests=_text(special_requests, 2000),
         total_price=total,
         currency=pkg.currency,
         status=TicketStatus.PENDING_PAYMENT,
@@ -337,6 +464,14 @@ def create_booking_ticket(ctx: ToolContext, package_id=None, departure_date: str
     )
     ctx.db.add(ticket)
     ctx.db.flush()
+    try:
+        seats.hold(ctx.db, ticket)
+    except seats.NotEnoughSeats as exc:
+        ctx.db.delete(ticket)
+        ctx.db.flush()
+        return {"error": f"Only {exc.left} seats are left on this package."}
+    ctx.db.add(TicketEvent(ticket_id=ticket.id, actor="AI", action="created",
+                           new_value=f"{n_adults} adults, {n_children} children, {_money(total)} {pkg.currency}"))
     ctx.ticket_reference = ref
     _hand_over(ctx, f"Payment for ticket {ref}")
     return {
@@ -351,8 +486,8 @@ def create_booking_ticket(ctx: ToolContext, package_id=None, departure_date: str
     }
 
 
-def request_human_agent(ctx: ToolContext, reason: str = "", **_) -> dict:
-    _hand_over(ctx, (reason or "Customer needs a human agent").strip()[:300])
+def request_human_agent(ctx: ToolContext, reason="", **_) -> dict:
+    _hand_over(ctx, _text(reason, 300) or "Customer needs a human agent")
     return {
         "handed_over": True,
         "next_step": "Tell the customer a consultant will reply in this chat shortly.",
@@ -362,7 +497,8 @@ def request_human_agent(ctx: ToolContext, reason: str = "", **_) -> dict:
 def _hand_over(ctx: ToolContext, reason: str) -> None:
     conv = ctx.conversation
     conv.status = ConversationStatus.HUMAN
-    conv.handover_reason = reason
+    conv.handover_reason = reason[:300]
+    conv.was_handed_over = True
     ctx.handed_over = True
     ctx.db.add(
         Message(
@@ -377,6 +513,7 @@ def _hand_over(ctx: ToolContext, reason: str) -> None:
 _HANDLERS = {
     "search_packages": search_packages,
     "get_package_details": get_package_details,
+    "quote_booking": quote_booking,
     "create_booking_ticket": create_booking_ticket,
     "request_human_agent": request_human_agent,
 }
@@ -385,8 +522,12 @@ _HANDLERS = {
 def run_tool(ctx: ToolContext, name: str, arguments: dict) -> dict:
     handler = _HANDLERS.get(name)
     if handler is None:
-        return {"error": f"Unknown tool {name}"}
+        return {"error": f"Unknown tool {name}. Available: {', '.join(_HANDLERS)}"}
+    arguments = arguments if isinstance(arguments, dict) else {}
+    if INVALID_ARGUMENTS in arguments:
+        return {"error": f"Your arguments for {name} were not a valid JSON object. Send them again."}
     try:
-        return handler(ctx, **(arguments or {}))
-    except TypeError as exc:
-        return {"error": f"Bad arguments for {name}: {exc}"}
+        return handler(ctx, **arguments)
+    except Exception as exc:  # a bad value from the model must never break the conversation
+        log.warning("Tool %s failed with %r: %s", name, arguments, exc)
+        return {"error": f"Bad arguments for {name}. Check the values and try again."}

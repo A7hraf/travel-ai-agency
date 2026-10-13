@@ -1,15 +1,35 @@
 """Employee view of customer conversations: watch the AI, take over, reply, hand back."""
 
+from datetime import timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..deps import require_permission
-from ..models import Conversation, ConversationStatus, Customer, Message, MessageKind, Sender, User, utcnow
-from ..schemas import AgentMessageIn, ConversationDetail, ConversationSummary, MessageOut
+from ..models import (
+    Channel,
+    Conversation,
+    ConversationStatus,
+    Customer,
+    Message,
+    MessageKind,
+    Sender,
+    User,
+    utcnow,
+)
+from ..schemas import (
+    AgentMessageIn,
+    ConversationDetail,
+    ConversationSummary,
+    MessageOut,
+)
 from ..serializers import conversation_detail, conversation_summary, message_out
 from ..services.conversations import deliver
+
+# Meta lets a business answer freely only within 24 hours of the customer's last message.
+WHATSAPP_WINDOW = timedelta(hours=24)
 
 router = APIRouter(prefix="/api/conversations", tags=["conversations"])
 
@@ -65,9 +85,17 @@ def get_conversation(conversation_id: int, me: User = Depends(can_view), db: Ses
 def reply(conversation_id: int, body: AgentMessageIn, me: User = Depends(can_reply), db: Session = Depends(get_db)):
     """An employee writes to the customer. This pauses the AI on this conversation."""
     conv = _get(db, me, conversation_id)
+    if conv.channel == Channel.WHATSAPP and (
+        conv.last_customer_message_at is None or utcnow() - conv.last_customer_message_at > WHATSAPP_WINDOW
+    ):
+        raise HTTPException(409, "WhatsApp only allows free replies within 24 hours of the customer's last "
+                                 "message. Call the customer or wait until they write again.")
+    if conv.status == ConversationStatus.CLOSED:
+        _event(db, conv, f"{me.full_name} reopened the conversation")
     if conv.status != ConversationStatus.HUMAN:
         conv.status = ConversationStatus.HUMAN
         conv.handover_reason = conv.handover_reason or f"Taken over by {me.full_name}"
+    conv.was_handed_over = True
     if conv.assigned_to_id is None:
         conv.assigned_to_id = me.id
     msg = Message(conversation_id=conv.id, sender=Sender.AGENT, kind=MessageKind.TEXT,
@@ -81,8 +109,13 @@ def reply(conversation_id: int, body: AgentMessageIn, me: User = Depends(can_rep
 
 
 @router.post("/{conversation_id}/takeover", response_model=ConversationDetail)
-def take_over(conversation_id: int, me: User = Depends(can_reply), db: Session = Depends(get_db)):
+def take_over(conversation_id: int, force: bool = False, me: User = Depends(can_reply),
+              db: Session = Depends(get_db)):
     conv = _get(db, me, conversation_id)
+    current = conv.assigned_to
+    if current is not None and current.id != me.id and current.is_active and not force:
+        raise HTTPException(409, f"{current.full_name} is already handling this conversation")
+    conv.was_handed_over = True
     conv.status = ConversationStatus.HUMAN
     conv.assigned_to_id = me.id
     conv.handover_reason = conv.handover_reason or f"Taken over by {me.full_name}"
@@ -107,6 +140,7 @@ def release_to_ai(conversation_id: int, me: User = Depends(can_reply), db: Sessi
 def close(conversation_id: int, me: User = Depends(can_reply), db: Session = Depends(get_db)):
     conv = _get(db, me, conversation_id)
     conv.status = ConversationStatus.CLOSED
+    conv.assigned_to_id = None
     _event(db, conv, f"{me.full_name} closed the conversation")
     db.commit()
     return conversation_detail(db, conv)
