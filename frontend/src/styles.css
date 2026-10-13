@@ -320,6 +320,7 @@ input[type="checkbox"] { width: auto; accent-color: var(--brand); }
   .topbar .brand-mark, .topbar .brand-logo { width: 34px; height: 34px; }
   .menu-btn { border: 1px solid color-mix(in srgb, var(--sidebar-text) 25%, transparent); background: transparent; color: var(--sidebar-text);
     font-size: 1.35rem; line-height: 1; width: 42px; height: 40px; border-radius: 10px; cursor: pointer; flex-shrink: 0; }
+  .shell.menu-open .topbar { z-index: 68; }
   .drawer-backdrop { display: block; position: fixed; inset: 0; background: rgb(15 23 42 / 50%); z-index: 65; }
   .sidebar { position: fixed; top: 0; bottom: 0; inset-inline-start: 0; width: min(290px, 86vw); height: 100dvh; z-index: 70;
     transform: translateX(-105%); visibility: hidden; transition: transform .2s ease, visibility 0s linear .2s; box-shadow: 0 0 40px rgb(0 0 0 / 30%); }

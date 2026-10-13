@@ -68,8 +68,8 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
   const set = <K extends keyof Branding>(k: K, v: Branding[K]) => { setSaved(false); setB({ ...b, [k]: v }); };
   // The search bar is always at the top of the page: it can be turned on/off but not moved.
   const searchOn = b.sections.includes("search");
-  const movable = ALL_SECTIONS.filter((s) => s !== "search");
-  const order = [...b.sections.filter((s) => s !== "search"), ...movable.filter((s) => !b.sections.includes(s))];
+  const movable: Section[] = ALL_SECTIONS.filter((s) => s !== "search");
+  const order: Section[] = [...b.sections.filter((s) => s !== "search"), ...movable.filter((s) => !b.sections.includes(s))];
   const withSearch = (list: Section[], on = searchOn): Section[] => (on ? ["search", ...list] : list);
   const toggle = (s: Section) => {
     if (s === "search") {

@@ -47,6 +47,7 @@ export function plural(n: number, one: string, other: string): string {
 const EN_PATTERNS: [RegExp, string][] = [
   [/^Ticket (\S+): (\w+) → (\w+) by (.+)$/, "Ticket {1}: {2:status} → {3:status} by {4}"],
   [/^A booking can't go from (\w+) to (\w+)$/, "A booking can't go from {1:status} to {2:status}"],
+  [/^(image_url )?must be an uploaded image or (start with )?(an )?https:\/\/( address)?$/, "Upload the photo from your device"],
 ];
 
 function fill(template: string, groups: string[]): string {

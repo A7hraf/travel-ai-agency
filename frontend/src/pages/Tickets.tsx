@@ -123,7 +123,7 @@ function TicketModal({ id, onClose, onSaved }: { id: number; onClose: () => void
 
   // Only the changes the server accepts from the current status.
   const statusOptions = ticket
-    ? [ticket.status, ...(NEXT_TICKET_STATUSES[ticket.status] ?? []).filter((s) => ticket.status !== "cancelled" || isAdmin)]
+    ? [ticket.status, ...(NEXT_TICKET_STATUSES[ticket.status] ?? []).filter(() => ticket.status !== "cancelled" || isAdmin)]
     : [];
   const needsReference = NEEDS_PAYMENT_REFERENCE.includes(form.status);
 
