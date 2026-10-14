@@ -2,7 +2,8 @@ import { CSSProperties, useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../auth";
 import { LangSwitch, useI18n } from "../lang";
-import { dashboardVars } from "../theme";
+import { dashboardVars, GHANJAH, isDark } from "../theme";
+import { GhanjahMark, usePlatformName } from "./Brand";
 import { ROLE_LABELS } from "../util";
 
 interface NavItem {
@@ -32,6 +33,7 @@ const SYSTEM_NAV: NavItem[] = [
 export default function Layout() {
   const { user, logout, can } = useAuth();
   const { t } = useI18n();
+  const platformName = usePlatformName();
   const location = useLocation();
   // Phones: the menu is a drawer opened from the top bar.
   const [menuOpen, setMenuOpen] = useState(false);
@@ -42,12 +44,19 @@ export default function Layout() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [menuOpen]);
+  useEffect(() => {
+    const company = user?.company?.name;
+    document.title = company ? `${company} · Ghanjah` : "Ghanjah · AI Travel from Oman";
+  }, [user?.company?.name]);
   if (!user) return null;
   const nav = user.role === "system_admin" ? SYSTEM_NAV : COMPANY_NAV.filter((n) => !n.permission || can(n.permission));
   const branding = user.company?.branding;
   const style = dashboardVars(branding?.dashboard_color, branding?.dashboard_sidebar) as CSSProperties;
-  const brandName = user.company?.name ?? t("Travel AI Platform");
-  const logo = branding?.logo ? <img className="brand-logo" src={branding.logo} alt="" /> : <span className="brand-mark">✈</span>;
+  const brandName = user.company?.name ?? platformName;
+  const darkSidebar = isDark(branding?.dashboard_sidebar ?? GHANJAH.ink);
+  const logo = branding?.logo
+    ? <img className="brand-logo" src={branding.logo} alt="" />
+    : <GhanjahMark dark={darkSidebar} className="brand-ghanjah" />;
 
   return (
     <div className={`shell ${menuOpen ? "menu-open" : ""}`} style={style}>

@@ -60,7 +60,8 @@ export const AR: Record<string, string> = {
   "Change photo": "تغيير الصورة",
   "Upload photo": "رفع صورة",
   "Remove": "إزالة",
-  "Travel AI Platform": "منصة السفر الذكية",
+  "From Oman to the world": "من عُمان إلى العالم",
+  "Ghanjah": "غنجة",
   "Platform console": "وحدة تحكم المنصة",
   "Agency workspace": "مساحة عمل الوكالة",
   "Customer page": "صفحة العملاء",
@@ -545,7 +546,7 @@ export const AR: Record<string, string> = {
   "Answer saved. The AI uses it from the next customer message.": "تم حفظ الإجابة. سيستخدمها المساعد الذكي بدءاً من رسالة العميل التالية.",
   "Answer added. The AI uses it from the next customer message.": "تمت إضافة الإجابة. سيستخدمها المساعد الذكي بدءاً من رسالة العميل التالية.",
   "Remove the WhatsApp access token? WhatsApp messages stop working until a new one is saved.": "إزالة رمز الوصول لواتساب؟ ستتوقف رسائل واتساب حتى يتم حفظ رمز جديد.",
-  "Not a valid colour. Use # and 6 characters 0-9 / a-f, for example #0e7490. The last valid colour is kept.": "لون غير صالح. استخدم # ثم 6 خانات من 0-9 أو a-f، مثل #0e7490. سيُحتفظ بآخر لون صالح.",
+  "Not a valid colour. Use # and 6 characters 0-9 / a-f, for example #0088b0. The last valid colour is kept.": "لون غير صالح. استخدم # ثم 6 خانات من 0-9 أو a-f، مثل #0088b0. سيُحتفظ بآخر لون صالح.",
   "Always at the top": "دائماً في الأعلى",
 
   // --- System admin: companies ------------------------------------------------

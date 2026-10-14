@@ -4,8 +4,8 @@ import { ReactNode, useEffect, useRef, useState } from "react";
 export const SERIES = ["#2a78d6", "#eb6834", "#1baf7a"];
 export const ORDINAL_BLUES = ["#86b6ef", "#3987e5", "#1c5cab"];
 
-const AXIS = "#64748b";
-const GRID = "#eef2f7";
+const AXIS = "#6b6560";
+const GRID = "#eeebe9";
 const SURFACE = "#ffffff";
 
 function useWidth<T extends HTMLElement>(): [React.RefObject<T>, number] {
@@ -239,7 +239,7 @@ export function HBars({ items, format = String, rtl = false }: {
               content: <><strong>{it.label}</strong><div className="tip-row"><b>{format(it.value)}</b></div>{it.note && <div className="muted small">{it.note}</div>}</>,
             })}>
               <text x={rtl ? width : 0} y={y - 5} textAnchor={rtl ? "end" : "start"} className="chart-label">{it.label}</text>
-              <rect x={rtl ? width - plotW : 0} y={y} width={plotW} height={barH} rx={4} fill="#f1f5f9" />
+              <rect x={rtl ? width - plotW : 0} y={y} width={plotW} height={barH} rx={4} fill="#f0eeec" />
               <path d={hbarPath(x0, y, w, barH, 4, rtl)} fill={it.color} />
               <text x={rtl ? width - w - 8 : w + 8} y={y + 15} textAnchor={rtl ? "end" : "start"} className="chart-value">{format(it.value)}</text>
             </g>
@@ -259,7 +259,7 @@ export function Ring({ value, color = SERIES[0], size = 78, empty }: { value: nu
   const label = empty ? "—" : `${Math.round(v * 100)}%`;
   return (
     <svg width={size} height={size} className="ring" role="img" aria-label={label}>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#e8eef6" strokeWidth={8} />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#ebe7e4" strokeWidth={8} />
       <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={8} strokeLinecap="round"
         strokeDasharray={`${c * v} ${c}`} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
       <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle" className="ring-text">{label}</text>

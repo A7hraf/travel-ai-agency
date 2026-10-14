@@ -102,7 +102,7 @@ class SecurityHeaders:
 
 # The interactive API docs describe every endpoint: handy in development, hidden in production.
 app = FastAPI(
-    title="Travel AI Agency",
+    title="Ghanjah · AI Travel from Oman",
     version="1.1.0",
     lifespan=lifespan,
     docs_url=None if PRODUCTION else "/docs",

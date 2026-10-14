@@ -27,9 +27,10 @@ def _image_ref(value: str | None) -> str | None:
 
 
 class Branding(BaseModel):
+    # Defaults follow the Ghanjah brand: Gulf Cyan for actions, Ink for the sidebar.
     # Customer page
-    primary_color: str = Field(default="#0e7490", pattern=HEX)
-    accent_color: str = Field(default="#22d3ee", pattern=HEX)
+    primary_color: str = Field(default="#0088b0", pattern=HEX)
+    accent_color: str = Field(default="#4fb6dc", pattern=HEX)
     logo: str | None = Field(default=None, max_length=500)
     hero_style: Literal["gradient", "image", "solid"] = "gradient"
     hero_image: str | None = Field(default=None, max_length=500)
@@ -45,8 +46,8 @@ class Branding(BaseModel):
     card_style: Literal["rounded", "square"] = "rounded"
     layout: Literal["grid", "list"] = "grid"
     # Employee dashboard (platform owner only)
-    dashboard_color: str = Field(default="#0e7490", pattern=HEX)
-    dashboard_sidebar: str = Field(default="#0b1f2a", pattern=HEX)
+    dashboard_color: str = Field(default="#0088b0", pattern=HEX)
+    dashboard_sidebar: str = Field(default="#201e1d", pattern=HEX)
 
     @field_validator("logo", "hero_image")
     @classmethod

@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { get } from "../api";
 import { homePath, useAuth } from "../auth";
+import { GhanjahLockup } from "../components/Brand";
 import { LangSwitch, useI18n } from "../lang";
 
 interface DemoAccount {
@@ -48,8 +49,8 @@ export default function Login() {
     <div className="login-page">
       <div className="login-hero">
         <div className="login-lang"><LangSwitch className="btn btn-sm lang-switch" /></div>
-        <div className="brand-mark big">✈</div>
-        <h1>Travel AI Agency</h1>
+        <GhanjahLockup dark />
+        <p className="login-tagline">{t("From Oman to the world")}</p>
         <p>{t("Your AI travel consultant sells your packages on the web and WhatsApp, day and night, and hands every booking to your team for payment.")}</p>
       </div>
       <form className="login-card" onSubmit={submit}>

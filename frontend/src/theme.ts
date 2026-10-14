@@ -1,5 +1,15 @@
 /** Company colours -> CSS variables, with readable text colours computed from luminance. */
 
+/** Ghanjah brand colours (brand kit v1.0). */
+export const GHANJAH = {
+  ink: "#201e1d",
+  paper: "#f3f2f2",
+  cyan: "#0088b0",
+  magenta: "#d6006c",
+  cyanOnDark: "#4fb6dc",
+  magentaOnDark: "#ff5c9d",
+};
+
 function rgb(hex: string): [number, number, number] {
   const n = parseInt(hex.replace("#", ""), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
@@ -25,15 +35,19 @@ function luminance(hex: string): number {
 }
 
 /** Black or white, whichever reads better on the colour. */
+export function isDark(hex: string): boolean {
+  return luminance(VALID.test(hex) ? hex : GHANJAH.ink) <= 0.4;
+}
+
 export function textOn(hex: string): string {
-  return luminance(hex) > 0.4 ? "#0f172a" : "#ffffff";
+  return luminance(hex) > 0.4 ? "#201e1d" : "#ffffff";
 }
 
 const VALID = /^#[0-9a-fA-F]{6}$/;
 
 export function dashboardVars(primary?: string, sidebar?: string): Record<string, string> {
-  const p = primary && VALID.test(primary) ? primary : "#0e7490";
-  const s = sidebar && VALID.test(sidebar) ? sidebar : "#0b1f2a";
+  const p = primary && VALID.test(primary) ? primary : GHANJAH.cyan;
+  const s = sidebar && VALID.test(sidebar) ? sidebar : GHANJAH.ink;
   return {
     "--brand": p,
     "--brand-dark": shade(p, -0.2),
@@ -45,8 +59,8 @@ export function dashboardVars(primary?: string, sidebar?: string): Record<string
 }
 
 export function storefrontVars(primary?: string, accent?: string): Record<string, string> {
-  const p = primary && VALID.test(primary) ? primary : "#0e7490";
-  const a = accent && VALID.test(accent) ? accent : "#22d3ee";
+  const p = primary && VALID.test(primary) ? primary : GHANJAH.cyan;
+  const a = accent && VALID.test(accent) ? accent : GHANJAH.cyanOnDark;
   return {
     "--brand": p,
     "--brand-dark": shade(p, -0.25),

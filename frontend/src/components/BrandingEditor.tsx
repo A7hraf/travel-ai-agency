@@ -1,7 +1,8 @@
 import { CSSProperties, FormEvent, useEffect, useState } from "react";
 import { get, patch } from "../api";
 import { useI18n } from "../lang";
-import { dashboardVars, storefrontVars } from "../theme";
+import { dashboardVars, isDark, storefrontVars } from "../theme";
+import { GhanjahMark } from "./Brand";
 import type { Branding, Section } from "../types";
 import ImageUpload from "./ImageUpload";
 import { STOREFRONT_TEXT } from "../i18n";
@@ -18,6 +19,7 @@ const SECTION_LABELS: Record<Section, string> = {
 };
 
 const PRESETS: { name: string; primary: string; accent: string; sidebar: string }[] = [
+  { name: "Ghanjah", primary: "#0088b0", accent: "#4fb6dc", sidebar: "#201e1d" },
   { name: "Ocean", primary: "#0e7490", accent: "#22d3ee", sidebar: "#0b1f2a" },
   { name: "Desert", primary: "#b45309", accent: "#fbbf24", sidebar: "#2b1a0e" },
   { name: "Royal", primary: "#4338ca", accent: "#a78bfa", sidebar: "#1e1b4b" },
@@ -35,7 +37,7 @@ function ColorInput({ label, value, onChange }: { label: string; value: string; 
   const invalid = !HEX.test(text);
   return (
     <Field label={label} hint={invalid
-      ? <span className="error-text">{t("Not a valid colour. Use # and 6 characters 0-9 / a-f, for example #0e7490. The last valid colour is kept.")}</span>
+      ? <span className="error-text">{t("Not a valid colour. Use # and 6 characters 0-9 / a-f, for example #0088b0. The last valid colour is kept.")}</span>
       : undefined}>
       <div className="color-input">
         <input type="color" value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} />
@@ -276,7 +278,7 @@ function DashboardPreview({ b }: { b: Branding }) {
   return (
     <div className="mini-dash" style={dashboardVars(b.dashboard_color, b.dashboard_sidebar) as CSSProperties}>
       <div className="mini-dash-side">
-        {b.logo ? <img src={b.logo} alt="" /> : <span className="brand-mark">✈</span>}
+        {b.logo ? <img src={b.logo} alt="" /> : <GhanjahMark dark={isDark(b.dashboard_sidebar)} />}
         <i className="on" /><i /><i /><i />
       </div>
       <div className="mini-dash-main">

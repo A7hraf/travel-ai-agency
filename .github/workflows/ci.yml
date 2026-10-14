@@ -60,10 +60,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t travel-ai-agency .
+      - run: docker build -t ghanjah .
       - name: Smoke test
         run: |
-          docker run -d --name app -p 8000:8000 -e LLM_PROVIDER=mock travel-ai-agency
+          docker run -d --name app -p 8000:8000 -e LLM_PROVIDER=mock ghanjah
           for i in $(seq 1 30); do curl -fsS localhost:8000/api/health && break; sleep 2; done
           curl -fsS localhost:8000/ | grep -q '<div id="root">'
           curl -fsS localhost:8000/c/sunrise-travel | grep -q '<div id="root">'

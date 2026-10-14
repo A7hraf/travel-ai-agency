@@ -10,7 +10,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    app_name: str = "Travel AI Agency"
+    app_name: str = "Ghanjah · AI Travel from Oman"
     environment: str = "development"
 
     # Database: PostgreSQL in production, SQLite works for local development.

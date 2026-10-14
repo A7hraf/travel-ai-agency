@@ -1,4 +1,10 @@
-# Travel AI Agency
+# Ghanjah · AI Travel from Oman
+
+**غنجة · سفر ذكي من عُمان** · From Oman to the world · من عُمان إلى العالم
+
+Ghanjah (غنجة) is named after the ocean-going Omani dhow built in Sur. The logo is an exit stamp
+from Muscat (MCT) with a plane breaking out through its corner; brand files are in
+`frontend/src/assets/brand` and `frontend/public` (favicons).
 
 A multi-company (SaaS) platform where an **open-source AI travel consultant** sells a travel
 agency's packages on the **website and WhatsApp**, takes the booking all the way to the payment

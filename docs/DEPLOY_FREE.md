@@ -1,4 +1,4 @@
-# Put it online for free (Render + Neon + Groq)
+# Put Ghanjah online for free (Render + Neon + Groq)
 
 Total cost: **$0**. Time: about 20 minutes. You only need a browser.
 
@@ -61,7 +61,8 @@ Free plans change often; check each provider's pricing page if something below l
 
 5. Click **Apply** / **Deploy Blueprint**. The first build takes 5–10 minutes.
 6. When it says **Live**, open the address at the top of the service page, e.g.
-   `https://travel-ai-agency.onrender.com`.
+   `https://ghanjah.onrender.com` (the service name in `render.yaml` is `ghanjah`; if another
+   Render user already has that name, Render adds a few random letters).
 
 ## Step 4: First login
 
@@ -94,10 +95,35 @@ Follow [WHATSAPP_SETUP.md](WHATSAPP_SETUP.md) with:
 * Shared platform app (optional): webhook `https://YOUR-ADDRESS/api/webhooks/whatsapp`, verify
   token in Render → **Environment** → `WHATSAPP_VERIFY_TOKEN`, and add `WHATSAPP_APP_SECRET`.
 
+## Moving an existing service to the Ghanjah address
+
+Render can't rename the address of a service that already exists (the old one was
+`travel-ai-agency.onrender.com`). Since `render.yaml` now names the service `ghanjah`, Render creates
+a **new** service with the address `https://ghanjah.onrender.com`. Your data stays in Neon, so
+nothing is lost. The old service keeps working until you delete it.
+
+1. Open the old service **travel-ai-agency** → **Environment** and keep this tab open. You will copy
+   `DATABASE_URL`, `SYSTEM_ADMIN_EMAIL`, `SYSTEM_ADMIN_PASSWORD`, `LLM_API_KEY`, **`SECRET_KEY`** and
+   `WHATSAPP_VERIFY_TOKEN` (and `ENCRYPTION_KEY` / `WHATSAPP_APP_SECRET` if you added them).
+2. In Render open **Blueprints** → your blueprint. It shows the new service `ghanjah` and asks for
+   the 4 values (`DATABASE_URL`, `SYSTEM_ADMIN_EMAIL`, `SYSTEM_ADMIN_PASSWORD`, `LLM_API_KEY`):
+   paste the same ones as the old service and click **Apply**.
+3. Open the new service **ghanjah** → **Environment** and replace the generated `SECRET_KEY` and
+   `WHATSAPP_VERIFY_TOKEN` with the **old service's values**, then **Save, rebuild and deploy**.
+   This is important: the secret key unlocks the saved WhatsApp tokens and keeps everyone logged in.
+4. Open `https://ghanjah.onrender.com`, log in, and press **Test AI**.
+5. WhatsApp: in each Meta app change the webhook **Callback URL** to the new address (the path
+   after the domain stays the same; it is shown in **AI & WhatsApp** settings).
+6. When everything works, delete the old service (**travel-ai-agency → Settings → Delete Web
+   Service**) so the free hours are not shared between two services.
+
+Optional: rename the GitHub repository to `ghanjah` (GitHub → Settings → Repository name). GitHub
+redirects the old name and Render follows the rename.
+
 ## Your own domain (optional)
 
 Buy a domain (about $10–15 per year), then in Render → your service → **Settings → Custom
-Domains** add e.g. `www.mytravel.com` and create the DNS record Render shows you. HTTPS is
+Domains** add e.g. `ghanjah.om` or `www.ghanjah.com` and create the DNS record Render shows you. HTTPS is
 automatic.
 
 ## Changing settings later

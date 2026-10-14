@@ -2,6 +2,7 @@ import { CSSProperties, FormEvent, ReactNode, useCallback, useEffect, useRef, us
 import { useParams } from "react-router-dom";
 import { ApiError, get, post } from "../api";
 import { Lang, Money } from "../components/Money";
+import { GhanjahMark } from "../components/Brand";
 import { ChatText, Modal } from "../components/ui";
 import { STOREFRONT_TEXT, StorefrontText, useLang } from "../i18n";
 import { storefrontVars } from "../theme";
@@ -171,7 +172,10 @@ export default function Storefront() {
       </main>
 
       <footer className="sf-footer">
-        {company.name}{company.contact_email && <> · <bdi dir="ltr">{company.contact_email}</bdi></>} · {t.footer}
+        <div>{company.name}{company.contact_email && <> · <bdi dir="ltr">{company.contact_email}</bdi></>} · {t.footer}</div>
+        <a className="sf-powered" href="/" aria-label={t.poweredBy}>
+          <GhanjahMark /> <span>{t.poweredBy}</span>
+        </a>
       </footer>
 
       {selected && (

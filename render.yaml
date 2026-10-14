@@ -2,7 +2,8 @@
 # Step-by-step guide: docs/DEPLOY_FREE.md
 services:
   - type: web
-    name: travel-ai-agency
+    # The service name is also the web address: https://ghanjah.onrender.com
+    name: ghanjah
     runtime: docker
     plan: free
     region: frankfurt

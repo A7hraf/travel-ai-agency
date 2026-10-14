@@ -193,7 +193,7 @@ done
 
 # --- 5. Summary ----------------------------------------------------------------
 echo
-printf '\033[1;32m%s\033[0m\n' "Travel AI Agency is running."
+printf '\033[1;32m%s\033[0m\n' "Ghanjah is running."
 echo
 echo "  Website (staff login):  https://$DOMAIN"
 echo "  Your login:             $OWNER_EMAIL"
