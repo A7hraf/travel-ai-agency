@@ -380,22 +380,22 @@ function MiniPage({ b, name, agent, whatsapp, phone, pkgs, lang }: {
 /** Staff dashboard in miniature, in the dark shell style with the chosen sidebar and main colour. */
 function DashboardPreview({ b, name }: { b: Branding; name: string }) {
   return (
-    <div className="md" style={dashboardVars(b.dashboard_color, b.dashboard_sidebar) as CSSProperties} aria-hidden="true">
-      <div className="md-side">
-        <div className="md-brand">
+    <div className="dash-mini" style={dashboardVars(b.dashboard_color, b.dashboard_sidebar) as CSSProperties} aria-hidden="true">
+      <div className="dash-mini-side">
+        <div className="dash-mini-brand">
           {b.logo ? <img src={b.logo} alt="" /> : <GhanjahMark dark={isDark(b.dashboard_sidebar)} />}
           <span>{name}</span>
         </div>
         <i className="on" /><i /><i /><i /><i />
-        <span className="md-user" />
+        <span className="dash-mini-user" />
       </div>
-      <div className="md-main">
-        <span className="md-hello" />
-        <div className="md-kpis"><i className="hero" /><i /><i /><i /></div>
-        <div className="md-chart">{[40, 65, 50, 80, 60, 90, 75, 55, 85, 70].map((h, i) => (
+      <div className="dash-mini-main">
+        <span className="dash-mini-hello" />
+        <div className="dash-mini-kpis"><i className="hero" /><i /><i /><i /></div>
+        <div className="dash-mini-chart">{[40, 65, 50, 80, 60, 90, 75, 55, 85, 70].map((h, i) => (
           <i key={i} style={{ height: `${h}%` }}><b style={{ height: `${30 + (i % 3) * 10}%` }} /></i>
         ))}</div>
-        <span className="md-btn" />
+        <span className="dash-mini-btn" />
       </div>
     </div>
   );

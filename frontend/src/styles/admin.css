@@ -529,23 +529,23 @@ a.now-waiting:hover { background: rgba(242, 179, 61, .18); }
 
 /* Mini staff dashboard */
 .md-label { margin-top: 18px; }
-.md { display: flex; height: 190px; border-radius: 18px; overflow: hidden; background: #1a1817; box-shadow: inset 0 0 0 1px rgba(243, 242, 242, .08); }
-.md-side { width: 92px; background: var(--sidebar); padding: 10px 8px; display: flex; flex-direction: column; gap: 6px; }
-.md-brand { display: flex; align-items: center; gap: 5px; margin-bottom: 6px; min-width: 0; }
-.md-brand img, .md-brand .ghanjah-mark { width: 20px; height: 20px; object-fit: contain; flex-shrink: 0; }
-.md-brand span { font-size: 8px; color: var(--sidebar-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
-.md-side i { height: 12px; border-radius: 5px; background: color-mix(in srgb, var(--sidebar-text) 14%, transparent); }
-.md-side i.on { background: var(--brand-soft); box-shadow: inset 3px 0 0 var(--brand); }
-.md-user { margin-top: auto; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); }
-.md-main { flex: 1; padding: 10px; display: flex; flex-direction: column; gap: 7px; min-width: 0; }
-.md-hello { width: 46%; height: 10px; border-radius: 4px; background: rgba(243, 242, 242, .5); }
-.md-kpis { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1.1fr; gap: 5px; }
-.md-kpis i { height: 30px; border-radius: 7px; background: rgba(243, 242, 242, .05); }
-.md-kpis i.hero { background: linear-gradient(150deg, var(--brand-soft), rgba(243, 242, 242, .03)); box-shadow: inset 0 0 0 1px var(--brand-line); }
-.md-chart { flex: 1; border-radius: 7px; background: rgba(243, 242, 242, .04); display: flex; align-items: flex-end; gap: 4px; padding: 6px; }
-.md-chart i { flex: 1; background: #eb6834; border-radius: 2px; display: flex; align-items: flex-end; }
-.md-chart b { width: 100%; background: #2a78d6; border-radius: 2px; }
-.md-btn { width: 64px; height: 14px; border-radius: 999px; background: var(--brand); box-shadow: 0 0 12px var(--brand-glow); }
+.dash-mini { display: flex; height: 190px; border-radius: 18px; overflow: hidden; background: #1a1817; box-shadow: inset 0 0 0 1px rgba(243, 242, 242, .08); }
+.dash-mini-side { width: 92px; background: var(--sidebar); padding: 10px 8px; display: flex; flex-direction: column; gap: 6px; }
+.dash-mini-brand { display: flex; align-items: center; gap: 5px; margin-bottom: 6px; min-width: 0; }
+.dash-mini-brand img, .dash-mini-brand .ghanjah-mark { width: 20px; height: 20px; object-fit: contain; flex-shrink: 0; }
+.dash-mini-brand span { font-size: 8px; color: var(--sidebar-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.dash-mini-side i { height: 12px; border-radius: 5px; background: color-mix(in srgb, var(--sidebar-text) 14%, transparent); }
+.dash-mini-side i.on { background: var(--brand-soft); box-shadow: inset 3px 0 0 var(--brand); }
+.dash-mini-user { margin-top: auto; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); }
+.dash-mini-main { flex: 1; padding: 10px; display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.dash-mini-hello { width: 46%; height: 10px; border-radius: 4px; background: rgba(243, 242, 242, .5); }
+.dash-mini-kpis { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1.1fr; gap: 5px; }
+.dash-mini-kpis i { height: 30px; border-radius: 7px; background: rgba(243, 242, 242, .05); }
+.dash-mini-kpis i.hero { background: linear-gradient(150deg, var(--brand-soft), rgba(243, 242, 242, .03)); box-shadow: inset 0 0 0 1px var(--brand-line); }
+.dash-mini-chart { flex: 1; border-radius: 7px; background: rgba(243, 242, 242, .04); display: flex; align-items: flex-end; gap: 4px; padding: 6px; }
+.dash-mini-chart i { flex: 1; background: #eb6834; border-radius: 2px; display: flex; align-items: flex-end; }
+.dash-mini-chart b { width: 100%; background: #2a78d6; border-radius: 2px; }
+.dash-mini-btn { width: 64px; height: 14px; border-radius: 999px; background: var(--brand); box-shadow: 0 0 12px var(--brand-glow); }
 
 @media (max-width: 1150px) {
   .bz { grid-template-columns: minmax(0, 1fr); }

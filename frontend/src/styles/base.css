@@ -353,6 +353,8 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); opaci
   font-size: .5rem; letter-spacing: .14em; text-transform: uppercase; }
 .poster-stamp b { display: block; font-size: 1rem; letter-spacing: .02em; margin: 2px 0; }
 .poster-route { position: absolute; top: 16px; inset-inline-start: 18px; font-size: .72rem; letter-spacing: .2em; text-transform: uppercase; color: rgba(243, 242, 242, .85); direction: ltr; }
+/* direction: ltr keeps "MCT → IST" readable but would also resolve inline-start to the left in Arabic. */
+[dir="rtl"] .poster-route { left: auto; right: 18px; }
 .poster-body { position: absolute; inset-inline: 0; bottom: 0; padding: 1rem 1.15rem 1.1rem; }
 .poster-country { font-size: .68rem; letter-spacing: .24em; text-transform: uppercase; color: rgba(243, 242, 242, .78); }
 .poster-name { font-size: 2.3rem; font-weight: 600; letter-spacing: -.03em; line-height: 1; margin: .15rem 0 .45rem; }
