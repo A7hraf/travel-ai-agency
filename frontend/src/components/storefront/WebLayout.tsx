@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useRef } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { Clock, Headset, MagnifyingGlass, ShieldCheck, Sparkle } from "../Icon";
 import { OmrSign } from "../Money";
 import { Modal } from "../ui";
@@ -23,11 +23,25 @@ export function WebLayout({ ctx, pkg, closePackage, widgetOpen, closeWidget, her
   const widgetInput = useRef<HTMLInputElement>(null);
   const launcher = useRef<HTMLButtonElement>(null);
   const wasOpen = useRef(false);
+  const heroChat = useRef<HTMLDivElement>(null);
+  const [heroVisible, setHeroVisible] = useState(true);
+
+  // The launcher is not needed while the live chat in the hero is on screen.
+  useEffect(() => {
+    const el = heroChat.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(([e]) => setHeroVisible(e.isIntersecting), { threshold: 0.25 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
 
   // Focus the widget's message box when it opens; back to the launcher when it closes.
   useEffect(() => {
     if (widgetOpen) widgetInput.current?.focus({ preventScroll: true });
-    else if (wasOpen.current) launcher.current?.focus({ preventScroll: true });
+    else if (wasOpen.current) {
+      const back = launcher.current?.classList.contains("sf-away") ? heroChat.current?.querySelector("input") : launcher.current;
+      back?.focus({ preventScroll: true });
+    }
     wasOpen.current = widgetOpen;
   }, [widgetOpen]);
   useEffect(() => {
@@ -120,7 +134,7 @@ export function WebLayout({ ctx, pkg, closePackage, widgetOpen, closeWidget, her
             </ul>
           </div>
 
-          <div className="sf-herochat" aria-label={t.chatWith(agent)} role="region">
+          <div ref={heroChat} className="sf-herochat" aria-label={t.chatWith(agent)} role="region">
             <div className="sf-herochat-head">
               <ChatAvatar company={company} human={chat.human} size={44} />
               <ChatTitle company={company} human={chat.human} t={t} />
@@ -154,7 +168,8 @@ export function WebLayout({ ctx, pkg, closePackage, widgetOpen, closeWidget, her
             inputRef={widgetInput} live size="sm" onFocus={chat.ensure} />
         </div>
       ) : (
-        <button ref={launcher} type="button" className="sf-launcher" onClick={ctx.openChat}>
+        <button ref={launcher} type="button" className={`sf-launcher ${heroVisible ? "sf-away" : ""}`} onClick={ctx.openChat}
+          tabIndex={heroVisible ? -1 : undefined} aria-hidden={heroVisible || undefined}>
           <span className="sf-dock-avatar" aria-hidden="true">{agent.trim().charAt(0).toUpperCase()}</span>
           {t.chatWith(agent)}
         </button>

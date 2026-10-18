@@ -535,3 +535,19 @@ body.sf-body { background: var(--bg-app); }
 /* Names written in the other script keep their own reading order but follow the page's alignment. */
 .sf .poster [dir="auto"], .sf .sf-offer-title, .sf .sf-cpkg-title, .sf .sf-pd-title, .sf .sf-pkgwin-title, .sf .sf-wrow-title,
 .sf .sf-kicker-cyan[dir="auto"], .sf .sf-pd-desc, .sf .sf-pkgwin-desc, .sf .sf-inc li, .sf .sf-quote-row [dir="auto"] { text-align: match-parent; }
+
+/* Small desktops / large tablets in landscape */
+@media (max-width: 1100px) {
+  .sf-whero { grid-template-columns: minmax(0, 1fr) 360px; gap: 32px; }
+  .sf-wsearch input { font-size: 16px; }
+  .sf-wsearch-icon { margin-inline: 12px 6px; }
+  .sf-wsearch .omr-sign, .sf-wsearch .sf-cur { margin-inline: 10px 4px; }
+  .sf-wsearch-go { padding: 0 18px; }
+  .sf-wlead { font-size: 19px; }
+}
+/* Tablets in portrait use the phone layout in a centred column. */
+@media (min-width: 641px) and (max-width: 900px) {
+  .sf-phone { max-width: 600px; margin: 0 auto; box-shadow: 0 0 0 1px rgba(243, 242, 242, .06); }
+}
+.sf-launcher { transition: opacity .3s, transform .3s var(--ease), background .2s; }
+.sf-launcher.sf-away { opacity: 0; transform: translateY(16px); pointer-events: none; }
