@@ -92,7 +92,7 @@ export const AR: Record<string, string> = {
   "Website chat": "محادثة الموقع",
   "started {date}": "بدأت {date}",
   "Handled by": "يتولاها",
-  "Take over": "تولّي المحادثة",
+  "Take over": "استلام المحادثة",
   "Hand back to AI": "إعادتها إلى المساعد الذكي",
   "Show AI tool activity": "عرض نشاط أدوات الذكاء الاصطناعي",
   "Writing here takes the chat over from the AI…": "الكتابة هنا تنقل المحادثة إليك من المساعد الذكي…",
