@@ -119,7 +119,9 @@ def message_out(m: Message) -> MessageOut:
 
 
 def public_message_out(m: Message) -> PublicMessageOut:
-    return PublicMessageOut(id=m.id, sender=m.sender, content=m.content, created_at=m.created_at)
+    cards = (m.meta or {}).get("cards") if m.sender == "ai" else None
+    return PublicMessageOut(id=m.id, sender=m.sender, content=m.content, created_at=m.created_at,
+                            cards=cards if isinstance(cards, list) else [])
 
 
 def _last_preview(db: Session, conversation_id: int) -> str:

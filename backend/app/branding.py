@@ -47,7 +47,7 @@ class Branding(BaseModel):
     layout: Literal["grid", "list"] = "grid"
     # Employee dashboard (platform owner only)
     dashboard_color: str = Field(default="#0088b0", pattern=HEX)
-    dashboard_sidebar: str = Field(default="#201e1d", pattern=HEX)
+    dashboard_sidebar: str = Field(default="#0f0e0d", pattern=HEX)
 
     @field_validator("logo", "hero_image")
     @classmethod

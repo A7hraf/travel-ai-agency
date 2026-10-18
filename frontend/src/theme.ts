@@ -45,29 +45,58 @@ export function textOn(hex: string): string {
 
 const VALID = /^#[0-9a-fA-F]{6}$/;
 
-export function dashboardVars(primary?: string, sidebar?: string): Record<string, string> {
-  const p = primary && VALID.test(primary) ? primary : GHANJAH.cyan;
-  const s = sidebar && VALID.test(sidebar) ? sidebar : GHANJAH.ink;
+function rgba(hex: string, alpha: number): string {
+  const [r, g, b] = rgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function contrast(a: string, b: string): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+/** The interface is dark: an agency colour is lightened until it reads well on the dark surfaces
+ *  (contrast of at least 6:1 with Ink). Ghanjah's own colours use their official "on dark" versions. */
+export function forDark(hex: string, min = 6): string {
+  const lower = hex.toLowerCase();
+  if (lower === GHANJAH.cyan) return GHANJAH.cyanOnDark;
+  if (lower === GHANJAH.magenta) return GHANJAH.magentaOnDark;
+  let out = hex;
+  for (let step = 1; contrast(out, GHANJAH.ink) < min && step <= 12; step++) out = shade(hex, step * 0.07);
+  return out;
+}
+
+function actionVars(name: "brand" | "agency-accent", base: string): Record<string, string> {
   return {
-    "--brand": p,
-    "--brand-dark": shade(p, -0.2),
-    "--brand-soft": shade(p, 0.9),
-    "--on-brand": textOn(p),
+    [`--${name}`]: base,
+    [`--${name}-hover`]: shade(base, 0.45),
+    [`--${name}-soft`]: rgba(base, 0.14),
+    [`--${name}-glow`]: rgba(base, 0.42),
+    [`--${name}-line`]: rgba(base, 0.3),
+    [`--on-${name}`]: textOn(base),
+  };
+}
+
+/** Staff app: the platform owner picks the main colour and the sidebar colour per agency. */
+export function dashboardVars(primary?: string, sidebar?: string): Record<string, string> {
+  const p = forDark(primary && VALID.test(primary) ? primary : GHANJAH.cyan);
+  const s = sidebar && VALID.test(sidebar) ? sidebar : "#0f0e0d";
+  return {
+    ...actionVars("brand", p),
     "--sidebar": s,
+    "--bg-sidebar": s,
     "--sidebar-text": textOn(s),
   };
 }
 
+/** Customer page: the agency's main and accent colours (Oman magenta stays for the human team). */
 export function storefrontVars(primary?: string, accent?: string): Record<string, string> {
-  const p = primary && VALID.test(primary) ? primary : GHANJAH.cyan;
-  const a = accent && VALID.test(accent) ? accent : GHANJAH.cyanOnDark;
+  const raw = primary && VALID.test(primary) ? primary : GHANJAH.cyan;
+  const p = forDark(raw);
+  const a = forDark(accent && VALID.test(accent) ? accent : GHANJAH.cyanOnDark, 4.5);
   return {
-    "--brand": p,
-    "--brand-dark": shade(p, -0.25),
-    "--brand-deep": shade(p, -0.6),
-    "--brand-soft": shade(p, 0.9),
-    "--on-brand": textOn(p),
-    "--accent": a,
-    "--on-accent": textOn(a),
+    ...actionVars("brand", p),
+    ...actionVars("agency-accent", a),
+    "--brand-deep": shade(raw, -0.55),
   };
 }

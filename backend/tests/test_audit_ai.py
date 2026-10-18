@@ -270,3 +270,30 @@ def test_ticket_history_records_the_ai_booking(client, company_a, scripted):
     assert events[0]["action"] == "created" and events[0]["actor"] == "AI"
     with SessionLocal() as db:
         assert db.get(Ticket, ticket["id"]).seats_held == 2
+
+
+def test_ai_replies_carry_trip_quote_and_ticket_cards(client, company_a, scripted):
+    company, admin = company_a
+    pkg = make_package(client, admin, title="Maldives Honeymoon", price_per_person=945)
+    other = make_package(client, admin, title="Dubai Family Fun", destination="Dubai", country="UAE")
+    slug = company["slug"]
+    token = client.post(f"/api/public/companies/{slug}/chats", json={}).json()["token"]
+    url = f"/api/public/companies/{slug}/chats/{token}/messages"
+
+    scripted([LLMResponse(None, [ToolCall("s", "search_packages", {"query": "honeymoon"})]),
+              LLMResponse("I suggest the *Maldives Honeymoon*.")])
+    cards = client.post(url, json={"content": "honeymoon"}).json()["messages"][-1]["cards"]
+    assert [c["type"] for c in cards] == ["package"] and cards[0]["id"] == pkg["id"] != other["id"]
+
+    scripted([LLMResponse(None, [ToolCall("q", "quote_booking", {"package_id": pkg["id"], "departure_date": future(30),
+                                                                 "adults": 2})]),
+              LLMResponse("Here is your booking:")])
+    cards = client.post(url, json={"content": "2 adults"}).json()["messages"][-1]["cards"]
+    assert cards[0]["type"] == "quote" and cards[0]["total_price"] == 1890 and cards[0]["destination"] == "Male"
+
+    scripted([LLMResponse(None, [book(pkg["id"])]), LLMResponse("Booked!")])
+    cards = client.post(url, json={"content": "yes"}).json()["messages"][-1]["cards"]
+    assert cards[0]["type"] == "ticket" and cards[0]["ticket_reference"].startswith("TRV-")
+    # the customer's own messages never carry cards
+    history = client.get(f"{url}?after_id=0").json()["messages"]
+    assert all(m["cards"] == [] for m in history if m["sender"] == "customer")
