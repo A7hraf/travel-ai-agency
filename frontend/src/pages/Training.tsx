@@ -1,6 +1,8 @@
 import { FormEvent, useEffect, useState } from "react";
 import { del, get, post, put } from "../api";
-import { Empty, ErrorBox, Field, PageHeader } from "../components/ui";
+import { ConfirmSheet, PageTitle } from "../components/admin/AdminUI";
+import { ChatsCircle, GraduationCap, MagnifyingGlass, PencilSimple, Plus, ShieldCheck, Trash } from "../components/Icon";
+import { ErrorBox, Field } from "../components/ui";
 import { useI18n } from "../lang";
 import type { TrainingExample } from "../types";
 
@@ -15,6 +17,7 @@ export default function Training() {
   const [listError, setListError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [deleting, setDeleting] = useState<TrainingExample | null>(null);
 
   const load = () => get<TrainingExample[]>("/api/training").then(setItems).catch((e) => setListError(e.message));
   useEffect(() => { load(); }, []);
@@ -41,7 +44,7 @@ export default function Training() {
   };
 
   const remove = async (item: TrainingExample) => {
-    if (!confirm(t("Delete this answer?"))) return;
+    setDeleting(null);
     setListError(null);
     setNotice(null);
     try {
@@ -56,12 +59,12 @@ export default function Training() {
   const shown = (items ?? []).filter((i) => `${i.question} ${i.answer}`.toLowerCase().includes(filter.toLowerCase()));
 
   return (
-    <div className="narrow">
-      <PageHeader title={t("AI training")}
+    <div className="narrow ad-narrow">
+      <PageTitle kicker={t("Agency workspace")} title={t("AI training")}
         subtitle={t("Teach your AI consultant how your company answers. When a customer asks something similar, in Arabic or English, the AI answers your way.")} />
 
-      <form className="card" onSubmit={save}>
-        <h3>{editing ? t("Edit answer") : t("Teach a new answer")}</h3>
+      <form className={`ad-card tr-form ${editing ? "editing" : ""}`} onSubmit={save}>
+        <h2 className="ad-card-title"><span className="ad-card-icon"><GraduationCap /></span>{editing ? t("Edit answer") : t("Teach a new answer")}</h2>
         <Field label={t("Customer question")} hint={t("Write it the way customers ask, e.g. {ar} or {en}", { ar: "«هل تقبلون الدفع بالتقسيط؟»", en: "“Do you offer installments?”" })}>
           <input value={question} onChange={(e) => setQuestion(e.target.value)} required minLength={2} maxLength={1000} dir="auto" />
         </Field>
@@ -69,35 +72,49 @@ export default function Training() {
           <textarea rows={4} value={answer} onChange={(e) => setAnswer(e.target.value)} required maxLength={4000} dir="auto" />
         </Field>
         <ErrorBox error={error} />
-        {notice && <div className="ok-box" role="status">{notice}</div>}
-        <div className="row-gap">
-          <button className="btn btn-primary" disabled={busy}>{busy ? t("Saving…") : editing ? t("Save") : t("Add to training")}</button>
+        {notice && <div className="ok-box ad-notice" role="status">{notice}</div>}
+        <div className="ad-form-actions">
+          <button className="btn btn-primary" disabled={busy}>{busy ? t("Saving…") : editing ? t("Save") : <><Plus weight="bold" />{t("Add to training")}</>}</button>
           {editing && <button type="button" className="btn btn-ghost" onClick={reset}>{t("Cancel")}</button>}
         </div>
       </form>
 
-      <div className="toolbar"><input placeholder={t("Search answers")} aria-label={t("Search answers")} value={filter} onChange={(e) => setFilter(e.target.value)} /></div>
-      <ErrorBox error={listError} />
-      {items === null ? <div className="loading">{listError ? "" : t("Loading…")}</div> : shown.length === 0 ? (
-        <Empty>{filter.trim() && items.length > 0 ? t("No results for this filter.") : t("No answers yet. Add the questions customers ask you most.")}</Empty>
-      ) : (
-        <div className="qa-list">
-          {shown.map((item) => (
-            <div key={item.id} className="qa">
-              <div className="qa-q" dir="auto">{item.question}</div>
-              <div className="qa-a" dir="auto">{item.answer}</div>
-              <div className="qa-actions">
-                <button className="btn btn-sm" onClick={() => { setEditing(item); setQuestion(item.question); setAnswer(item.answer); setNotice(null); window.scrollTo(0, 0); }}>{t("Edit")}</button>
-                <button className="btn btn-sm btn-danger" onClick={() => remove(item)}>{t("Delete")}</button>
-              </div>
-            </div>
-          ))}
+      <div className="ad-toolbar tr-toolbar">
+        <h2 className="tr-count">{items ? t("{n} answers", { n: items.length }) : t("Answers")}</h2>
+        <div className="ad-search">
+          <MagnifyingGlass aria-hidden="true" />
+          <input type="search" placeholder={t("Search answers")} aria-label={t("Search answers")} value={filter} onChange={(e) => setFilter(e.target.value)} />
         </div>
+      </div>
+      <ErrorBox error={listError} />
+      {items === null ? (listError ? null : <div className="skeleton" style={{ height: 120, borderRadius: 20 }} />) : shown.length === 0 ? (
+        <div className="empty">
+          <ChatsCircle className="empty-icon" />
+          <strong>{filter.trim() && items.length > 0 ? t("No results for this filter.") : t("No answers yet. Add the questions customers ask you most.")}</strong>
+        </div>
+      ) : (
+        <ul className="qa-list">
+          {shown.map((item) => (
+            <li key={item.id} className={`qa ${editing?.id === item.id ? "editing" : ""}`}>
+              <div className="qa-q"><span className="qa-tag" aria-hidden="true">{t("Q")}</span><span dir="auto">{item.question}</span></div>
+              <div className="qa-a"><span className="qa-tag a" aria-hidden="true">{t("A")}</span><span dir="auto">{item.answer}</span></div>
+              <div className="qa-actions">
+                <button className="btn btn-sm btn-soft" onClick={() => { setEditing(item); setQuestion(item.question); setAnswer(item.answer); setNotice(null); window.scrollTo({ top: 0, behavior: "smooth" }); }}><PencilSimple />{t("Edit")}</button>
+                <button className="btn btn-sm btn-danger" onClick={() => setDeleting(item)}><Trash />{t("Delete")}</button>
+              </div>
+            </li>
+          ))}
+        </ul>
       )}
-      <p className="muted small" style={{ marginTop: "1rem" }}>
-        {t("The AI also learns from your packages (titles, descriptions, tags) and the policies in “AI & WhatsApp”.")}{" "}
-        {t("Each company's training is private: it is never used for another company.")}
+      <p className="tr-foot">
+        <ShieldCheck />
+        <span>{t("The AI also learns from your packages (titles, descriptions, tags) and the policies in “AI & WhatsApp”.")}{" "}
+        {t("Each company's training is private: it is never used for another company.")}</span>
       </p>
+      {deleting && (
+        <ConfirmSheet title={t("Delete this answer?")} text={<span dir="auto">{deleting.question}</span>} tone="danger"
+          confirmLabel={t("Delete")} onConfirm={() => remove(deleting)} onCancel={() => setDeleting(null)} />
+      )}
     </div>
   );
 }

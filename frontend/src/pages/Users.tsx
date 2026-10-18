@@ -1,7 +1,9 @@
 import { FormEvent, useEffect, useState } from "react";
 import { del, get, patch, post } from "../api";
 import { useAuth } from "../auth";
-import { Badge, ErrorBox, Field, Modal, PageHeader } from "../components/ui";
+import { ConfirmSheet, initials, PageTitle, Switch } from "../components/admin/AdminUI";
+import { LockSimple, PencilSimple, Plus, Trash } from "../components/Icon";
+import { ErrorBox, Field, Modal } from "../components/ui";
 import { useI18n } from "../lang";
 import type { PermissionCatalog, Role, User, UserList } from "../types";
 import { dateTime, ROLE_LABELS } from "../util";
@@ -21,49 +23,56 @@ export function UserManager({ basePath, listPath, createPath }: { basePath: stri
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listPath]);
 
-  if (!data) return <div className="loading">{t("Loading…")}</div>;
+  if (!data) return <div className="skeleton" style={{ height: 240, borderRadius: 24 }} />;
   const full = data.used >= data.max_users;
   // An employee with users.manage who is not a company admin cannot manage admin accounts.
   const delegate = !!me && me.role !== "company_admin" && me.role !== "system_admin";
 
+  const pct = Math.min(100, (data.used / Math.max(1, data.max_users)) * 100);
   return (
-    <div>
-      <div className="seat-bar">
-        <div className="row-between">
-          <span>{t("{n} of {max} accounts used", { n: data.used, max: data.max_users })}</span>
-          <button className="btn btn-primary" disabled={full} onClick={() => setEditing("new")}>+ {t("Add account")}</button>
+    <div className="tm">
+      <div className="tm-seats">
+        <div className="tm-seats-num">
+          <span className="tnum">{data.used}</span><span className="tm-of"> / {data.max_users}</span>
         </div>
-        <div className="meter"><div style={{ width: `${Math.min(100, (data.used / data.max_users) * 100)}%` }} /></div>
-        <div className="muted small">
-          {full ? t("Account limit reached. The platform admin can raise the limit.") : t("Disabled accounts don't count toward the limit.")}
+        <div className="tm-seats-main">
+          <div className="tm-seats-label">{t("{n} of {max} accounts used", { n: data.used, max: data.max_users })}</div>
+          <div className={`tm-meter ${full ? "full" : ""}`} role="meter" aria-valuemin={0} aria-valuemax={data.max_users} aria-valuenow={data.used}
+            aria-label={t("Accounts used")}><div style={{ width: `${pct}%` }} /></div>
+          <div className="tm-seats-note">
+            {full ? t("Account limit reached. The platform admin can raise the limit.") : t("Disabled accounts don't count toward the limit.")}
+          </div>
         </div>
+        <button className="btn btn-primary" disabled={full} onClick={() => setEditing("new")}><Plus weight="bold" />{t("Add account")}</button>
       </div>
 
-      <div className="table-wrap">
-        <table className="table cards">
-          <thead><tr><th>{t("Name")}</th><th>{t("Email")}</th><th>{t("Role")}</th><th>{t("Permissions")}</th><th>{t("Status")}</th><th>{t("Last login")}</th><th /></tr></thead>
-          <tbody>
-            {data.users.map((u) => {
-              const locked = delegate && u.role === "company_admin" && u.id !== me?.id;
-              return (
-                <tr key={u.id}>
-                  <td data-label={t("Name")}><span><strong>{u.full_name}</strong>{u.id === me?.id && <span className="muted small"> ({t("you")})</span>}</span></td>
-                  <td data-label={t("Email")}><bdi dir="ltr">{u.email}</bdi></td>
-                  <td data-label={t("Role")}>{t(ROLE_LABELS[u.role])}</td>
-                  <td data-label={t("Permissions")} className="small muted">{u.role === "company_admin" ? t("All") : t("{n} permissions", { n: u.permissions.length })}</td>
-                  <td data-label={t("Status")}>{u.is_active ? <Badge tone="green">{t("Active")}</Badge> : <Badge tone="gray">{t("Disabled")}</Badge>}</td>
-                  <td data-label={t("Last login")} className="small muted">{dateTime(u.last_login_at)}</td>
-                  <td data-label="" className="cell-action">
-                    {locked
-                      ? <span className="muted small" title={t("Only a company admin can manage admin accounts")}>{t("Admin only")}</span>
-                      : <button className="btn btn-sm" onClick={() => setEditing(u)}>{t("Edit")}</button>}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <ul className="tm-list">
+        {data.users.map((u) => {
+          const locked = delegate && u.role === "company_admin" && u.id !== me?.id;
+          return (
+            <li key={u.id} className={`tm-row ${u.is_active ? "" : "off"}`}>
+              <span className={`tm-avatar role-${u.role}`} aria-hidden="true">{initials(u.full_name)}</span>
+              <div className="tm-who">
+                <div className="tm-name" dir="auto">{u.full_name}{u.id === me?.id && <span className="tm-you">{t("you")}</span>}</div>
+                <bdi dir="ltr" className="tm-email">{u.email}</bdi>
+              </div>
+              <div className="tm-role">
+                <span className="ad-status cyan plain">{t(ROLE_LABELS[u.role])}</span>
+                <span className="tm-perms">{u.role === "company_admin" ? t("All permissions") : t("{n} permissions", { n: u.permissions.length })}</span>
+              </div>
+              <div className="tm-state">
+                {u.is_active ? <span className="ad-status on">{t("Active")}</span> : <span className="ad-status off">{t("Disabled")}</span>}
+                <span className="tm-login">{t("Last login")}: {dateTime(u.last_login_at)}</span>
+              </div>
+              <div className="tm-action">
+                {locked
+                  ? <span className="tm-locked" title={t("Only a company admin can manage admin accounts")}><LockSimple />{t("Admin only")}</span>
+                  : <button className="btn btn-sm btn-soft" onClick={() => setEditing(u)} aria-label={t("Edit {name}", { name: u.full_name })}><PencilSimple />{t("Edit")}</button>}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
 
       {editing && catalog && (
         <UserForm user={editing === "new" ? null : editing} catalog={catalog} basePath={basePath} createPath={createPath}
@@ -93,6 +102,7 @@ function UserForm({ user, catalog, basePath, createPath, isSelf, delegate, myPer
   const [active, setActive] = useState(user?.is_active ?? true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const samePerms = (a: string[], b: string[]) => a.length === b.length && a.every((p) => b.includes(p));
   const dirty = user
     ? fullName !== user.full_name || email !== user.email || !!password || role !== user.role
@@ -135,12 +145,14 @@ function UserForm({ user, catalog, basePath, createPath, isSelf, delegate, myPer
   };
 
   const remove = async () => {
-    if (!user || !confirm(t("Delete the account of {name}? This can't be undone.", { name: user.full_name }))) return;
+    if (!user) return;
     setBusy(true);
     try {
       await del(`${basePath}/${user.id}`);
+      setConfirmDelete(false);
       onSaved();
     } catch (err) {
+      setConfirmDelete(false);
       setError((err as Error).message);
     } finally {
       setBusy(false);
@@ -174,7 +186,7 @@ function UserForm({ user, catalog, basePath, createPath, isSelf, delegate, myPer
             {delegate && <p className="muted small">{t("You can only give permissions you have yourself.")}</p>}
             <div className="perm-grid">
               {Object.entries(catalog.permissions).map(([key, label]) => (
-                <label key={key} className={`perm ${allowed(key) ? "" : "perm-locked"}`} title={key}>
+                <label key={key} className={`perm ${allowed(key) ? "" : "perm-locked"} ${perms.includes(key) ? "on" : ""}`} title={key}>
                   <input type="checkbox" checked={perms.includes(key)} disabled={isSelf || !allowed(key)} onChange={() => toggle(key)} />
                   <span>{t(label)}</span>
                 </label>
@@ -185,22 +197,24 @@ function UserForm({ user, catalog, basePath, createPath, isSelf, delegate, myPer
 
         {user && !isSelf && (
           <>
-            <label className="check">
-              <input type="checkbox" checked={active} disabled={cannotReenable && !active}
-                onChange={(e) => setActive(e.target.checked)} /> {t("Account active (can log in)")}
-            </label>
+            <Switch checked={active} disabled={cannotReenable && !active} onChange={setActive} label={t("Account active (can log in)")} />
             {cannotReenable && <div className="muted small">{t("The account limit is reached: free a place (or ask the platform admin to raise the limit) before re-enabling this account.")}</div>}
             {!active && user.is_active && <div className="muted small">{t("A disabled account is logged out and no longer counts toward the account limit.")}</div>}
           </>
         )}
         <ErrorBox error={error} />
         <div className="modal-actions">
-          {user && !isSelf && <button type="button" className="btn btn-danger" disabled={busy} onClick={remove}>{t("Delete account")}</button>}
+          {user && !isSelf && <button type="button" className="btn btn-danger" disabled={busy} onClick={() => setConfirmDelete(true)}><Trash />{t("Delete account")}</button>}
           <span className="spacer" />
           <button type="button" className="btn btn-ghost" onClick={onClose}>{t("Cancel")}</button>
           <button className="btn btn-primary" disabled={busy}>{busy ? t("Saving…") : user ? t("Save") : t("Create account")}</button>
         </div>
       </form>
+      {confirmDelete && user && (
+        <ConfirmSheet title={t("Delete the account of {name}?", { name: user.full_name })} text={t("This can't be undone.")}
+          tone="danger" busy={busy} confirmLabel={busy ? t("Deleting…") : t("Delete account")}
+          onConfirm={remove} onCancel={() => setConfirmDelete(false)} />
+      )}
     </Modal>
   );
 }
@@ -209,7 +223,7 @@ export default function Users() {
   const { t } = useI18n();
   return (
     <div>
-      <PageHeader title={t("Team & accounts")} subtitle={t("Create accounts for your employees and choose what each one can do.")} />
+      <PageTitle kicker={t("Agency workspace")} title={t("Team & accounts")} subtitle={t("Create accounts for your employees and choose what each one can do.")} />
       <UserManager basePath="/api/users" listPath="/api/users" createPath="/api/users" />
     </div>
   );

@@ -1,8 +1,9 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { get } from "../api";
+import { ApiError, get } from "../api";
 import { homePath, useAuth } from "../auth";
 import { GhanjahLockup } from "../components/Brand";
+import { ArrowSquareOut, Envelope, Key, SignIn, UserCircle } from "../components/Icon";
 import { LangSwitch, useI18n } from "../lang";
 
 interface DemoAccount {
@@ -21,6 +22,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [wrong, setWrong] = useState(0);
   const [busy, setBusy] = useState(false);
   // Demo logins come from the server, only on development setups: they are never in the website code.
   const [demo, setDemo] = useState<DemoAccount[]>([]);
@@ -39,7 +41,9 @@ export default function Login() {
       const me = await login(email, password);
       navigate(from ?? homePath(me), { replace: true });
     } catch (err) {
-      setError((err as Error).message);
+      const wrongPass = err instanceof ApiError && err.status === 401;
+      setError(wrongPass ? t("Wrong email or password.") : (err as Error).message);
+      if (wrongPass) setWrong((n) => n + 1);
     } finally {
       setBusy(false);
     }
@@ -47,39 +51,66 @@ export default function Login() {
 
   return (
     <div className="login-page">
-      <div className="login-hero">
-        <div className="login-lang"><LangSwitch className="btn btn-sm lang-switch" /></div>
-        <GhanjahLockup dark />
-        <p className="login-tagline">{t("From Oman to the world")}</p>
-        <p>{t("Your AI travel consultant sells your packages on the web and WhatsApp, day and night, and hands every booking to your team for payment.")}</p>
+      <div className="gj-orbs" aria-hidden="true" />
+      <div className="login-top">
+        <LangSwitch className="btn btn-sm lang-switch" />
       </div>
-      <form className="login-card" onSubmit={submit}>
-        <h2>{t("Sign in")}</h2>
-        {state?.expired && !error && <div className="info-box small" role="status">{t("Your session ended, please sign in again")}</div>}
-        <label className="field">
-          <span className="field-label">{t("Email")}</span>
-          <input type="email" autoComplete="username" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
-        </label>
-        <label className="field">
-          <span className="field-label">{t("Password")}</span>
-          <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-        </label>
-        {error && <div className="error-box" role="alert">{error}</div>}
-        <button className="btn btn-primary btn-block" disabled={busy}>{busy ? t("Signing in…") : t("Sign in")}</button>
+      <div className="login-grid">
+        <section className="login-hero">
+          <GhanjahLockup dark />
+          <div className="login-kicker">{t("Agency workspace")}</div>
+          <h1 className="login-title">{t("From Oman to")} <span className="accent-word">{t("the world")}</span></h1>
+          <p className="login-text">{t("Your agency's AI travel consultant, on your page and on WhatsApp, with your team one tap away.")}</p>
+        </section>
 
-        {demo.length > 0 && (
-          <div className="demo-box">
-            <div className="muted small">{t("Demo accounts (click to fill)")}</div>
-            {demo.map((a) => (
-              <button type="button" key={a.email} className="demo-account"
-                onClick={() => { setEmail(a.email); setPassword(a.password); }}>
-                <strong>{a.label}</strong> <span className="muted" dir="ltr">{a.email}</span>
-              </button>
-            ))}
-            <a className="small" href="/c/sunrise-travel" target="_blank" rel="noreferrer">{t("Open the demo customer page")} ↗</a>
-          </div>
-        )}
-      </form>
+        <form className="login-card" onSubmit={submit} noValidate={false}>
+          <h2>{t("Sign in")}</h2>
+          {state?.expired && !error && (
+            <div className="info-box login-note" role="status">{t("Your session ended, please sign in again.")}</div>
+          )}
+          <label className="field">
+            <span className="field-label">{t("Email")}</span>
+            <span className="login-input">
+              <Envelope aria-hidden="true" />
+              <input type="email" autoComplete="username" dir="ltr" value={email} required autoFocus
+                className={wrong && error ? "invalid" : ""} key={`e${wrong}`}
+                onChange={(e) => { setEmail(e.target.value); setError(null); }} />
+            </span>
+          </label>
+          <label className="field">
+            <span className="field-label">{t("Password")}</span>
+            <span className="login-input">
+              <Key aria-hidden="true" />
+              <input type="password" autoComplete="current-password" value={password} required
+                className={wrong && error ? "invalid" : ""} key={`p${wrong}`}
+                onChange={(e) => { setPassword(e.target.value); setError(null); }} />
+            </span>
+          </label>
+          {error && <div className="error-box" role="alert">{error}</div>}
+          <button className="btn btn-primary btn-lg btn-block" disabled={busy} aria-busy={busy}>
+            {busy ? <><span className="login-spin" aria-hidden="true" />{t("Signing in…")}</> : <><SignIn className="flip" />{t("Sign in")}</>}
+          </button>
+
+          {demo.length > 0 && (
+            <div className="demo-box">
+              <div className="demo-head">
+                <strong>{t("Demo accounts")}</strong>
+                <span>{t("Development only. Tap to fill the form.")}</span>
+              </div>
+              {demo.map((a) => (
+                <button type="button" key={a.email} className={`demo-account ${email === a.email ? "active" : ""}`}
+                  onClick={() => { setEmail(a.email); setPassword(a.password); setError(null); }}>
+                  <UserCircle className="demo-icon" />
+                  <span className="demo-text"><strong>{a.label}</strong><bdi dir="ltr">{a.email}</bdi></span>
+                </button>
+              ))}
+              <a className="demo-link" href="/c/sunrise-travel" target="_blank" rel="noreferrer">
+                {t("Open the demo customer page")} <ArrowSquareOut className="flip" />
+              </a>
+            </div>
+          )}
+        </form>
+      </div>
     </div>
   );
 }

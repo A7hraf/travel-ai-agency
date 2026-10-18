@@ -1,10 +1,13 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { del, get, patch } from "../../api";
+import { ConfirmSheet, hueOf, initials } from "../../components/admin/AdminUI";
 import BrandingEditor from "../../components/BrandingEditor";
-import { Badge, ErrorBox, Field, PageHeader } from "../../components/ui";
+import { ArrowLeft, ArrowSquareOut, Pause, Play, Trash, WarningOctagon } from "../../components/Icon";
+import { ErrorBox, Field } from "../../components/ui";
 import { useI18n } from "../../lang";
 import type { CompanyAdmin } from "../../types";
+import { shortDate } from "../../util";
 import { UserManager } from "../Users";
 
 export default function CompanyDetail() {
@@ -20,10 +23,12 @@ export default function CompanyDetail() {
   const [busy, setBusy] = useState<string | null>(null);
   const [topError, setTopError] = useState<string | null>(null);
   const [usersKey, setUsersKey] = useState(0);
+  const [sheet, setSheet] = useState<"suspend" | "delete" | null>(null);
+  const [typed, setTyped] = useState("");
 
   const apply = (x: CompanyAdmin) => { setC(x); setName(x.name); setMaxUsers(String(x.max_users)); };
   useEffect(() => { get<CompanyAdmin>(`/api/system/companies/${id}`).then(apply).catch((e) => setError(e.message)); }, [id]);
-  if (!c) return <div className="loading">{error ?? t("Loading…")}</div>;
+  if (!c) return error ? <div className="error-box">{error}</div> : <div className="skeleton" style={{ height: 300, borderRadius: 24 }} />;
 
   const update = async (what: string, body: Record<string, unknown>) => {
     if (busy) return;
@@ -42,21 +47,12 @@ export default function CompanyDetail() {
       (what === "plan" ? setError : setTopError)((err as Error).message);
     } finally {
       setBusy(null);
+      setSheet(null);
     }
-  };
-
-  const suspend = () => {
-    if (!confirm(t("Suspend {name}?\n\nWhile suspended:\n• its employees are logged out and can't sign in\n• the AI stops answering on the website and WhatsApp\n• the customer page is offline\n\nNothing is deleted; you can re-activate it at any time.", { name: c.name }))) return;
-    update("status", { status: "suspended" });
   };
 
   const remove = async () => {
-    const typed = prompt(t("This permanently deletes {name} with all its accounts, packages, chats and tickets.\nType the company slug \"{slug}\" to confirm:", { name: c.name, slug: c.slug }));
-    if (typed === null) return;
-    if (typed.trim() !== c.slug) {
-      alert(t("The web address did not match. Nothing was deleted."));
-      return;
-    }
+    if (typed.trim() !== c.slug) return;
     setBusy("delete");
     setTopError(null);
     try {
@@ -65,54 +61,97 @@ export default function CompanyDetail() {
     } catch (err) {
       setTopError((err as Error).message);
       setBusy(null);
+      setSheet(null);
     }
   };
 
+  const active = c.status === "active";
+
   return (
-    <div>
-      <Link to="/system" className="muted small">{t("← All companies")}</Link>
-      <PageHeader title={c.name}
-        subtitle={<>{t("Customer page:")} <a href={`/c/${c.slug}`} target="_blank" rel="noreferrer" dir="ltr">/c/{c.slug}</a></>}
-        actions={c.status === "active"
-          ? <button className="btn btn-danger" disabled={!!busy} onClick={suspend}>{busy === "status" ? t("Please wait…") : t("Suspend company")}</button>
-          : <button className="btn btn-primary" disabled={!!busy} onClick={() => update("status", { status: "active" })}>{busy === "status" ? t("Please wait…") : t("Re-activate company")}</button>} />
+    <div className="cd">
+      <Link to="/system" className="cd-back"><ArrowLeft className="flip" />{t("All companies")}</Link>
+      <header className="ad-head cd-head">
+        <span className="co-avatar big" style={{ ["--h" as string]: hueOf(c.slug) }} aria-hidden="true">{initials(c.name)}</span>
+        <div className="ad-head-text">
+          <div className="ad-kicker">{t("Platform console")}</div>
+          <h1 className="ad-title" dir="auto">{c.name}</h1>
+          <p className="ad-sub cd-meta">
+            {active ? <span className="ad-status on">{t("Active")}</span> : <span className="ad-status bad">{t("Suspended")}</span>}
+            <a href={`/c/${c.slug}`} target="_blank" rel="noreferrer"><bdi dir="ltr">/c/{c.slug}</bdi> <ArrowSquareOut /></a>
+            <span>{t("Created")} {shortDate(c.created_at)}</span>
+          </p>
+        </div>
+        <div className="ad-actions">
+          {active
+            ? <button className="btn btn-danger" disabled={!!busy} onClick={() => setSheet("suspend")}><Pause weight="fill" />{busy === "status" ? t("Please wait…") : t("Suspend company")}</button>
+            : <button className="btn btn-primary" disabled={!!busy} onClick={() => update("status", { status: "active" })}><Play weight="fill" />{busy === "status" ? t("Please wait…") : t("Reactivate")}</button>}
+        </div>
+      </header>
 
       <ErrorBox error={topError} />
-      {c.status === "suspended" && <div className="error-box">{t("Suspended: employees can't log in, the AI and the customer page are off.")}</div>}
+      {!active && <div className="warn-box">{t("Suspended: employees can't log in, the AI and the customer page are off.")}</div>}
 
-      <div className="tabs page-tabs">
-        <button className={`tab ${tab === "plan" ? "active" : ""}`} onClick={() => setTab("plan")}>{t("Plan & accounts")}</button>
-        <button className={`tab ${tab === "design" ? "active" : ""}`} onClick={() => setTab("design")}>{t("Design & colours")}</button>
+      <div className="cd-tabs" role="tablist" aria-label={c.name}>
+        <button role="tab" aria-selected={tab === "plan"} className={tab === "plan" ? "active" : ""} onClick={() => setTab("plan")}>{t("Plan & accounts")}</button>
+        <button role="tab" aria-selected={tab === "design"} className={tab === "design" ? "active" : ""} onClick={() => setTab("design")}>{t("Design & colours")}</button>
       </div>
 
       {tab === "design" ? (
-        <BrandingEditor owner loadPath={`/api/system/companies/${c.id}/branding`}
+        <BrandingEditor owner loadPath={`/api/system/companies/${c.id}/branding`} name={c.name}
           uploadPath={`/api/system/companies/${c.id}/media`} slug={c.slug} />
       ) : (<>
-      <form className="card" onSubmit={(e: FormEvent) => { e.preventDefault(); update("plan", { name, max_users: Number(maxUsers) }); }}>
-        <h3>{t("Plan & limits")} <Badge tone={c.status === "active" ? "green" : "red"}>{t(c.status === "active" ? "Active" : "Suspended")}</Badge></h3>
-        <div className="form-grid">
-          <Field label={t("Company name")}><input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={200} dir="auto" /></Field>
-          <Field label={t("Maximum accounts")} hint={t("Currently {n} accounts. Disabled accounts don't count; the limit can't be lower than the active accounts.", { n: c.user_count })}>
-            <input type="number" min={1} max={10000} step={1} value={maxUsers} onChange={(e) => setMaxUsers(e.target.value)} required />
-          </Field>
-        </div>
-        <ErrorBox error={error} />
-        {saved && <div className="ok-box">{t("Saved.")}</div>}
-        <button className="btn btn-primary" disabled={!!busy}>{busy === "plan" ? t("Saving…") : t("Save")}</button>
-      </form>
+        <form className="ad-card" onSubmit={(e: FormEvent) => { e.preventDefault(); update("plan", { name, max_users: Number(maxUsers) }); }}>
+          <h2 className="ad-card-title">{t("Plan & limits")}</h2>
+          <p className="ad-card-note">{t("{a} of {b} accounts used", { a: c.user_count, b: c.max_users })}</p>
+          <div className="ad-grid-2">
+            <Field label={t("Company name")}><input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={200} dir="auto" /></Field>
+            <Field label={t("Account limit")} hint={t("Currently {n} accounts. Disabled accounts don't count; the limit can't be lower than the active accounts.", { n: c.user_count })}>
+              <input type="number" min={1} max={10000} step={1} value={maxUsers} onChange={(e) => setMaxUsers(e.target.value)} required />
+            </Field>
+          </div>
+          <ErrorBox error={error} />
+          {saved && <div className="ok-box ad-notice" role="status">{t("Saved.")}</div>}
+          <div className="ad-form-actions"><button className="btn btn-primary" disabled={!!busy}>{busy === "plan" ? t("Saving…") : t("Save")}</button></div>
+        </form>
 
-      <section className="card">
-        <h3>{t("Accounts")}</h3>
-        <UserManager key={usersKey} basePath="/api/system/users" listPath={`/api/system/companies/${c.id}/users`}
-          createPath={`/api/system/companies/${c.id}/users`} />
-      </section>
+        <section className="cd-accounts">
+          <h2 className="co-section">{t("Accounts")}</h2>
+          <UserManager key={usersKey} basePath="/api/system/users" listPath={`/api/system/companies/${c.id}/users`}
+            createPath={`/api/system/companies/${c.id}/users`} />
+        </section>
 
-      <section className="card danger-zone">
-        <h3>{t("Danger zone")}</h3>
-        <button className="btn btn-danger" disabled={!!busy} onClick={remove}>{busy === "delete" ? t("Deleting…") : t("Delete company permanently")}</button>
-      </section>
+        <section className="ad-card cd-danger">
+          <h2 className="ad-card-title"><span className="ad-card-icon danger"><WarningOctagon /></span>{t("Danger zone")}</h2>
+          <div className="cd-danger-row">
+            <div>
+              <strong>{t("Delete permanently")}</strong>
+              <p>{t("Deletes packages, conversations, tickets and accounts. This can't be undone.")}</p>
+            </div>
+            <button className="btn btn-danger" disabled={!!busy} onClick={() => { setTyped(""); setSheet("delete"); }}>
+              <Trash />{busy === "delete" ? t("Deleting…") : t("Delete permanently")}
+            </button>
+          </div>
+        </section>
       </>)}
+
+      {sheet === "suspend" && (
+        <ConfirmSheet title={t("Suspend {name}?", { name: c.name })} tone="accent" busy={busy === "status"}
+          text={t("Staff can't sign in, the customer page shows \"temporarily unavailable\" and the AI stops answering on WhatsApp. Nothing is deleted.")}
+          confirmLabel={busy === "status" ? t("Please wait…") : t("Suspend company")}
+          onConfirm={() => update("status", { status: "suspended" })} onCancel={() => setSheet(null)} />
+      )}
+      {sheet === "delete" && (
+        <ConfirmSheet title={t("Delete {name} permanently?", { name: c.name })} tone="danger" busy={busy === "delete"}
+          text={t("Deletes packages, conversations, tickets and accounts. This can't be undone.")}
+          confirmLabel={busy === "delete" ? t("Deleting…") : t("Delete permanently")} confirmDisabled={typed.trim() !== c.slug}
+          onConfirm={remove} onCancel={() => setSheet(null)}>
+          <label className="field">
+            <span className="field-label">{t("Type {slug} to confirm", { slug: c.slug })}</span>
+            <input value={typed} onChange={(e) => setTyped(e.target.value)} dir="ltr" autoComplete="off" spellCheck={false}
+              placeholder={c.slug} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); remove(); } }} />
+          </label>
+        </ConfirmSheet>
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
-import { ChangeEvent, useRef, useState } from "react";
+import { ChangeEvent, DragEvent, useRef, useState } from "react";
 import { post } from "../api";
 import { useI18n } from "../lang";
+import { ImageSquare, Trash, UploadSimple } from "./Icon";
 
 const MAX_BYTES = 2_400_000;
 
@@ -49,10 +50,9 @@ export default function ImageUpload({ value, onChange, endpoint = "/api/media", 
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [over, setOver] = useState(false);
 
-  const pick = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
+  const upload = async (file: File | undefined) => {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
       setError(t("Please choose a photo (JPEG, PNG or WebP)."));
@@ -72,20 +72,35 @@ export default function ImageUpload({ value, onChange, endpoint = "/api/media", 
     }
   };
 
+  const pick = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    upload(file);
+  };
+
+  const drop = (e: DragEvent) => {
+    e.preventDefault();
+    setOver(false);
+    if (!busy) upload(e.dataTransfer.files?.[0]);
+  };
+
   return (
-    <div className="image-upload">
-      <div className={`image-preview ${contain ? "contain" : ""}`}>
-        {value ? <img src={value} alt="" /> : <span className="muted small">{t("No photo")}</span>}
-      </div>
+    <div className={`image-upload ${over ? "over" : ""}`} onDragOver={(e) => { e.preventDefault(); setOver(true); }}
+      onDragLeave={() => setOver(false)} onDrop={drop}>
+      <button type="button" className={`image-preview ${contain ? "contain" : ""} ${value ? "filled" : ""}`} disabled={busy}
+        onClick={() => input.current?.click()} aria-label={label ?? (value ? t("Change photo") : t("Upload photo"))}>
+        {value ? <img src={value} alt="" /> : <span className="image-empty"><ImageSquare size={28} />{t("No photo")}</span>}
+        {busy && <span className="image-busy" aria-hidden="true"><span className="login-spin" /></span>}
+      </button>
       <div className="image-actions">
         <input ref={input} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={pick} />
-        <button type="button" className="btn btn-sm" disabled={busy} onClick={() => input.current?.click()}>
-          {busy ? t("Uploading…") : label ?? (value ? t("Change photo") : t("Upload photo"))}
+        <button type="button" className="btn btn-sm btn-soft" disabled={busy} onClick={() => input.current?.click()}>
+          <UploadSimple />{busy ? t("Uploading…") : label ?? (value ? t("Change photo") : t("Upload photo"))}
         </button>
         {value && !busy && (
-          <button type="button" className="btn btn-sm btn-ghost" onClick={() => onChange(null)}>{t("Remove")}</button>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => onChange(null)}><Trash />{t("Remove")}</button>
         )}
-        {error && <div className="field-hint error-text">{error}</div>}
+        {error && <div className="field-hint error-text" role="alert">{error}</div>}
       </div>
     </div>
   );

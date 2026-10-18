@@ -98,7 +98,7 @@ export function ConfirmSheet({ req, onClose }: { req: ConfirmRequest; onClose: (
   const box = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const [busy, setBusy] = useState(false);
-  useLayerFocus(box, onClose, ".gs-confirm-ok");
+  useLayerFocus(box, onClose, ".gs-confirm-btn");
   const ok = async () => {
     if (busy) return;
     setBusy(true);

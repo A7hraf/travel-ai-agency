@@ -1,7 +1,9 @@
 import { FormEvent, useState } from "react";
 import { post, setToken } from "../api";
 import { useAuth } from "../auth";
-import { ErrorBox, Field, PageHeader } from "../components/ui";
+import { initials, PageTitle } from "../components/admin/AdminUI";
+import { Check, Key } from "../components/Icon";
+import { ErrorBox, Field } from "../components/ui";
 import { useI18n } from "../lang";
 import { PERMISSION_LABELS, ROLE_LABELS } from "../util";
 
@@ -36,24 +38,36 @@ export default function Account() {
   };
 
   return (
-    <div className="narrow">
-      <PageHeader title={t("My account")} />
-      <div className="card">
-        <dl className="details">
-          <dt>{t("Name")}</dt><dd>{user.full_name}</dd>
-          <dt>{t("Email")}</dt><dd><bdi dir="ltr">{user.email}</bdi></dd>
-          <dt>{t("Role")}</dt><dd>{t(ROLE_LABELS[user.role])}</dd>
-          {user.company && (<><dt>{t("Company")}</dt><dd>{user.company.name}</dd></>)}
-          {user.role !== "system_admin" && (<><dt>{t("Permissions")}</dt><dd className="small"><ul className="perm-list">{user.permissions.map((p) => <li key={p}>{t(PERMISSION_LABELS[p] ?? p)}</li>)}</ul></dd></>)}
+    <div className="narrow ad-narrow">
+      <PageTitle kicker={user.role === "system_admin" ? t("Platform console") : t("Agency workspace")} title={t("My account")} />
+      <section className="ad-card acc-card">
+        <div className="acc-head">
+          <span className="acc-avatar" aria-hidden="true">{initials(user.full_name)}</span>
+          <div>
+            <div className="acc-name" dir="auto">{user.full_name}</div>
+            <bdi dir="ltr" className="acc-email">{user.email}</bdi>
+          </div>
+          <span className="ad-status cyan plain">{t(ROLE_LABELS[user.role])}</span>
+        </div>
+        <dl className="acc-details">
+          {user.company && (<div><dt>{t("Company")}</dt><dd dir="auto">{user.company.name}</dd></div>)}
+          {user.role !== "system_admin" && (
+            <div><dt>{t("Permissions")}</dt><dd>
+              <ul className="acc-perms">{user.permissions.map((p) => <li key={p}><Check weight="bold" />{t(PERMISSION_LABELS[p] ?? p)}</li>)}</ul>
+            </dd></div>
+          )}
         </dl>
-      </div>
-      <form className="card" onSubmit={submit}>
-        <h3>{t("Change password")}</h3>
-        <Field label={t("Current password")}><input type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} required /></Field>
-        <Field label={t("New password")} hint={t("8 to 72 characters")}><input type="password" minLength={8} maxLength={72} autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} required /></Field>
+      </section>
+      <form className="ad-card" onSubmit={submit}>
+        <h2 className="ad-card-title"><span className="ad-card-icon"><Key /></span>{t("Change password")}</h2>
+        <p className="ad-card-note">{t("Your other devices are logged out when you change it.")}</p>
+        <div className="ad-grid-2">
+          <Field label={t("Current password")}><input type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} required /></Field>
+          <Field label={t("New password")} hint={t("8 to 72 characters")}><input type="password" minLength={8} maxLength={72} autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} required /></Field>
+        </div>
         <ErrorBox error={error} />
-        {ok && <div className="ok-box">{t("Password changed. Your other devices were logged out.")}</div>}
-        <button className="btn btn-primary" disabled={busy}>{busy ? t("Saving…") : t("Change password")}</button>
+        {ok && <div className="ok-box ad-notice" role="status">{t("Password changed. Your other devices were logged out.")}</div>}
+        <div className="ad-form-actions"><button className="btn btn-primary" disabled={busy}>{busy ? t("Saving…") : t("Change password")}</button></div>
       </form>
     </div>
   );

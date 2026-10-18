@@ -168,7 +168,7 @@ export default function Layout() {
           </div>
           <button type="button" className="app-avatar" aria-label={t("Open menu")} aria-haspopup="dialog"
             aria-expanded={menuOpen} onClick={() => setMenuOpen(true)}>
-            {initial}
+            <span aria-hidden="true">{initial}</span>
           </button>
         </header>
 

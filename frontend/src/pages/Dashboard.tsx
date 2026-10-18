@@ -13,7 +13,8 @@ import { customerLabel, usePolling } from "../util";
 const PERIODS = [7, 30, 90];
 
 function day(iso: string, opts: Intl.DateTimeFormatOptions): string {
-  return new Date(`${iso}T00:00:00`).toLocaleDateString(currentLocale(), opts);
+  // en-GB writes "Sept"; the design uses "Sep".
+  return new Date(`${iso}T00:00:00`).toLocaleDateString(currentLocale(), opts).replace("Sept", "Sep");
 }
 
 /** Bars per day; the 90-day view groups two days per bar so the columns stay readable. */
@@ -316,7 +317,7 @@ export default function Dashboard() {
                       </div>
                       {can("conversations.reply")
                         ? <Link className="take-btn" to={`/app/conversations/${c.id}`}>{t("Take over")}</Link>
-                        : <Link className="take-btn" to={`/app/conversations/${c.id}`}>{t("Open")}</Link>}
+                        : <Link className="take-btn" to={`/app/conversations/${c.id}`}>{t("Open chat")}</Link>}
                     </li>
                   ))}
                 </ul>
