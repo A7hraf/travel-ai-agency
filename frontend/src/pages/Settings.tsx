@@ -2,7 +2,9 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { get, patch } from "../api";
 import AICheckCard from "../components/AICheckCard";
-import { ErrorBox, Field, PageHeader } from "../components/ui";
+import { PageTitle } from "../components/admin/AdminUI";
+import { ArrowRight, ArrowSquareOut, Buildings, Check, Copy, Robot, WhatsappLogo } from "../components/Icon";
+import { ErrorBox, Field } from "../components/ui";
 import { useI18n } from "../lang";
 import type { CompanySettings } from "../types";
 
@@ -11,10 +13,11 @@ function CopyRow({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="copy-row">
-      <code>{value}</code>
-      <button type="button" className="btn btn-sm" onClick={() => {
+      <code dir="ltr">{value}</code>
+      <button type="button" className={`btn btn-sm ${copied ? "btn-soft" : ""}`} onClick={() => {
         navigator.clipboard?.writeText(value).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
-      }}>{copied ? t("Copied") : t("Copy")}</button>
+      }}>{copied ? <><Check />{t("Copied")}</> : <><Copy />{t("Copy")}</>}</button>
+      <span className="sr-only" aria-live="polite">{copied ? t("Copied") : ""}</span>
     </div>
   );
 }
@@ -39,7 +42,7 @@ export default function Settings() {
   const [busy, setBusy] = useState<Section | null>(null);
 
   useEffect(() => { get<CompanySettings>("/api/company").then(setS).catch((e) => setLoadError(e.message)); }, []);
-  if (!s) return <div className="loading">{loadError ?? t("Loading…")}</div>;
+  if (!s) return loadError ? <div className="error-box">{loadError}</div> : <div className="skeleton" style={{ height: 320, borderRadius: 24 }} />;
 
   const set = <K extends keyof CompanySettings>(k: K, v: CompanySettings[K]) => {
     const section = (Object.keys(SECTION_FIELDS) as Section[]).find((x) => SECTION_FIELDS[x].includes(k));
@@ -76,32 +79,33 @@ export default function Settings() {
     }
   };
   const button = (section: Section, label: string) => (
-    <button className="btn btn-primary" disabled={busy !== null}>{busy === section ? t("Saving…") : label}</button>
+    <button className="btn btn-primary" disabled={busy !== null} aria-busy={busy === section}>{busy === section ? t("Saving…") : label}</button>
   );
 
   const ownWebhook = s.whatsapp_webhook_path ? `${window.location.origin}${s.whatsapp_webhook_path}` : "";
   const storefront = `${window.location.origin}/c/${s.slug}`;
+  const waConnected = !!(s.whatsapp_phone_number_id && s.whatsapp_token_set);
 
   return (
-    <div className="narrow">
-      <PageHeader title={t("AI agent & WhatsApp")} subtitle={t("One AI brain, your own persona, knowledge and WhatsApp channel.")} />
+    <div className="narrow ad-narrow">
+      <PageTitle kicker={t("Agency workspace")} title={t("AI & WhatsApp")} subtitle={t("One AI brain, your own persona, knowledge and WhatsApp channel.")} />
 
       <AICheckCard path="/api/company/ai-check" />
 
-      <form className="card" onSubmit={(e: FormEvent) => { e.preventDefault(); save("ai", {
+      <form className="ad-card" onSubmit={(e: FormEvent) => { e.preventDefault(); save("ai", {
         ai_agent_name: s.ai_agent_name, ai_welcome_message: s.ai_welcome_message ?? "",
         ai_welcome_message_ar: s.ai_welcome_message_ar ?? "",
         ai_instructions: s.ai_instructions, knowledge_base: s.knowledge_base }); }}>
-        <h3>{t("AI travel consultant")}</h3>
-        <div className="form-grid">
+        <h2 className="ad-card-title"><span className="ad-card-icon"><Robot /></span>{t("AI travel consultant")}</h2>
+        <div className="ad-grid-2">
           <Field label={t("Agent name")} hint={t("How the AI introduces itself to customers.")}>
             <input value={s.ai_agent_name} onChange={(e) => set("ai_agent_name", e.target.value)} required maxLength={80} dir="auto" />
           </Field>
           <Field label={t("Your customer page (share this link)")}>
-            <a href={storefront} target="_blank" rel="noreferrer" className="link-box" dir="ltr">{storefront} ↗</a>
+            <a href={storefront} target="_blank" rel="noreferrer" className="link-box" dir="ltr">{storefront} <ArrowSquareOut /></a>
           </Field>
         </div>
-        <div className="form-grid">
+        <div className="ad-grid-2">
           <Field label={t("Welcome message (English)")} hint={t("Empty = default greeting.")}>
             <textarea rows={2} maxLength={1000} dir="auto" value={s.ai_welcome_message ?? ""} onChange={(e) => set("ai_welcome_message", e.target.value)} />
           </Field>
@@ -116,25 +120,26 @@ export default function Settings() {
           <textarea rows={4} maxLength={8000} dir="auto" value={s.ai_instructions} onChange={(e) => set("ai_instructions", e.target.value)} />
         </Field>
         <ErrorBox error={errors.ai ?? null} />
-        {saved.ai && <div className="ok-box">{t("AI settings saved. They apply to the next customer message.")}</div>}
-        <div className="row-gap">
+        {saved.ai && <div className="ok-box ad-notice" role="status">{t("AI settings saved. They apply to the next customer message.")}</div>}
+        <div className="ad-form-actions">
           {button("ai", t("Save AI settings"))}
-          <Link to="/app/training" className="btn">{t("AI training (questions & answers)")} →</Link>
+          <Link to="/app/training" className="btn btn-ghost">{t("AI training (questions & answers)")} <ArrowRight className="flip" /></Link>
         </div>
       </form>
 
-      <form className="card" onSubmit={(e: FormEvent) => { e.preventDefault();
+      <form className="ad-card" onSubmit={(e: FormEvent) => { e.preventDefault();
         const body: Record<string, unknown> = {
           whatsapp_phone_number_id: s.whatsapp_phone_number_id ?? "",
           whatsapp_display_number: s.whatsapp_display_number ?? "" };
         if (token) body.whatsapp_access_token = token;
         if (appSecret) body.whatsapp_app_secret = appSecret;
         save("wa", body); }}>
-        <h3>{t("Your WhatsApp channel")}</h3>
-        <p className="muted small">
+        <h2 className="ad-card-title"><span className="ad-card-icon wa"><WhatsappLogo weight="fill" /></span>{t("Your WhatsApp channel")}<span className="spacer" />
+          {waConnected ? <span className="ad-status on">{t("WhatsApp connected")}</span> : <span className="ad-status off">{t("WhatsApp not connected")}</span>}</h2>
+        <p className="ad-card-note">
           {t("Each company has its own WhatsApp Business number and its own connection. Customers who message your number talk to your AI agent only; their chats are visible only to your team.")}
         </p>
-        <div className="form-grid">
+        <div className="ad-grid-2">
           <Field label={t("Phone number ID")} hint={t("Meta App → WhatsApp → API Setup → Phone number ID")}>
             <input dir="ltr" maxLength={64} value={s.whatsapp_phone_number_id ?? ""} onChange={(e) => set("whatsapp_phone_number_id", e.target.value)} />
           </Field>
@@ -149,7 +154,7 @@ export default function Settings() {
           </Field>
         </div>
         {ownWebhook && (
-          <div className="info-box small">
+          <div className="info-box small wa-steps">
             <div><strong>{t("In your Meta app → WhatsApp → Configuration → Webhook, enter:")}</strong></div>
             <div>{t("Callback URL:")}</div><CopyRow value={ownWebhook} />
             <div>{t("Verify token:")}</div><CopyRow value={s.whatsapp_verify_token ?? ""} />
@@ -157,8 +162,8 @@ export default function Settings() {
           </div>
         )}
         <ErrorBox error={errors.wa ?? null} />
-        {saved.wa && <div className="ok-box">{t("WhatsApp settings saved.")}</div>}
-        <div className="row-gap">
+        {saved.wa && <div className="ok-box ad-notice" role="status">{t("WhatsApp settings saved.")}</div>}
+        <div className="ad-form-actions">
           {button("wa", t("Save WhatsApp settings"))}
           {s.whatsapp_token_set && (
             <button type="button" className="btn btn-ghost" disabled={busy !== null} onClick={() => {
@@ -168,18 +173,18 @@ export default function Settings() {
         </div>
       </form>
 
-      <form className="card" onSubmit={(e: FormEvent) => { e.preventDefault(); save("company", {
+      <form className="ad-card" onSubmit={(e: FormEvent) => { e.preventDefault(); save("company", {
         currency: s.currency, contact_email: s.contact_email || null, contact_phone: s.contact_phone ?? "" }); }}>
-        <h3>{t("Company")}</h3>
-        <div className="form-grid">
+        <h2 className="ad-card-title"><span className="ad-card-icon"><Buildings /></span>{t("Company")}</h2>
+        <div className="ad-grid-2">
           <Field label={t("Default currency")} hint={t("OMR = Omani rial (3 decimals).")}><input maxLength={3} pattern="[A-Za-z]{3}" title={t("3 English letters, for example OMR")} dir="ltr" value={s.currency} onChange={(e) => set("currency", e.target.value.toUpperCase())} required /></Field>
           <Field label={t("Contact email")}><input type="email" dir="ltr" value={s.contact_email ?? ""} onChange={(e) => set("contact_email", e.target.value)} /></Field>
           <Field label={t("Contact phone")}><input dir="ltr" maxLength={50} value={s.contact_phone ?? ""} onChange={(e) => set("contact_phone", e.target.value)} /></Field>
           <Field label={t("Account limit")}><input value={t("{n} accounts (set by the platform admin)", { n: s.max_users })} disabled /></Field>
         </div>
         <ErrorBox error={errors.company ?? null} />
-        {saved.company && <div className="ok-box">{t("Saved.")}</div>}
-        {button("company", t("Save"))}
+        {saved.company && <div className="ok-box ad-notice" role="status">{t("Saved.")}</div>}
+        <div className="ad-form-actions">{button("company", t("Save"))}</div>
       </form>
     </div>
   );

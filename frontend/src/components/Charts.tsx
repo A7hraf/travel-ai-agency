@@ -1,283 +1,144 @@
-import { ReactNode, useEffect, useRef, useState } from "react";
+import { KeyboardEvent, ReactNode, useState } from "react";
 
-// Validated categorical palette (fixed order, never cycled) and an ordinal blue ramp.
-export const SERIES = ["#2a78d6", "#eb6834", "#1baf7a"];
-export const ORDINAL_BLUES = ["#86b6ef", "#3987e5", "#1c5cab"];
+/** Dashboard chart colours (design handoff): website, WhatsApp, AI ring; ordinal funnel blues; booked-value line. */
+export const CHART = {
+  web: "#2a78d6",
+  wa: "#eb6834",
+  ai: "#1baf7a",
+  line: "#4fb6dc",
+  funnel: ["#2a78d6", "#5b9be6", "#9cc3f0"],
+};
 
-const AXIS = "#6b6560";
-const GRID = "#eeebe9";
-const SURFACE = "#ffffff";
-
-function useWidth<T extends HTMLElement>(): [React.RefObject<T>, number] {
-  const ref = useRef<T>(null);
-  const [width, setWidth] = useState(600);
-  useEffect(() => {
-    if (!ref.current) return;
-    const ro = new ResizeObserver(([entry]) => setWidth(Math.max(240, Math.round(entry.contentRect.width))));
-    ro.observe(ref.current);
-    return () => ro.disconnect();
-  }, []);
-  return [ref, width];
+export interface DayPoint {
+  /** Short label for the axis ("19 Sep"). */
+  label: string;
+  /** Label for the tooltip ("Sat 19 Sep"). */
+  long: string;
+  web: number;
+  wa: number;
 }
 
-/** Rounded "nice" maximum and 4 tick values for an axis starting at zero. */
-function ticks(max: number): number[] {
-  if (max <= 0) return [0, 1, 2, 3, 4];
-  const raw = max / 4;
-  const pow = 10 ** Math.floor(Math.log10(raw));
-  const step = [1, 2, 2.5, 5, 10].map((m) => m * pow).find((s) => s >= raw) ?? raw;
-  return [0, 1, 2, 3, 4].map((i) => +(i * step).toFixed(6));
+/** Paper tooltip positioned over a chart (percent from the inline start of an LTR chart box). */
+function Tip({ at, children }: { at: number; children: ReactNode }) {
+  const shift = at < 14 ? "0%" : at > 86 ? "-100%" : "-50%";
+  return <div className="dc-tip" style={{ left: `${at}%`, transform: `translateX(${shift})` }} role="status">{children}</div>;
 }
 
-/** Bar with only its data end rounded (4px), anchored on the baseline. */
-function barPath(x: number, y: number, w: number, h: number, r = 4): string {
-  if (h <= 0) return "";
-  const rr = Math.min(r, h, w / 2);
-  return `M${x},${y + h}V${y + rr}Q${x},${y} ${x + rr},${y}H${x + w - rr}Q${x + w},${y} ${x + w},${y + rr}V${y + h}Z`;
-}
-
-function hbarPath(x: number, y: number, w: number, h: number, r = 4, rtl = false): string {
-  if (w <= 0) return "";
-  const rr = Math.min(r, w, h / 2);
-  if (rtl) {
-    const x0 = x - w;
-    return `M${x},${y}H${x0 + rr}Q${x0},${y} ${x0},${y + rr}V${y + h - rr}Q${x0},${y + h} ${x0 + rr},${y + h}H${x}Z`;
-  }
-  return `M${x},${y}H${x + w - rr}Q${x + w},${y} ${x + w},${y + rr}V${y + h - rr}Q${x + w},${y + h} ${x + w - rr},${y + h}H${x}Z`;
-}
-
-interface Tip { x: number; y: number; content: ReactNode }
-
-function Tooltip({ tip }: { tip: Tip | null }) {
-  if (!tip) return null;
-  return <div className="chart-tip" style={{ left: tip.x, top: tip.y }}>{tip.content}</div>;
-}
-
-export function Legend({ items }: { items: { label: string; color: string }[] }) {
-  return (
-    <div className="chart-legend">
-      {items.map((i) => (
-        <span key={i.label}><i style={{ background: i.color }} />{i.label}</span>
-      ))}
-    </div>
-  );
-}
-
-export interface Column { label: string; values: number[] }
-
-/** Stacked columns over time (one colour per series, legend above). */
-export function StackedColumns({ data, series, format = String, tooltipTitle }: {
-  data: Column[];
-  series: { label: string; color: string }[];
-  format?: (v: number) => string;
-  tooltipTitle?: (i: number) => string;
-}) {
-  const [ref, width] = useWidth<HTMLDivElement>();
-  const [tip, setTip] = useState<Tip | null>(null);
-  const [hover, setHover] = useState<number | null>(null);
-  const height = 220;
-  const pad = { l: 34, r: 8, t: 10, b: 24 };
-  const totals = data.map((d) => d.values.reduce((a, b) => a + b, 0));
-  const tk = ticks(Math.max(...totals, 0));
-  const top = tk[tk.length - 1];
-  const plotW = width - pad.l - pad.r;
-  const plotH = height - pad.t - pad.b;
-  const slot = plotW / Math.max(1, data.length);
-  const barW = Math.max(2, Math.min(24, slot * 0.66));
-  const y = (v: number) => pad.t + plotH - (v / top) * plotH;
-  const labelEvery = Math.ceil(data.length / Math.max(1, Math.floor(plotW / 56)));
-
-  return (
-    <div className="chart" ref={ref} dir="ltr" onMouseLeave={() => { setTip(null); setHover(null); }}>
-      <svg width={width} height={height} role="img">
-        {tk.map((v) => (
-          <g key={v}>
-            <line x1={pad.l} x2={width - pad.r} y1={y(v)} y2={y(v)} stroke={GRID} />
-            <text x={pad.l - 6} y={y(v) + 4} textAnchor="end" className="chart-axis">{format(v)}</text>
-          </g>
-        ))}
-        {data.map((d, i) => {
-          const cx = pad.l + slot * i + slot / 2;
-          let base = 0;
-          const visible = d.values.map((v, s) => ({ v, s })).filter((x) => x.v > 0);
-          return (
-            <g key={i} opacity={hover === null || hover === i ? 1 : 0.55}>
-              {visible.map(({ v, s }, k) => {
-                const y0 = y(base);
-                base += v;
-                const y1 = y(base);
-                const isTop = k === visible.length - 1;
-                const gap = k > 0 ? 2 : 0; // 2px surface gap between stacked segments
-                const h = Math.max(0, y0 - y1 - gap);
-                return isTop
-                  ? <path key={s} d={barPath(cx - barW / 2, y1, barW, h)} fill={series[s].color} />
-                  : <rect key={s} x={cx - barW / 2} y={y1} width={barW} height={h} fill={series[s].color} />;
-              })}
-              {i % labelEvery === 0 && (
-                <text x={cx} y={height - 6} textAnchor="middle" className="chart-axis">{d.label}</text>
-              )}
-              <rect x={pad.l + slot * i} y={pad.t} width={slot} height={plotH} fill="transparent"
-                onMouseMove={() => {
-                  setHover(i);
-                  setTip({
-                    x: Math.min(cx + 12, width - 170), y: Math.max(0, y(totals[i]) - 10),
-                    content: (
-                      <>
-                        <strong>{tooltipTitle ? tooltipTitle(i) : d.label}</strong>
-                        {series.map((s, k) => (
-                          <div key={s.label} className="tip-row"><i style={{ background: s.color }} />{s.label}<b>{format(d.values[k])}</b></div>
-                        ))}
-                      </>
-                    ),
-                  });
-                }} />
-            </g>
-          );
-        })}
-        <line x1={pad.l} x2={width - pad.r} y1={y(0)} y2={y(0)} stroke={AXIS} />
-      </svg>
-      <Tooltip tip={tip} />
-    </div>
-  );
-}
-
-/** Single series line with a soft area, crosshair and tooltip. */
-export function AreaLine({ data, color = SERIES[0], format = String, axisFormat, tooltipTitle }: {
-  data: { label: string; value: number }[];
-  color?: string;
-  format?: (v: number) => string;
-  axisFormat?: (v: number) => string;
-  tooltipTitle?: (i: number) => string;
-}) {
-  const [ref, width] = useWidth<HTMLDivElement>();
-  const [hover, setHover] = useState<number | null>(null);
-  const height = 220;
-  const pad = { l: 46, r: 12, t: 12, b: 24 };
-  const tk = ticks(Math.max(...data.map((d) => d.value), 0));
-  const top = tk[tk.length - 1];
-  const plotW = width - pad.l - pad.r;
-  const plotH = height - pad.t - pad.b;
-  const x = (i: number) => pad.l + (data.length <= 1 ? plotW / 2 : (plotW * i) / (data.length - 1));
-  const y = (v: number) => pad.t + plotH - (v / top) * plotH;
-  const line = data.map((d, i) => `${i ? "L" : "M"}${x(i)},${y(d.value)}`).join("");
-  const area = data.length ? `${line}L${x(data.length - 1)},${y(0)}L${x(0)},${y(0)}Z` : "";
-  const labelEvery = Math.ceil(data.length / Math.max(1, Math.floor(plotW / 56)));
-  const gradId = `area-${color.slice(1)}`;
-  const axis = axisFormat ?? format;
-
-  const onMove = (e: React.MouseEvent<SVGRectElement>) => {
-    const box = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect();
-    const px = e.clientX - box.left;
-    const i = Math.round(((px - pad.l) / plotW) * (data.length - 1));
-    setHover(Math.max(0, Math.min(data.length - 1, i)));
+/** Arrow keys move the highlighted day of a chart that has the keyboard focus. */
+function useKeyHover(n: number): [number, (i: number) => void, (e: KeyboardEvent) => void] {
+  const [hover, setHover] = useState(-1);
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+      e.preventDefault();
+      const d = e.key === "ArrowRight" ? 1 : -1;
+      setHover((h) => Math.max(0, Math.min(n - 1, (h < 0 ? (d > 0 ? -1 : n) : h) + d)));
+    } else if (e.key === "Escape") setHover(-1);
   };
+  return [hover, setHover, onKey];
+}
 
+/** Stacked columns per day: website at the bottom, WhatsApp on top. Hovering a day dims the others
+ *  and shows a paper tooltip. `a` (0..1) animates the heights. */
+export function DayColumns({ days, a, webLabel, waLabel, axisEnd, ariaLabel }: {
+  days: DayPoint[];
+  a: number;
+  webLabel: string;
+  waLabel: string;
+  axisEnd: string;
+  ariaLabel: string;
+}) {
+  const n = days.length;
+  const [hover, setHover, onKey] = useKeyHover(n);
+  const max = Math.max(1, ...days.map((d) => d.web + d.wa));
+  const gap = n > 30 ? 4 : n > 7 ? 7 : 18;
+  const h = days[hover];
   return (
-    <div className="chart" ref={ref} dir="ltr" onMouseLeave={() => setHover(null)}>
-      <svg width={width} height={height} role="img">
-        <defs>
-          <linearGradient id={gradId} x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity={0.22} />
-            <stop offset="100%" stopColor={color} stopOpacity={0.02} />
-          </linearGradient>
-        </defs>
-        {tk.map((v) => (
-          <g key={v}>
-            <line x1={pad.l} x2={width - pad.r} y1={y(v)} y2={y(v)} stroke={GRID} />
-            <text x={pad.l - 6} y={y(v) + 4} textAnchor="end" className="chart-axis">{axis(v)}</text>
-          </g>
+    <div className="dc-wrap" dir="ltr">
+      <div className="dc-cols" style={{ gap }} tabIndex={0} role="img" aria-label={ariaLabel}
+        onMouseLeave={() => setHover(-1)} onBlur={() => setHover(-1)} onKeyDown={onKey}>
+        {days.map((d, i) => (
+          <div key={i} className="dc-col" style={{ opacity: hover >= 0 && hover !== i ? 0.4 : 1 }} onMouseEnter={() => setHover(i)}>
+            {d.wa > 0 && <div style={{ height: `${(d.wa / max) * 92 * a}%`, background: CHART.wa }} />}
+            {d.web > 0 && <div style={{ height: `${(d.web / max) * 92 * a}%`, background: CHART.web }} />}
+          </div>
         ))}
-        {data.map((d, i) => i % labelEvery === 0 && (
-          <text key={i} x={x(i)} y={height - 6} textAnchor="middle" className="chart-axis">{d.label}</text>
-        ))}
-        <path d={area} fill={`url(#${gradId})`} />
-        <path d={line} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
-        <line x1={pad.l} x2={width - pad.r} y1={y(0)} y2={y(0)} stroke={AXIS} />
-        {hover !== null && (
-          <g>
-            <line x1={x(hover)} x2={x(hover)} y1={pad.t} y2={y(0)} stroke={AXIS} strokeDasharray="3 3" />
-            <circle cx={x(hover)} cy={y(data[hover].value)} r={5} fill={color} stroke={SURFACE} strokeWidth={2} />
-          </g>
+        {h && (
+          <Tip at={((hover + 0.5) / n) * 100}>
+            <b>{h.long}</b><br />{webLabel} {h.web} · {waLabel} {h.wa}
+          </Tip>
         )}
-        <rect x={pad.l} y={pad.t} width={plotW} height={plotH} fill="transparent" onMouseMove={onMove} />
-      </svg>
-      {hover !== null && (
-        <Tooltip tip={{
-          x: Math.min(x(hover) + 12, width - 170), y: Math.max(0, y(data[hover].value) - 40),
-          content: <><strong>{tooltipTitle ? tooltipTitle(hover) : data[hover].label}</strong><div className="tip-row"><b>{format(data[hover].value)}</b></div></>,
-        }} />
+      </div>
+      {n > 0 && (
+        <div className="dc-axis"><span>{days[0].label}</span><span>{days[Math.floor(n / 2)].label}</span><span>{axisEnd}</span></div>
       )}
     </div>
   );
 }
 
-/** Horizontal bars with the value written next to each bar (text in ink, not the bar colour). */
-export function HBars({ items, format = String, rtl = false }: {
-  items: { label: string; value: number; color: string; note?: string }[];
-  format?: (v: number) => string;
-  rtl?: boolean;
+/** Area line (booked value per day): cyan line with a glow and a gradient fill from 45% to 0%. */
+export function AreaChart({ points, a, format, ariaLabel }: {
+  points: { long: string; value: number }[];
+  a: number;
+  format: (v: number) => ReactNode;
+  ariaLabel: string;
 }) {
-  const [ref, width] = useWidth<HTMLDivElement>();
-  const [tip, setTip] = useState<Tip | null>(null);
-  const max = Math.max(...items.map((i) => i.value), 1);
-  const rowH = 46;
-  const barH = 20;
-  const valueW = 110;
-  const plotW = Math.max(40, width - valueW);
-  const height = items.length * rowH;
-
+  const n = points.length;
+  const [hover, setHover, onKey] = useKeyHover(n);
+  const max = Math.max(1, ...points.map((p) => p.value));
+  const xy = points.map((p, i) => [n <= 1 ? 300 : (i / (n - 1)) * 600, 140 - (p.value / max) * 118 * a - 6]);
+  const line = xy.length ? "M" + xy.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" L") : "";
+  const area = line ? `${line} L600,140 L0,140 Z` : "";
+  const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const box = e.currentTarget.getBoundingClientRect();
+    const i = Math.round(((e.clientX - box.left) / box.width) * (n - 1));
+    setHover(Math.max(0, Math.min(n - 1, i)));
+  };
+  const hp = points[hover];
   return (
-    <div className="chart" ref={ref} dir="ltr" onMouseLeave={() => setTip(null)}>
-      <svg width={width} height={height} role="img">
-        {items.map((it, i) => {
-          const w = (it.value / max) * plotW;
-          const y = i * rowH + 18;
-          const x0 = rtl ? width : 0;
-          return (
-            <g key={it.label} onMouseMove={() => setTip({
-              x: rtl ? Math.max(0, width - w - 180) : Math.min(w + 8, width - 180), y: y - 30,
-              content: <><strong>{it.label}</strong><div className="tip-row"><b>{format(it.value)}</b></div>{it.note && <div className="muted small">{it.note}</div>}</>,
-            })}>
-              <text x={rtl ? width : 0} y={y - 5} textAnchor={rtl ? "end" : "start"} className="chart-label">{it.label}</text>
-              <rect x={rtl ? width - plotW : 0} y={y} width={plotW} height={barH} rx={4} fill="#f0eeec" />
-              <path d={hbarPath(x0, y, w, barH, 4, rtl)} fill={it.color} />
-              <text x={rtl ? width - w - 8 : w + 8} y={y + 15} textAnchor={rtl ? "end" : "start"} className="chart-value">{format(it.value)}</text>
-            </g>
-          );
-        })}
+    <div className="dc-area" dir="ltr" tabIndex={0} role="img" aria-label={ariaLabel}
+      onMouseMove={onMove} onMouseLeave={() => setHover(-1)} onBlur={() => setHover(-1)} onKeyDown={onKey}>
+      <svg viewBox="0 0 600 140" preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="gjArea" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor={CHART.line} stopOpacity="0.45" />
+            <stop offset="1" stopColor={CHART.line} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={area} fill="url(#gjArea)" />
+        <path d={line} fill="none" stroke={CHART.line} strokeWidth="2.5" vectorEffect="non-scaling-stroke"
+          strokeLinejoin="round" style={{ filter: "drop-shadow(0 0 6px rgba(79,182,220,.7))" }} />
+        {hp && <line x1={xy[hover][0]} x2={xy[hover][0]} y1="0" y2="140" stroke="rgba(243,242,242,.25)" strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />}
       </svg>
-      <Tooltip tip={tip} />
+      {hp && (
+        <>
+          <span className="dc-dot" style={{ left: `${(xy[hover][0] / 600) * 100}%`, top: `${(xy[hover][1] / 140) * 100}%` }} />
+          <Tip at={(xy[hover][0] / 600) * 100}><b>{hp.long}</b><br />{format(hp.value)}</Tip>
+        </>
+      )}
     </div>
   );
 }
 
-/** Ring meter for one share (e.g. % handled by the AI). */
-export function Ring({ value, color = SERIES[0], size = 78, empty }: { value: number; color?: string; size?: number; empty?: boolean }) {
-  const r = size / 2 - 6;
-  const c = 2 * Math.PI * r;
+/** AI ring: share handled fully by the AI. "—" when there is nothing to measure. */
+export function Ring({ value, a, empty, label }: { value: number; a: number; empty?: boolean; label: string }) {
+  const c = 263.9; // 2πr for r = 42
   const v = empty ? 0 : Math.max(0, Math.min(1, value));
-  const label = empty ? "—" : `${Math.round(v * 100)}%`;
   return (
-    <svg width={size} height={size} className="ring" role="img" aria-label={label}>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#ebe7e4" strokeWidth={8} />
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={8} strokeLinecap="round"
-        strokeDasharray={`${c * v} ${c}`} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
-      <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle" className="ring-text">{label}</text>
+    <svg width="88" height="88" viewBox="0 0 104 104" className="dc-ring" role="img" aria-label={label}>
+      <circle cx="52" cy="52" r="42" fill="none" stroke="rgba(243,242,242,.1)" strokeWidth="10" />
+      {v > 0 && (
+        <circle cx="52" cy="52" r="42" fill="none" stroke={CHART.ai} strokeWidth="10" strokeLinecap="round"
+          strokeDasharray={`${(v * c * a).toFixed(1)} ${c}`} style={{ filter: "drop-shadow(0 0 6px rgba(27,175,122,.6))" }} />
+      )}
     </svg>
   );
 }
 
-/** "View as table" block under a chart. */
-export function DataTable({ summary, head, rows }: { summary: string; head: string[]; rows: ReactNode[][] }) {
+/** One horizontal meter (funnel rows, top packages). */
+export function Meter({ ratio, color, a, height = 10 }: { ratio: number; color: string; a: number; height?: number }) {
   return (
-    <details className="chart-table">
-      <summary>{summary}</summary>
-      <div className="table-wrap">
-        <table className="table">
-          <thead><tr>{head.map((h) => <th key={h}>{h}</th>)}</tr></thead>
-          <tbody>{rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j}>{c}</td>)}</tr>)}</tbody>
-        </table>
-      </div>
-    </details>
+    <div className="dc-meter" style={{ height, borderRadius: height / 2 }}>
+      <div style={{ width: `${Math.max(0, Math.min(1, ratio)) * 100 * a}%`, background: color, borderRadius: height / 2 }} />
+    </div>
   );
 }

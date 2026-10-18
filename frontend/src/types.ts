@@ -275,9 +275,21 @@ export interface PublicCompany {
   branding: PublicBranding;
 }
 
+export interface Travelers { adults: number; children: number }
+
+/** Rich cards under an AI reply in the customer chat (built by the server from its own data). */
+export type ChatCard =
+  | { type: "package"; id: number; title: string; destination: string; country: string; duration_days: number;
+      price_per_person: number; currency: string; image_url: string | null }
+  | { type: "quote"; package: string; destination: string; departure_date: string; travelers: Travelers;
+      total_price: number; currency: string }
+  | { type: "ticket"; ticket_reference: string; package: string; destination: string; departure_date: string;
+      travelers: Travelers; total_price: number; currency: string };
+
 export interface PublicMessage {
   id: number;
   sender: "customer" | "ai" | "agent";
   content: string;
   created_at: string;
+  cards?: ChatCard[];
 }

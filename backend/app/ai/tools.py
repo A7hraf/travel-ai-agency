@@ -228,6 +228,7 @@ def _summary(pkg: TravelPackage, today: date) -> dict:
         "hotel": f"{pkg.hotel_name} ({pkg.hotel_stars}*)" if pkg.hotel_name and pkg.hotel_stars else pkg.hotel_name,
         "tags": pkg.tags or [],
         "seats_left": pkg.seats_available,
+        "image_url": pkg.image_url,
     }
 
 
@@ -368,6 +369,7 @@ def quote_booking(ctx: ToolContext, package_id=None, departure_date="", adults=N
     pkg, dep, n_adults, n_children, total = values
     return {
         "package": pkg.title,
+        "destination": pkg.destination,
         "departure_date": dep,
         "travelers": {"adults": n_adults, "children": n_children},
         "price_per_adult": _money(pkg.price_per_person),
@@ -477,6 +479,7 @@ def create_booking_ticket(ctx: ToolContext, package_id=None, departure_date="", 
     return {
         "ticket_reference": ref,
         "package": pkg.title,
+        "destination": pkg.destination,
         "departure_date": departure_date,
         "travelers": {"adults": n_adults, "children": n_children},
         "total_price": _money(total),

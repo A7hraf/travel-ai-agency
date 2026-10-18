@@ -1,21 +1,21 @@
-import { ReactNode } from "react";
+import { lazy, ReactNode, Suspense } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { homePath, useAuth } from "./auth";
 import { useI18n } from "./lang";
-import Layout from "./components/Layout";
-import Account from "./pages/Account";
-import Branding from "./pages/Branding";
-import Conversations from "./pages/Conversations";
-import Dashboard from "./pages/Dashboard";
-import Login from "./pages/Login";
-import Packages from "./pages/Packages";
-import Settings from "./pages/Settings";
-import Storefront from "./pages/Storefront";
-import Tickets from "./pages/Tickets";
-import Training from "./pages/Training";
-import Users from "./pages/Users";
-import Companies from "./pages/system/Companies";
-import CompanyDetail from "./pages/system/CompanyDetail";
+const Layout = lazy(() => import("./components/Layout"));
+const Account = lazy(() => import("./pages/Account"));
+const Branding = lazy(() => import("./pages/Branding"));
+const Conversations = lazy(() => import("./pages/Conversations"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Login = lazy(() => import("./pages/Login"));
+const Packages = lazy(() => import("./pages/Packages"));
+const Settings = lazy(() => import("./pages/Settings"));
+const Storefront = lazy(() => import("./pages/Storefront"));
+const Tickets = lazy(() => import("./pages/Tickets"));
+const Training = lazy(() => import("./pages/Training"));
+const Users = lazy(() => import("./pages/Users"));
+const Companies = lazy(() => import("./pages/system/Companies"));
+const CompanyDetail = lazy(() => import("./pages/system/CompanyDetail"));
 
 function RequireUser({ system, permission, children }: { system?: boolean; permission?: string; children: ReactNode }) {
   const { user, loading, can, sessionEnded } = useAuth();
@@ -37,8 +37,15 @@ function Home() {
   return <Navigate to={user ? homePath(user) : "/login"} replace />;
 }
 
+/** Each area loads its own code, so a traveller opening /c/<slug> does not download the staff app. */
+function Loading() {
+  const { t } = useI18n();
+  return <div className="loading-screen">{t("Loading…")}</div>;
+}
+
 export default function App() {
   return (
+    <Suspense fallback={<Loading />}>
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
@@ -66,5 +73,6 @@ export default function App() {
 
       <Route path="*" element={<Home />} />
     </Routes>
+    </Suspense>
   );
 }

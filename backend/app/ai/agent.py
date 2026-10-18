@@ -139,6 +139,7 @@ def run_agent(db: Session, conversation: Conversation, llm: LLMClient | None = N
     messages += build_history(db, conversation, settings.llm_max_history_messages)
 
     final: str | None = None
+    tool_results: list[tuple[str, dict]] = []
     for _ in range(settings.llm_max_tool_rounds):
         try:
             resp = llm.chat(messages, TOOL_DEFINITIONS)
@@ -156,6 +157,7 @@ def run_agent(db: Session, conversation: Conversation, llm: LLMClient | None = N
             messages.append({"role": "assistant", "content": resp.content or "", "tool_calls": calls})
             for tc in resp.tool_calls:
                 result = run_tool(ctx, tc.name, tc.arguments)
+                tool_results.append((tc.name, result))
                 content = json.dumps(result, ensure_ascii=False, default=str, separators=(",", ":"))
                 db.add(Message(conversation_id=conversation.id, sender=Sender.AI, kind=MessageKind.TOOL_RESULT,
                                content=content, meta={"tool_call_id": tc.id, "name": tc.name}))
@@ -175,6 +177,45 @@ def run_agent(db: Session, conversation: Conversation, llm: LLMClient | None = N
             run_tool(ctx, "request_human_agent", {"reason": "AI could not produce an answer"})
         final = _closing_text(ctx)
 
-    reply = Message(conversation_id=conversation.id, sender=Sender.AI, kind=MessageKind.TEXT, content=final)
+    cards = chat_cards(tool_results, final)
+    reply = Message(conversation_id=conversation.id, sender=Sender.AI, kind=MessageKind.TEXT, content=final,
+                    meta={"cards": cards} if cards else None)
     db.add(reply)
     return reply
+
+
+CARD_PACKAGE_FIELDS = ("id", "title", "destination", "country", "duration_days", "price_per_person", "currency",
+                       "image_url")
+MAX_PACKAGE_CARDS = 3
+
+
+def chat_cards(tool_results: list[tuple[str, dict]], reply_text: str) -> list[dict]:
+    """Rich cards shown under the AI's reply in the customer chat: the trips the reply talks about,
+    the booking summary to confirm, and the booking ticket once it exists. Built only from tool
+    results (data from the system), never from the model's text."""
+    cards: list[dict] = []
+    ticket = next((r for name, r in reversed(tool_results)
+                   if name == "create_booking_ticket" and r.get("ticket_reference")), None)
+    if ticket:
+        cards.append({"type": "ticket", **{k: ticket.get(k) for k in (
+            "ticket_reference", "package", "departure_date", "travelers", "total_price", "currency", "destination")}})
+        return cards
+    quote = next((r for name, r in reversed(tool_results) if name == "quote_booking" and "total_price" in r), None)
+    if quote:
+        cards.append({"type": "quote", **{k: quote.get(k) for k in (
+            "package", "departure_date", "travelers", "total_price", "currency", "destination")}})
+        return cards
+    found: dict[int, dict] = {}
+    for name, result in tool_results:
+        if name == "search_packages":
+            for p in (result.get("results") or []) + (result.get("alternatives") or []):
+                found.setdefault(p["id"], p)
+        elif name == "get_package_details" and "id" in result:
+            found[result["id"]] = result
+    text = (reply_text or "").lower()
+    mentioned = [p for p in found.values() if p.get("title") and p["title"].lower() in text]
+    if not mentioned and len(found) == 1:
+        mentioned = list(found.values())
+    for p in mentioned[:MAX_PACKAGE_CARDS]:
+        cards.append({"type": "package", **{k: p.get(k) for k in CARD_PACKAGE_FIELDS}})
+    return cards

@@ -1,5 +1,6 @@
 import { MouseEvent, ReactNode, useEffect, useId, useRef } from "react";
 import { tr } from "../lang";
+import { X } from "./Icon";
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -79,9 +80,10 @@ export function Modal({ title, onClose, children, wide, dirty }: {
     <div className="modal-backdrop" onMouseDown={onBackdropDown} onClick={onBackdropClick}>
       <div ref={box} className={`modal ${wide ? "modal-wide" : ""}`} role="dialog" aria-modal="true"
         aria-labelledby={titleId} tabIndex={-1}>
+        <div className="sheet-grip" aria-hidden="true" />
         <div className="modal-head">
           <h2 id={titleId}>{title}</h2>
-          <button type="button" className="icon-btn" onClick={requestClose} aria-label={tr("Close")}>×</button>
+          <button type="button" className="icon-btn" onClick={requestClose} aria-label={tr("Close")}><X size={20} /></button>
         </div>
         <div className="modal-body">{children}</div>
       </div>

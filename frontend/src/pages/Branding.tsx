@@ -1,6 +1,6 @@
 import { useAuth } from "../auth";
 import BrandingEditor from "../components/BrandingEditor";
-import { PageHeader } from "../components/ui";
+import { PageTitle } from "../components/admin/AdminUI";
 import { useI18n } from "../lang";
 
 export default function Branding() {
@@ -9,9 +9,9 @@ export default function Branding() {
   if (!user?.company) return null;
   return (
     <div>
-      <PageHeader title={t("Customer page design")}
+      <PageTitle kicker={t("Agency workspace")} title={t("Customer page design")}
         subtitle={t("Your colours, logo, texts and the layout of the page your customers see.")} />
-      <BrandingEditor loadPath="/api/company/branding" uploadPath="/api/media" slug={user.company.slug}
+      <BrandingEditor loadPath="/api/company/branding" uploadPath="/api/media" slug={user.company.slug} name={user.company.name}
         onSaved={() => { refresh().catch(() => {}); }} />
     </div>
   );

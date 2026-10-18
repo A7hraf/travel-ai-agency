@@ -121,6 +121,7 @@ def take_over(conversation_id: int, force: bool = False, me: User = Depends(can_
     conv.handover_reason = conv.handover_reason or f"Taken over by {me.full_name}"
     _event(db, conv, f"{me.full_name} took over the conversation")
     db.commit()
+    db.refresh(conv)
     return conversation_detail(db, conv)
 
 
@@ -133,6 +134,7 @@ def release_to_ai(conversation_id: int, me: User = Depends(can_reply), db: Sessi
     conv.assigned_to_id = None
     _event(db, conv, f"{me.full_name} handed the conversation back to the AI")
     db.commit()
+    db.refresh(conv)
     return conversation_detail(db, conv)
 
 
@@ -143,4 +145,5 @@ def close(conversation_id: int, me: User = Depends(can_reply), db: Session = Dep
     conv.assigned_to_id = None
     _event(db, conv, f"{me.full_name} closed the conversation")
     db.commit()
+    db.refresh(conv)
     return conversation_detail(db, conv)

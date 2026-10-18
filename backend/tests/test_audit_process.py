@@ -217,7 +217,8 @@ def test_take_over_from_a_colleague_needs_force(client, company_a, scripted):
     token = client.post(f"/api/public/companies/{slug}/chats", json={}).json()["token"]
     client.post(f"/api/public/companies/{slug}/chats/{token}/messages", json={"content": "hi"})
     conv_id = client.get("/api/conversations", headers=admin).json()[0]["id"]
-    assert client.post(f"/api/conversations/{conv_id}/takeover", headers=support).status_code == 200
+    taken = client.post(f"/api/conversations/{conv_id}/takeover", headers=support)
+    assert taken.status_code == 200 and taken.json()["assigned_to"]["full_name"] == "Sami"
     r = client.post(f"/api/conversations/{conv_id}/takeover", headers=admin)
     assert r.status_code == 409 and "Sami" in r.json()["detail"]
     assert client.post(f"/api/conversations/{conv_id}/takeover?force=true", headers=admin).status_code == 200

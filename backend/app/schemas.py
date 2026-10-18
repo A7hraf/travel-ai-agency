@@ -445,6 +445,8 @@ class PublicMessageOut(BaseModel):
     sender: str
     content: str
     created_at: datetime
+    # Rich cards under an AI reply: {"type": "package" | "quote" | "ticket", ...} (see ai/agent.py)
+    cards: list[dict] = []
 
 
 class StartChatOut(BaseModel):

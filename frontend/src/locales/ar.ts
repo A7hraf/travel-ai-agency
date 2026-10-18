@@ -1,3 +1,6 @@
+import { AR_ADMIN } from "./ar-admin";
+import { AR_STAFF } from "./ar-staff";
+
 /** Arabic texts of the staff dashboard. The English text is the key. Placeholders like {name} must stay as they are. */
 export const AR: Record<string, string> = {
   "Square": "مربّعة",
@@ -89,7 +92,7 @@ export const AR: Record<string, string> = {
   "Website chat": "محادثة الموقع",
   "started {date}": "بدأت {date}",
   "Handled by": "يتولاها",
-  "Take over": "تولّي المحادثة",
+  "Take over": "استلام المحادثة",
   "Hand back to AI": "إعادتها إلى المساعد الذكي",
   "Show AI tool activity": "عرض نشاط أدوات الذكاء الاصطناعي",
   "Writing here takes the chat over from the AI…": "الكتابة هنا تنقل المحادثة إليك من المساعد الذكي…",
@@ -565,6 +568,9 @@ export const AR: Record<string, string> = {
  * {1}, {2}… are the captured parts; {1:t} translates the part again, {1:status} shows a ticket
  * status label, {1:adults} / {1:children} a counted text.
  */
+// Texts of the redesigned screens live in their own files (merged here).
+Object.assign(AR, AR_STAFF, AR_ADMIN);
+
 export const AR_PATTERNS: [RegExp, string][] = [
   [/^(.+) took over the conversation$/, "تولّى {1} المحادثة"],
   [/^(.+) handed the conversation back to the AI$/, "أعاد {1} المحادثة إلى المساعد الذكي"],
