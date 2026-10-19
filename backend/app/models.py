@@ -344,3 +344,16 @@ class MediaFile(Base):
     data: Mapped[bytes] = mapped_column(LargeBinary)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
+
+
+class PlatformSetting(Base):
+    """A platform-wide setting the owner changed on the Platform settings page (AI brain, shared
+    WhatsApp app). Overrides the environment variable of the same name; secrets are encrypted."""
+
+    __tablename__ = "platform_settings"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str | None] = mapped_column(Text)
+    secret_value: Mapped[str | None] = mapped_column(EncryptedText())
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, onupdate=utcnow)
+    updated_by: Mapped[str | None] = mapped_column(String(200))

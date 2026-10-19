@@ -31,6 +31,10 @@ from ..schemas import (
     DashboardOut,
     FunnelOut,
     TopPackage,
+    WhatsAppStatusOut,
+    WhatsAppTestMessageIn,
+    WhatsAppTestMessageOut,
+    WhatsAppTestOut,
 )
 from ..serializers import OPEN_TICKET_STATUSES, company_settings_out
 from ..services import whatsapp as whatsapp_service
@@ -92,6 +96,23 @@ def _check_number_is_ours(db: Session, company: Company, number_id: str) -> None
     if not whatsapp_service.verify_phone_number(number_id, company.whatsapp_access_token):
         raise HTTPException(400, "WhatsApp did not confirm this phone number ID for your access token. "
                                  "Check both in your Meta app and try again.")
+
+
+@router.get("/company/whatsapp", response_model=WhatsAppStatusOut)
+def whatsapp_status(me: User = Depends(require_permission("settings.manage"))):
+    """Connection status for the "Connect WhatsApp" steps (webhook address and verify token included)."""
+    return whatsapp_service.connection_status(me.company)
+
+
+@router.post("/company/whatsapp/test", response_model=WhatsAppTestOut)
+def whatsapp_test(me: User = Depends(require_permission("settings.manage"))):
+    """Asks Meta whether the saved access token may use the saved phone number ID."""
+    return whatsapp_service.run_connection_test(me.company, me.id)
+
+
+@router.post("/company/whatsapp/test-message", response_model=WhatsAppTestMessageOut)
+def whatsapp_test_message(body: WhatsAppTestMessageIn, me: User = Depends(require_permission("settings.manage"))):
+    return whatsapp_service.send_test_whatsapp(me.company, me.id, body.phone)
 
 
 @router.post("/company/ai-check", response_model=AICheckOut)

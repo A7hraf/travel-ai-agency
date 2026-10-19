@@ -157,6 +157,9 @@ class ToolContext:
     # set when a tool handed the conversation over to a human
     handed_over: bool = False
     ticket_reference: str | None = None
+    # "Try your AI" test chat: nothing is written; booking and handover are only simulated.
+    dry_run: bool = False
+    simulated: list[str] | None = None
 
 
 def _text(value, limit: int = 500) -> str:
@@ -580,8 +583,51 @@ _HANDLERS = {
 }
 
 
+TEST_REFERENCE = "TEST-ONLY"
+
+
+def _dry_run_booking(ctx: ToolContext, package_id=None, departure_date="", adults=None, children=0,
+                     lead_traveler_name="", contact_phone="", **_) -> dict:
+    """Same checks as create_booking_ticket, but no ticket, customer or seat hold is made."""
+    error, values = _check_booking(ctx, package_id, departure_date, adults, children)
+    if error:
+        return error
+    pkg, dep, n_adults, n_children, total = values
+    if not _text(lead_traveler_name, 200) or not _text(contact_phone, 50):
+        return {"error": "The lead traveler's full name and a phone number are required."}
+    problem = _quote_problem(ctx, _quote_record(pkg, dep, n_adults, n_children, total))
+    if problem:
+        return problem
+    ctx.ticket_reference = TEST_REFERENCE
+    (ctx.simulated if ctx.simulated is not None else []).append("booking")
+    return {
+        "test_mode": True,
+        "ticket_reference": TEST_REFERENCE,
+        "package": pkg.title,
+        "destination": pkg.destination,
+        "departure_date": dep,
+        "travelers": {"adults": n_adults, "children": n_children},
+        "total_price": _money(total),
+        "currency": pkg.currency,
+        "next_step": "Test mode: nothing was booked. Answer as you would after a real booking.",
+    }
+
+
+def _dry_run_handover(ctx: ToolContext, reason="", **_) -> dict:
+    ctx.handed_over = True
+    (ctx.simulated if ctx.simulated is not None else []).append("handover")
+    return {"handed_over": True, "test_mode": True,
+            "next_step": "Tell the customer a consultant will reply in this chat shortly."}
+
+
+_DRY_RUN_HANDLERS = {
+    "create_booking_ticket": _dry_run_booking,
+    "request_human_agent": _dry_run_handover,
+}
+
+
 def run_tool(ctx: ToolContext, name: str, arguments: dict) -> dict:
-    handler = _HANDLERS.get(name)
+    handler = (_DRY_RUN_HANDLERS.get(name) if ctx.dry_run else None) or _HANDLERS.get(name)
     if handler is None:
         return {"error": f"Unknown tool {name}. Available: {', '.join(_HANDLERS)}"}
     arguments = arguments if isinstance(arguments, dict) else {}

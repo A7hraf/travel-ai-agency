@@ -219,3 +219,81 @@ def chat_cards(tool_results: list[tuple[str, dict]], reply_text: str) -> list[di
     for p in mentioned[:MAX_PACKAGE_CARDS]:
         cards.append({"type": "package", **{k: p.get(k) for k in CARD_PACKAGE_FIELDS}})
     return cards
+
+
+SANDBOX_MAX_HISTORY = 12
+
+
+def run_sandbox(db: Session, company: Company, message: str, history: list[dict] | None = None,
+                llm: LLMClient | None = None, today: date | None = None) -> dict:
+    """"Try your AI": the real prompt, tools and model for one test question, without a conversation.
+
+    Nothing is added to the session: the conversation and customer only exist in memory, searching
+    and quoting just read the catalog, and booking and handover are simulated (ToolContext.dry_run).
+    ``history`` is the earlier turns of the test chat ([{"role": "user"|"assistant", "content"}]).
+    """
+    from ..models import Channel, Customer
+
+    settings = get_settings()
+    llm = llm or get_llm_client()
+    conversation = Conversation(company_id=company.id, channel=Channel.WEB)  # never added to the session
+    customer = Customer(company_id=company.id)
+    ctx = ToolContext(db=db, company=company, conversation=conversation, customer=customer,
+                      today=today or local_today(), dry_run=True, simulated=[])
+
+    turns = [{"role": t["role"], "content": str(t.get("content") or "")[:MAX_REPLY_CHARS]}
+             for t in (history or []) if t.get("role") in ("user", "assistant") and t.get("content")]
+    turns = turns[-SANDBOX_MAX_HISTORY:]
+    previous = next((t["content"] for t in reversed(turns) if t["role"] == "user"), "")
+    training = relevant_examples(db, company.id, message, previous)
+    system = build_system_prompt(company, customer, Channel.WEB, ctx.today, training, message)
+    messages = [{"role": "system", "content": system}, *_repair(turns + [{"role": "user", "content": message}])]
+
+    final: str | None = None
+    error: str | None = None
+    tool_results: list[tuple[str, dict]] = []
+    for _ in range(settings.llm_max_tool_rounds):
+        try:
+            resp = llm.chat(messages, TOOL_DEFINITIONS)
+        except LLMError as exc:
+            log.warning("LLM failed in the test chat of company %s: %s", company.id, exc)
+            error = str(exc) or "The AI is not available right now."
+            break
+        if resp.tool_calls:
+            calls = [tc.to_openai() for tc in resp.tool_calls]
+            messages.append({"role": "assistant", "content": resp.content or "", "tool_calls": calls})
+            for tc in resp.tool_calls:
+                result = run_tool(ctx, tc.name, tc.arguments)
+                tool_results.append((tc.name, result))
+                content = json.dumps(result, ensure_ascii=False, default=str, separators=(",", ":"))
+                messages.append({"role": "tool", "tool_call_id": tc.id, "content": content})
+            continue
+        final = (resp.content or "").strip() or None
+        if final and looks_like_tool_call(final):
+            final = None
+        if final and len(final) > MAX_REPLY_CHARS:
+            final = final[:MAX_REPLY_CHARS].rsplit("\n", 1)[0] + "…"
+        break
+
+    if not final and not error:
+        final = _closing_text(ctx) if ctx.simulated else None
+        if not final:
+            error = "The AI could not produce an answer. In a real chat the customer would be handed to your team."
+
+    packages: dict[int, dict] = {}
+    for name, result in tool_results:
+        if name == "search_packages":
+            for p in (result.get("results") or []) + (result.get("alternatives") or []):
+                packages.setdefault(p["id"], {k: p.get(k) for k in CARD_PACKAGE_FIELDS})
+        elif name in ("get_package_details",) and "id" in result:
+            packages.setdefault(result["id"], {k: result.get(k) for k in CARD_PACKAGE_FIELDS})
+    return {
+        "ok": error is None,
+        "reply": final,
+        "error": error,
+        "used_answers": [{"id": t.id, "question": t.question, "answer": t.answer} for t in training],
+        "packages": list(packages.values())[:6],
+        "tools": [name for name, _ in tool_results],
+        "simulated": list(dict.fromkeys(ctx.simulated or [])),
+        "cards": chat_cards(tool_results, final or ""),
+    }

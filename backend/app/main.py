@@ -16,6 +16,7 @@ from .routers import (
     conversations,
     media,
     packages,
+    platform,
     public,
     system_admin,
     tickets,
@@ -120,6 +121,7 @@ app.add_middleware(SecurityHeaders, hsts=PRODUCTION)
 
 for r in (auth, system_admin, users, company, packages, conversations, tickets, training, media, public, whatsapp):
     app.include_router(r.router)
+app.include_router(platform.router)
 
 
 @app.get("/api/health", tags=["health"])
