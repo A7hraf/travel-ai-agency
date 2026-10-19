@@ -1,5 +1,6 @@
-import { lazy, ReactNode, Suspense } from "react";
+import { ComponentType, lazy as reactLazy, ReactNode, Suspense } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import ErrorBoundary from "./components/ErrorBoundary";
 import { homePath, useAuth } from "./auth";
 import { useI18n } from "./lang";
 const Layout = lazy(() => import("./components/Layout"));
@@ -16,6 +17,23 @@ const Training = lazy(() => import("./pages/Training"));
 const Users = lazy(() => import("./pages/Users"));
 const Companies = lazy(() => import("./pages/system/Companies"));
 const CompanyDetail = lazy(() => import("./pages/system/CompanyDetail"));
+
+/** After a new release the old script files are gone: a tab opened before it reloads once to get the
+ *  new version instead of showing a broken page. */
+function lazy<T extends ComponentType<any>>(load: () => Promise<{ default: T }>) { // eslint-disable-line @typescript-eslint/no-explicit-any
+  return reactLazy(() => load().then((m) => {
+    try { sessionStorage.removeItem("gj_reloaded"); } catch { /* storage blocked */ }
+    return m;
+  }).catch((err) => {
+    let reloaded = false;
+    try { reloaded = sessionStorage.getItem("gj_reloaded") === "1"; sessionStorage.setItem("gj_reloaded", "1"); } catch { /* storage blocked */ }
+    if (!reloaded) {
+      window.location.reload();
+      return new Promise<{ default: T }>(() => {});
+    }
+    throw err;
+  }));
+}
 
 function RequireUser({ system, permission, children }: { system?: boolean; permission?: string; children: ReactNode }) {
   const { user, loading, can, sessionEnded } = useAuth();
@@ -44,7 +62,9 @@ function Loading() {
 }
 
 export default function App() {
+  const location = useLocation();
   return (
+    <ErrorBoundary resetKey={location.pathname}>
     <Suspense fallback={<Loading />}>
     <Routes>
       <Route path="/" element={<Home />} />
@@ -74,5 +94,6 @@ export default function App() {
       <Route path="*" element={<Home />} />
     </Routes>
     </Suspense>
+    </ErrorBoundary>
   );
 }

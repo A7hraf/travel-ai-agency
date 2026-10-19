@@ -7,7 +7,7 @@ from ..database import get_db
 from ..deps import get_current_user
 from ..models import CompanyStatus, User, utcnow
 from ..ratelimit import limiter
-from ..schemas import ChangePasswordIn, DemoAccount, LoginIn, MeOut, TokenOut
+from ..schemas import ChangePasswordIn, DemoAccount, LoginChoice, LoginChoicesOut, LoginIn, MeOut, TokenOut
 from ..security import (
     create_access_token,
     hash_password,
@@ -29,7 +29,15 @@ def list_demo_accounts():
     return demo_accounts()
 
 
-@router.post("/login", response_model=TokenOut)
+# Checked when the email is unknown, so a wrong email takes as long as a wrong password.
+_DUMMY_HASH = hash_password("not-a-real-password")
+
+
+def _account_key(user: User) -> str:
+    return user.company.slug if user.company is not None else "platform"
+
+
+@router.post("/login", response_model=TokenOut | LoginChoicesOut)
 def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
     email = body.email.strip().lower()
     ip = request.client.host if request.client else "?"
@@ -37,9 +45,22 @@ def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
     limiter.check(f"login-ip:{ip}", 40, "Too many login attempts, try again in a minute")
     limiter.check(f"login-account:{email}", 30, "Too many login attempts for this account, try again later",
                   window=900)
-    user = db.scalar(select(User).where(User.email == email))
-    if user is None or not verify_password(body.password, user.password_hash):
+    candidates = db.scalars(select(User).where(User.email == email).order_by(User.id)).all()
+    if not candidates:
+        verify_password(body.password, _DUMMY_HASH)
+    # Only accounts whose password matches are ever mentioned, so nobody learns where an
+    # email has accounts without knowing the password.
+    matches = [u for u in candidates if verify_password(body.password, u.password_hash)]
+    if body.account:
+        matches = [u for u in matches if _account_key(u) == body.account]
+    if not matches:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Wrong email or password")
+    if len(matches) > 1:
+        return LoginChoicesOut(choose=[
+            LoginChoice(account=_account_key(u), company=u.company.name if u.company else None, role=u.role)
+            for u in matches
+        ])
+    user = matches[0]
     if not user.is_active:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "This account is disabled")
     if user.company is not None and user.company.status != CompanyStatus.ACTIVE:

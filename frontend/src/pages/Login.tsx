@@ -1,10 +1,11 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { ApiError, get } from "../api";
-import { homePath, useAuth } from "../auth";
+import { homePath, LoginChoice, useAuth } from "../auth";
 import { GhanjahLockup } from "../components/Brand";
-import { ArrowSquareOut, Envelope, Key, SignIn, UserCircle } from "../components/Icon";
+import { ArrowSquareOut, Buildings, CaretRight, Envelope, Key, ShieldCheck, SignIn, UserCircle } from "../components/Icon";
 import { LangSwitch, useI18n } from "../lang";
+import { ROLE_LABELS } from "../util";
 
 interface DemoAccount {
   label: string;
@@ -24,6 +25,8 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [wrong, setWrong] = useState(0);
   const [busy, setBusy] = useState(false);
+  // The same email and password open accounts in several companies: the person picks one.
+  const [choices, setChoices] = useState<LoginChoice[] | null>(null);
   // Demo logins come from the server, only on development setups: they are never in the website code.
   const [demo, setDemo] = useState<DemoAccount[]>([]);
 
@@ -33,13 +36,16 @@ export default function Login() {
 
   if (user) return <Navigate to={from ?? homePath(user)} replace />;
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
+  const signIn = async (account?: string) => {
     setBusy(true);
     setError(null);
     try {
-      const me = await login(email, password);
-      navigate(from ?? homePath(me), { replace: true });
+      const res = await login(email, password, account);
+      if (Array.isArray(res)) {
+        setChoices(res);
+        return;
+      }
+      navigate(from ?? homePath(res), { replace: true });
     } catch (err) {
       const wrongPass = err instanceof ApiError && err.status === 401;
       setError(wrongPass ? t("Wrong email or password.") : (err as Error).message);
@@ -47,6 +53,11 @@ export default function Login() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    void signIn();
   };
 
   return (
@@ -74,7 +85,7 @@ export default function Login() {
               <Envelope aria-hidden="true" />
               <input type="email" autoComplete="username" dir="ltr" value={email} required autoFocus
                 className={wrong && error ? "invalid" : ""} key={`e${wrong}`}
-                onChange={(e) => { setEmail(e.target.value); setError(null); }} />
+                onChange={(e) => { setEmail(e.target.value); setError(null); setChoices(null); }} />
             </span>
           </label>
           <label className="field">
@@ -83,13 +94,29 @@ export default function Login() {
               <Key aria-hidden="true" />
               <input type="password" autoComplete="current-password" value={password} required
                 className={wrong && error ? "invalid" : ""} key={`p${wrong}`}
-                onChange={(e) => { setPassword(e.target.value); setError(null); }} />
+                onChange={(e) => { setPassword(e.target.value); setError(null); setChoices(null); }} />
             </span>
           </label>
           {error && <div className="error-box" role="alert">{error}</div>}
-          <button className="btn btn-primary btn-lg btn-block" disabled={busy} aria-busy={busy}>
-            {busy ? <><span className="login-spin" aria-hidden="true" />{t("Signing in…")}</> : <><SignIn className="flip" />{t("Sign in")}</>}
-          </button>
+          {choices ? (
+            <div className="login-choices" role="group" aria-label={t("Choose the account to open")}>
+              <div className="login-choices-head">{t("This email has several accounts. Which one do you want to open?")}</div>
+              {choices.map((c) => (
+                <button type="button" key={c.account} className="demo-account" disabled={busy} onClick={() => void signIn(c.account)}>
+                  {c.company ? <Buildings className="demo-icon" /> : <ShieldCheck className="demo-icon" />}
+                  <span className="demo-text">
+                    <strong>{c.company ?? t("Platform console")}</strong>
+                    <span>{t(ROLE_LABELS[c.role] ?? c.role)}</span>
+                  </span>
+                  <CaretRight className="flip login-choice-go" aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+          ) : (
+            <button className="btn btn-primary btn-lg btn-block" disabled={busy} aria-busy={busy}>
+              {busy ? <><span className="login-spin" aria-hidden="true" />{t("Signing in…")}</> : <><SignIn className="flip" />{t("Sign in")}</>}
+            </button>
+          )}
 
           {demo.length > 0 && (
             <div className="demo-box">

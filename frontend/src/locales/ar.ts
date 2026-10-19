@@ -446,7 +446,6 @@ export const AR: Record<string, string> = {
   "Please wait a minute before testing again": "يرجى الانتظار دقيقة قبل الاختبار مرة أخرى",
   "This web address is already used by another company": "عنوان الويب هذا مستخدم من شركة أخرى",
   "Please choose a web address in English letters for this company, for example sunrise-travel": "يرجى اختيار عنوان ويب بأحرف إنجليزية لهذه الشركة، مثل sunrise-travel",
-  "An account with the admin email already exists": "يوجد حساب بالبريد الإلكتروني للمدير بالفعل",
   "This web address or admin email is already used": "عنوان الويب أو البريد الإلكتروني للمدير مستخدم بالفعل",
   "Use an image uploaded for this company": "استخدم صورة مرفوعة لهذه الشركة",
   "Use an image uploaded by your company": "استخدم صورة رفعتها شركتك",
@@ -561,6 +560,9 @@ export const AR: Record<string, string> = {
   "Suspend {name}?\n\nWhile suspended:\n• its employees are logged out and can't sign in\n• the AI stops answering on the website and WhatsApp\n• the customer page is offline\n\nNothing is deleted; you can re-activate it at any time.": "إيقاف {name}؟\n\nأثناء الإيقاف:\n• يُسجَّل خروج موظفيها ولا يمكنهم تسجيل الدخول\n• يتوقف المساعد الذكي عن الرد على الموقع وواتساب\n• تتوقف صفحة العملاء\n\nلن يُحذف أي شيء، ويمكنك إعادة تفعيلها في أي وقت.",
   "The web address did not match. Nothing was deleted.": "عنوان الويب غير مطابق. لم يُحذف أي شيء.",
   "Currently {n} accounts. Disabled accounts don't count; the limit can't be lower than the active accounts.": "يوجد حالياً {n} حساب. الحسابات المعطّلة لا تُحتسب، ولا يمكن أن يقل الحد عن عدد الحسابات النشطة.",
+  "This page could not be shown.": "تعذّر عرض هذه الصفحة.",
+  "Reload to get the latest version of the app. If it happens again, tell us what you clicked.": "أعد التحميل للحصول على أحدث نسخة من التطبيق. إذا تكرر ذلك أخبرنا بما ضغطت عليه.",
+  "Reload": "إعادة التحميل",
 };
 
 /**

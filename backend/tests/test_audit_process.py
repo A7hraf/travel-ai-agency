@@ -2,6 +2,8 @@
 
 from datetime import timedelta
 
+from fastapi import HTTPException
+
 from app.ai.llm import LLMResponse, ToolCall
 from app.database import SessionLocal
 from app.models import Conversation, Customer, MediaFile, Ticket, utcnow
@@ -69,13 +71,61 @@ def test_disabled_accounts_lose_old_logins_and_free_a_seat(client, owner):
     assert r.status_code == 400
 
 
-def test_company_is_created_with_its_admin_or_not_at_all(client, owner):
+def test_company_is_created_with_its_admin_or_not_at_all(client, owner, monkeypatch):
+    from app.routers import system_admin
+
     make_company(client, owner, name="Alpha", admin_email="a@alpha.com")
+
+    def broken(*args, **kwargs):
+        raise HTTPException(400, "admin could not be created")
+    monkeypatch.setattr(system_admin, "create_company_user", broken)
     r = client.post("/api/system/companies", headers=owner, json={
-        "name": "Beta", "admin_email": "a@alpha.com", "admin_full_name": "Beta Admin", "admin_password": "Password123"})
-    assert r.status_code == 409
+        "name": "Beta", "admin_email": "b@beta.com", "admin_full_name": "Beta Admin", "admin_password": "Password123"})
+    assert r.status_code == 400
     names = [c["name"] for c in client.get("/api/system/companies", headers=owner).json()]
     assert names == ["Alpha"]
+
+
+def _company(client, owner, name, email, password):
+    r = client.post("/api/system/companies", headers=owner, json={
+        "name": name, "admin_email": email, "admin_full_name": f"{name} Admin", "admin_password": password})
+    assert r.status_code == 201, r.text
+    return r.json(), None
+
+
+def test_one_email_can_run_several_companies(client, owner):
+    """The platform owner can create any number of companies with the same admin email (their own,
+    while testing), and the login asks which company to open."""
+    a, _ = _company(client, owner, "Alpha", "me@owner.com", "AdminPass123!")
+    b, _ = _company(client, owner, "Beta", "me@owner.com", "AdminPass123!")
+    _company(client, owner, "Gamma", "owner@example.com", "OwnerPass123!")
+    names = [c["name"] for c in client.get("/api/system/companies", headers=owner).json()]
+    assert names == ["Alpha", "Beta", "Gamma"]
+
+    r = client.post("/api/auth/login", json={"email": "me@owner.com", "password": "AdminPass123!"})
+    assert r.status_code == 200 and "access_token" not in r.json()
+    assert {c["account"] for c in r.json()["choose"]} == {a["slug"], b["slug"]}
+    r = client.post("/api/auth/login", json={"email": "me@owner.com", "password": "AdminPass123!", "account": b["slug"]})
+    assert r.json()["user"]["company"]["name"] == "Beta"
+    # The owner's own email and password: the platform console or the test company.
+    r = client.post("/api/auth/login", json={"email": "owner@example.com", "password": "OwnerPass123!"})
+    assert {c["account"] for c in r.json()["choose"]} == {"platform", "gamma"}
+    r = client.post("/api/auth/login", json={"email": "owner@example.com", "password": "OwnerPass123!",
+                                             "account": "platform"})
+    assert r.json()["user"]["role"] == "system_admin"
+    # A wrong password reveals nothing about where the email has accounts.
+    r = client.post("/api/auth/login", json={"email": "me@owner.com", "password": "Wrong-pass1"})
+    assert r.status_code == 401 and "choose" not in r.text
+    # Inside one company the email is still unique.
+    admin_b = {"Authorization": "Bearer " + client.post("/api/auth/login", json={
+        "email": "me@owner.com", "password": "AdminPass123!", "account": b["slug"]}).json()["access_token"]}
+    r = client.post("/api/users", headers=admin_b, json={
+        "email": "me@owner.com", "full_name": "Twin", "password": "Password123", "role": "support"})
+    assert r.status_code == 409
+    # ...and another company's staff list stays invisible: the same email is accepted in Beta.
+    r = client.post("/api/users", headers=admin_b, json={
+        "email": "admin@alpha-only.com", "full_name": "Sam", "password": "Password123", "role": "support"})
+    assert r.status_code == 201
 
 
 def test_company_names_and_web_addresses(client, owner):

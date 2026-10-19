@@ -35,10 +35,12 @@ def _lock_company(db: Session, company_id: int) -> None:
     db.execute(select(Company.id).where(Company.id == company_id).with_for_update())
 
 
-def _check_email_free(db: Session, email: str, exclude_user_id: int | None = None) -> None:
-    existing = db.scalar(select(User).where(User.email == email))
+def _check_email_free(db: Session, company_id: int, email: str, exclude_user_id: int | None = None) -> None:
+    """An email is unique inside one company. Accounts of other companies are never looked at,
+    so a company cannot find out who works for another one."""
+    existing = db.scalar(select(User).where(User.company_id == company_id, User.email == email))
     if existing is not None and existing.id != exclude_user_id:
-        raise HTTPException(status.HTTP_409_CONFLICT, "An account with this email already exists")
+        raise HTTPException(status.HTTP_409_CONFLICT, "An account with this email already exists in this company")
 
 
 def _active_admins(db: Session, company_id: int) -> int:
@@ -85,7 +87,7 @@ def create_company_user(db: Session, company: Company, data: UserCreate, acting_
     _lock_company(db, company.id)
     _check_seat(db, company)
     email = data.email.lower()
-    _check_email_free(db, email)
+    _check_email_free(db, company.id, email)
     user = User(
         company_id=company.id,
         email=email,
@@ -140,7 +142,7 @@ def update_company_user(db: Session, user: User, data: UserUpdate, acting_user: 
 
     if data.email is not None:
         email = data.email.lower()
-        _check_email_free(db, email, exclude_user_id=user.id)
+        _check_email_free(db, user.company_id, email, exclude_user_id=user.id)
         user.email = email
     if data.full_name is not None:
         user.full_name = " ".join(data.full_name.split())

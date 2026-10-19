@@ -37,6 +37,20 @@ def _strip_name(v: str | None) -> str | None:
 class LoginIn(BaseModel):
     email: str = Field(min_length=3, max_length=200)
     password: str = Field(min_length=1, max_length=200)
+    # Which account to open when the same email and password work for several companies:
+    # "platform" or the company's web address (from LoginChoicesOut).
+    account: str | None = Field(default=None, max_length=100)
+
+
+class LoginChoice(BaseModel):
+    account: str
+    company: str | None
+    role: str
+
+
+class LoginChoicesOut(BaseModel):
+    """Returned instead of a token when the email has accounts in several companies."""
+    choose: list[LoginChoice]
 
 
 class ChangePasswordIn(BaseModel):

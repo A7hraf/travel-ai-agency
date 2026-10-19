@@ -14,12 +14,14 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     LargeBinary,
     Numeric,
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import TypeDecorator
@@ -145,10 +147,17 @@ class Company(Base):
 
 class User(Base):
     __tablename__ = "users"
+    # One email may have an account in several companies (and the platform owner may test a
+    # company with their own email), but only once per company and once on the platform.
+    __table_args__ = (
+        Index("uq_users_company_email", "company_id", "email", unique=True),
+        Index("uq_users_platform_email", "email", unique=True,
+              postgresql_where=text("company_id IS NULL"), sqlite_where=text("company_id IS NULL")),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
-    email: Mapped[str] = mapped_column(String(200), unique=True, index=True)
+    email: Mapped[str] = mapped_column(String(200), index=True)
     full_name: Mapped[str] = mapped_column(String(200))
     password_hash: Mapped[str] = mapped_column(String(200))
     role: Mapped[str] = mapped_column(String(32))

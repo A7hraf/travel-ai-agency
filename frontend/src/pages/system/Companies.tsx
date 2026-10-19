@@ -66,7 +66,7 @@ export default function Companies() {
                     <bdi dir="ltr" className="co-slug">/c/{c.slug}</bdi>
                   </div>
                   {c.status === "active"
-                    ? <span className="ad-status on">{t("Active")}</span>
+                    ? <span className="ad-status on">{t("Active [company]")}</span>
                     : <span className="ad-status bad">{t("Suspended")}</span>}
                 </div>
                 <div className="co-usage">

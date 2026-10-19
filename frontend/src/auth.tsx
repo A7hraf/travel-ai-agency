@@ -2,10 +2,17 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useState 
 import { get, post, setToken, setUnauthorizedHandler, getToken } from "./api";
 import type { Me } from "./types";
 
+export interface LoginChoice {
+  account: string;
+  company: string | null;
+  role: string;
+}
+
 interface AuthState {
   user: Me | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<Me>;
+  /** Signs in, or returns the accounts to choose from when the email works for several companies. */
+  login: (email: string, password: string, account?: string) => Promise<Me | LoginChoice[]>;
   logout: () => void;
   /** True after the server ended the session (401): the login page explains it. */
   sessionEnded: boolean;
@@ -40,8 +47,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, [logout]);
 
-  const login = async (email: string, password: string) => {
-    const res = await post<{ access_token: string; user: Me }>("/api/auth/login", { email, password });
+  const login = async (email: string, password: string, account?: string) => {
+    const res = await post<{ access_token: string; user: Me } | { choose: LoginChoice[] }>(
+      "/api/auth/login", { email, password, account: account ?? null });
+    if ("choose" in res) return res.choose;
     setToken(res.access_token);
     setSessionEnded(false);
     setUser(res.user);

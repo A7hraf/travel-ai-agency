@@ -96,8 +96,6 @@ def create_company(body: CompanyCreate, _: User = Depends(require_system_admin),
             raise HTTPException(422, "Please choose a web address in English letters for this company, "
                                      "for example sunrise-travel")
         slug = _unique_slug(db, base)
-    if db.scalar(select(User.id).where(User.email == body.admin_email.lower())):
-        raise HTTPException(409, "An account with the admin email already exists")
 
     # The company and its first admin are saved together: never a company without an admin.
     company = Company(
@@ -125,7 +123,7 @@ def create_company(body: CompanyCreate, _: User = Depends(require_system_admin),
         db.commit()
     except IntegrityError as exc:
         db.rollback()
-        raise HTTPException(409, "This web address or admin email is already used") from exc
+        raise HTTPException(409, "This web address is already used by another company") from exc
     except HTTPException:
         db.rollback()
         raise

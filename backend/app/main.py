@@ -128,6 +128,16 @@ def health():
     return {"status": "ok", "demo": settings.seed_demo_data and not PRODUCTION}
 
 
+class ImmutableAssets(StaticFiles):
+    """Built files have a content hash in their name, so browsers may keep them for a year."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        if response.status_code == 200:
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
+
+
 def mount_frontend(application: FastAPI, dist: Path) -> None:
     """Serve the built React app: real files when they exist, index.html for app routes."""
     index = dist / "index.html"
@@ -136,7 +146,7 @@ def mount_frontend(application: FastAPI, dist: Path) -> None:
         return
     root = dist.resolve()
     if (dist / "assets").is_dir():
-        application.mount("/assets", StaticFiles(directory=dist / "assets"), name="assets")
+        application.mount("/assets", ImmutableAssets(directory=dist / "assets"), name="assets")
 
     @application.get("/{path:path}", include_in_schema=False)
     def spa(path: str):
@@ -145,7 +155,9 @@ def mount_frontend(application: FastAPI, dist: Path) -> None:
         candidate = (root / path).resolve()
         if path and candidate.is_file() and root in candidate.parents:
             return FileResponse(candidate)
-        return FileResponse(index)
+        # Always ask the server for the page itself: after a release, a cached copy would point
+        # to script files that no longer exist and the app would not open.
+        return FileResponse(index, headers={"Cache-Control": "no-cache"})
 
 
 if settings.frontend_dist:

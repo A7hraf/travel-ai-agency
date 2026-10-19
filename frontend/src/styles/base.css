@@ -391,3 +391,8 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); opaci
   h1 { font-size: 2rem; }
   .details { grid-template-columns: 120px 1fr; }
 }
+
+/* A page that crashed (ErrorBoundary) */
+.page-crash { max-width: 520px; margin: 12vh auto; padding: 28px; border-radius: 22px; background: var(--surface-1); text-align: center; }
+.page-crash h2 { margin: 0 0 8px; }
+.page-crash p { color: var(--text-muted); margin: 0 0 18px; }

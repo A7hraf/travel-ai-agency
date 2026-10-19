@@ -72,6 +72,18 @@ def upgrade(engine: Engine) -> None:
                 "ON companies (whatsapp_webhook_key)"
             )
         )
+        if "users" in tables:
+            # Emails used to be unique across the whole platform; now once per company.
+            for ix in insp.get_indexes("users"):
+                if ix["name"] == "ix_users_email" and ix.get("unique"):
+                    log.info("Database upgrade: user emails unique per company")
+                    conn.execute(text("DROP INDEX ix_users_email"))
+                    conn.execute(text("CREATE INDEX ix_users_email ON users (email)"))
+            if engine.dialect.name == "postgresql":
+                conn.execute(text("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key"))
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_users_company_email ON users (company_id, email)"))
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_users_platform_email ON users (email) "
+                              "WHERE company_id IS NULL"))
         # WhatsApp tokens saved before encryption existed are encrypted now.
         rows = conn.execute(
             text("SELECT id, whatsapp_access_token FROM companies WHERE whatsapp_access_token IS NOT NULL")

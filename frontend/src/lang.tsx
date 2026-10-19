@@ -18,7 +18,8 @@ let currentLang: Lang = initialLang();
 
 /** Translate an English text (the key) into the current language; {name} placeholders are filled in. */
 export function tr(text: string, vars?: Record<string, string | number>): string {
-  let out = currentLang === "ar" ? AR[text] ?? text : text;
+  // "Active [company]": the bracket tells translators which word is meant and is never shown.
+  let out = (currentLang === "ar" ? AR[text] : undefined) ?? text.replace(/ \[[^\]]+\]$/, "");
   if (vars) for (const [k, v] of Object.entries(vars)) out = out.split(`{${k}}`).join(String(v));
   return out;
 }

@@ -76,7 +76,7 @@ export default function CompanyDetail() {
           <div className="ad-kicker">{t("Platform console")}</div>
           <h1 className="ad-title" dir="auto">{c.name}</h1>
           <p className="ad-sub cd-meta">
-            {active ? <span className="ad-status on">{t("Active")}</span> : <span className="ad-status bad">{t("Suspended")}</span>}
+            {active ? <span className="ad-status on">{t("Active [company]")}</span> : <span className="ad-status bad">{t("Suspended")}</span>}
             <a href={`/c/${c.slug}`} target="_blank" rel="noreferrer"><bdi dir="ltr">/c/{c.slug}</bdi> <ArrowSquareOut /></a>
             <span>{t("Created")} {shortDate(c.created_at)}</span>
           </p>

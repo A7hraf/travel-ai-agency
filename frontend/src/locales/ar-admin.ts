@@ -134,4 +134,9 @@ export const AR_ADMIN: Record<string, string> = {
   "Delete {name} permanently?": "حذف {name} نهائياً؟",
   "Type {slug} to confirm": "اكتب {slug} للتأكيد",
   "All companies": "كل الشركات",
+  // A company is feminine in Arabic (شركة), a user account is not.
+  "Active [company]": "نشطة",
+  "Choose the account to open": "اختر الحساب الذي تريد فتحه",
+  "This email has several accounts. Which one do you want to open?": "لهذا البريد أكثر من حساب. أي حساب تريد أن تفتح؟",
+  "An account with this email already exists in this company": "يوجد حساب بهذا البريد الإلكتروني في هذه الشركة بالفعل",
 };

@@ -205,7 +205,7 @@ def seed_demo(db: Session, production: bool = False) -> None:
 def protect_demo_accounts(db: Session) -> None:
     """Production: demo logins whose password is the public one get a random password."""
     for _, email, _, _, password in DEMO_STAFF:
-        user = db.scalar(select(User).where(User.email == email))
+        user = db.scalar(select(User).join(Company).where(User.email == email, Company.slug == DEMO_SLUG))
         if user is not None and verify_password(password, user.password_hash):
             user.password_hash = hash_password(secrets.token_urlsafe(16))
             user.tokens_valid_after = revoke_sessions_now()
