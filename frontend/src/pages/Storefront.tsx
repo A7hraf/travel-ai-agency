@@ -7,11 +7,12 @@ import { Modal } from "../components/ui";
 import type { Block, StoreCtx } from "../components/storefront/context";
 import { PhoneLayout } from "../components/storefront/PhoneLayout";
 import { matchesBudget, matchesCategory, matchesQuery, usefulCategories, waLink } from "../components/storefront/shared";
+import { DEFAULT_CARDS, DEFAULT_ELEMENTS, pageVars } from "../components/storefront/style";
+import { applyTexts } from "../components/storefront/texts";
 import { useChat } from "../components/storefront/useChat";
 import { WebLayout } from "../components/storefront/WebLayout";
 import { STOREFRONT_TEXT, useLang } from "../i18n";
 import type { Lang } from "../components/Money";
-import { storefrontVars } from "../theme";
 import type { PublicCompany, TravelPackage } from "../types";
 
 const DESKTOP = "(min-width: 901px)";
@@ -79,13 +80,19 @@ export default function Storefront() {
   return <StorefrontPage slug={slug} company={company} packages={packages} lang={lang} setLang={setLang} />;
 }
 
-function StorefrontPage({ slug, company, packages, lang, setLang }: {
+/** The customer page for a company. The page editor renders it too, as its live preview
+ *  (`layout` forces the phone or computer design, `preview` keeps the chat offline). */
+export function StorefrontPage({ slug, company, packages, lang, setLang, layout, preview = false }: {
   slug: string; company: PublicCompany; packages: TravelPackage[]; lang: Lang; setLang: (l: Lang) => void;
+  layout?: "phone" | "web"; preview?: boolean;
 }) {
-  const t = STOREFRONT_TEXT[lang];
-  const desktop = useMediaQuery(DESKTOP);
   const b = company.branding;
+  const t = useMemo(() => applyTexts(lang, b.texts), [lang, b.texts]);
+  const wide = useMediaQuery(DESKTOP);
+  const desktop = layout ? layout === "web" : wide;
   const agent = company.ai_agent_name || "Sara";
+  const el = { ...DEFAULT_ELEMENTS, ...b.elements };
+  const cards = { ...DEFAULT_CARDS, ...b.cards };
 
   const [query, setQuery] = useState("");
   const [budget, setBudget] = useState("");
@@ -95,28 +102,25 @@ function StorefrontPage({ slug, company, packages, lang, setLang }: {
   const [chatOpen, setChatOpen] = useState(false);
   const [confirmNew, setConfirmNew] = useState(false);
 
-  const chat = useChat({ slug, company, lang, t, active: desktop || chatOpen });
+  const chat = useChat({ slug, company, lang, t, active: desktop || chatOpen, offline: preview });
 
-  const cats = useMemo(() => usefulCategories(packages), [packages]);
+  const cats = useMemo(() => (el.chips ? usefulCategories(packages) : [0]), [packages, el.chips]);
   const cat = cats.includes(catState) ? catState : 0;
   const shown = packages.filter((p) => matchesQuery(p, query) && matchesBudget(p, budget) && matchesCategory(p, cat));
   const filtering = !!(query.trim() || budget.trim() || cat);
 
-  // Page order from the agency's settings ("search" always sits at the top);
-  // "How booking works" follows the trips.
+  // Page order from the agency's settings ("search" always sits in the top banner).
   const blocks = useMemo(() => {
     const out: Block[] = [];
     for (const s of b.sections) {
-      if ((s === "featured" || s === "offers") && !out.includes(s)) out.push(s);
+      if ((s === "featured" || s === "offers" || s === "how") && !out.includes(s)) out.push(s);
       else if ((s === "about" || s === "contact") && !out.includes("about")) out.push("about");
     }
-    const lastTrips = Math.max(out.indexOf("featured"), out.indexOf("offers"));
-    out.splice(lastTrips + 1, 0, "how");
     return out;
   }, [b.sections]);
 
   const aboutText = pick(lang, b.about_en, b.about_ar);
-  const about = b.sections.includes("about") && aboutText
+  const about = b.sections.includes("about") && (aboutText || b.about_image)
     ? { title: pick(lang, b.about_title_en, b.about_title_ar) || t.aboutTitle, text: aboutText }
     : null;
   const heroTitle = (lang === "ar" ? b.hero_title_ar : b.hero_title_en).trim() || null;
@@ -154,15 +158,14 @@ function StorefrontPage({ slug, company, packages, lang, setLang }: {
     query, setQuery, budget, setBudget, cat, setCat, cats, shown,
     featured: packages.filter((p) => p.is_featured), filtering, clearFilters,
     blocks, heroTitle, heroText, about, showContact: b.sections.includes("contact"),
+    showSearch: b.sections.includes("search"), el, cards,
     openPackage, book, openChat, askNew,
   };
 
-  const style = {
-    ...storefrontVars(b.primary_color, b.accent_color),
-  } as CSSProperties;
+  const style = pageVars(b) as CSSProperties;
 
   return (
-    <div className={`sf sf-hero-${b.hero_style} ${b.card_style === "square" ? "sf-square" : ""} ${desktop ? "sf-is-web" : "sf-is-phone"}`}
+    <div className={`sf sf-hero-${b.hero_style} ${b.card_style === "square" ? "sf-square" : ""} ${desktop ? "sf-is-web" : "sf-is-phone"} sf-cards-${cards.style} ${preview ? "sf-preview" : ""}`}
       dir={lang === "ar" ? "rtl" : "ltr"} lang={lang} style={style}>
       <div className="sf-orbs" aria-hidden="true" />
       {desktop ? (

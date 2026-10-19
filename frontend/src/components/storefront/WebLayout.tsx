@@ -8,7 +8,7 @@ import type { StoreCtx } from "./context";
 import { WebPackage } from "./PackageDetails";
 import { AboutBlock, AgencyMark, CategoryChips, HowSteps, PoweredBy, TripsEmpty } from "./Sections";
 import { telLink } from "./shared";
-import { WebPoster, WebRow } from "./TripCards";
+import { PhotoCard, WebPoster, WebRow } from "./TripCards";
 
 export function WebLayout({ ctx, pkg, closePackage, widgetOpen, closeWidget, heroBg }: {
   ctx: StoreCtx;
@@ -24,7 +24,9 @@ export function WebLayout({ ctx, pkg, closePackage, widgetOpen, closeWidget, her
   const launcher = useRef<HTMLButtonElement>(null);
   const wasOpen = useRef(false);
   const heroChat = useRef<HTMLDivElement>(null);
-  const [heroVisible, setHeroVisible] = useState(true);
+  const [heroInView, setHeroVisible] = useState(true);
+  const { el, cards } = ctx;
+  const heroVisible = el.hero_chat && heroInView;
 
   // The launcher is not needed while the live chat in the hero is on screen.
   useEffect(() => {
@@ -33,7 +35,7 @@ export function WebLayout({ ctx, pkg, closePackage, widgetOpen, closeWidget, her
     const io = new IntersectionObserver(([e]) => setHeroVisible(e.isIntersecting), { threshold: 0.25 });
     io.observe(el);
     return () => io.disconnect();
-  }, []);
+  }, [el.hero_chat]);
 
   // Focus the widget's message box when it opens; back to the launcher when it closes.
   useEffect(() => {
@@ -59,7 +61,7 @@ export function WebLayout({ ctx, pkg, closePackage, widgetOpen, closeWidget, her
   const custom = ctx.heroTitle;
   const hasTrips = ctx.blocks.includes("featured") || ctx.blocks.includes("offers");
   const hasAbout = ctx.blocks.includes("about") && (!!ctx.about || ctx.showContact);
-  const gridClass = `sf-wgrid ${b.layout === "list" ? "sf-list" : ""} ${b.card_style === "square" ? "sf-square" : ""}`;
+  const gridClass = `sf-wgrid sf-cols-${cards.columns} ${cards.style === "compact" ? "sf-list" : ""} ${cards.style === "photo" ? "sf-photo-grid" : ""} ${b.card_style === "square" ? "sf-square" : ""}`;
 
   const trips = (title: string, list: TravelPackage[]) => (
     <section key="trips" id="trips" className="sf-wtrips" aria-labelledby="sf-trips-title">
@@ -69,12 +71,14 @@ export function WebLayout({ ctx, pkg, closePackage, widgetOpen, closeWidget, her
       </div>
       {list.length === 0 ? <TripsEmpty ctx={ctx} /> : (
         <div className={gridClass}>
-          {list.map((p) => b.layout === "list"
-            ? <WebRow key={p.id} p={p} t={t} lang={lang} agent={agent} onOpen={() => ctx.openPackage(p)} onBook={() => ctx.book(p)} />
-            : <WebPoster key={p.id} p={p} t={t} lang={lang} onOpen={() => ctx.openPackage(p)} />)}
+          {list.map((p) => cards.style === "compact"
+            ? <WebRow key={p.id} p={p} t={t} lang={lang} cards={cards} agent={agent} onOpen={() => ctx.openPackage(p)} onBook={() => ctx.book(p)} />
+            : cards.style === "photo"
+              ? <PhotoCard key={p.id} p={p} t={t} lang={lang} cards={cards} agent={agent} onOpen={() => ctx.openPackage(p)} onBook={() => ctx.book(p)} />
+              : <WebPoster key={p.id} p={p} t={t} lang={lang} cards={cards} onOpen={() => ctx.openPackage(p)} />)}
         </div>
       )}
-      {company.currency === "OMR" && list.length > 0 && <p className="sf-note">{t.pricesNote}</p>}
+      {el.prices_note && company.currency === "OMR" && list.length > 0 && <p className="sf-note">{t.pricesNote}</p>}
     </section>
   );
 
@@ -102,39 +106,41 @@ export function WebLayout({ ctx, pkg, closePackage, widgetOpen, closeWidget, her
           <a className="sf-wbrand" href="#top" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
             <AgencyMark ctx={ctx} size={42} /><span>{company.name}</span>
           </a>
-          {hasTrips && <a className="sf-wlink" href="#trips">{t.navTrips}</a>}
-          <a className="sf-wlink" href="#how">{t.navHow}</a>
-          {hasAbout && <a className="sf-wlink" href="#about">{t.navAbout}</a>}
-          {company.contact_phone && <a className="sf-wphone" href={telLink(company.contact_phone)}><bdi dir="ltr">{company.contact_phone}</bdi></a>}
-          <button type="button" className="sf-lang" onClick={ctx.toggleLang} lang={lang === "ar" ? "en" : "ar"}>{t.switchTo}</button>
+          {el.nav_links && hasTrips && <a className="sf-wlink" href="#trips">{t.navTrips}</a>}
+          {el.nav_links && ctx.blocks.includes("how") && <a className="sf-wlink" href="#how">{t.navHow}</a>}
+          {el.nav_links && hasAbout && <a className="sf-wlink" href="#about">{t.navAbout}</a>}
+          {el.nav_phone && company.contact_phone && <a className="sf-wphone" href={telLink(company.contact_phone)}><bdi dir="ltr">{company.contact_phone}</bdi></a>}
+          {el.lang_switch && <button type="button" className="sf-lang" onClick={ctx.toggleLang} lang={lang === "ar" ? "en" : "ar"}>{t.switchTo}</button>}
           <button type="button" className="sf-cta sf-sm" onClick={ctx.openChat}><Sparkle />{t.chatWith(agent)}</button>
         </nav>
 
-        <div className="sf-whero">
+        <div className={`sf-whero ${el.hero_chat ? "" : "sf-no-chat"}`}>
           <div className="sf-whero-text">
-            <div className="sf-kicker-cyan sf-kicker-magenta-dot">{t.fromOman}</div>
+            {el.kicker && <div className="sf-kicker-cyan sf-kicker-magenta-dot">{t.fromOman}</div>}
             <h1 className={`sf-wtitle ${custom && custom.length > 26 ? "sf-long" : ""}`} dir="auto">
               {custom ?? <>{t.heroA}<br /><em className="sf-accent">{t.heroB}</em></>}
             </h1>
             <p className="sf-wlead" dir="auto">{ctx.heroText ?? t.webLead(agent)}</p>
-            <form className="sf-wsearch" role="search" onSubmit={findTrips}>
+            {ctx.showSearch && <form className="sf-wsearch" role="search" onSubmit={findTrips}>
               <MagnifyingGlass className="sf-wsearch-icon" aria-hidden="true" />
               <input className="q" type="search" value={ctx.query} onChange={(e) => ctx.setQuery(e.target.value)}
                 placeholder={t.webSearchPlaceholder} aria-label={t.searchLabel} />
-              <span className="sf-wsearch-sep" aria-hidden="true" />
-              {company.currency === "OMR" ? <OmrSign /> : <span className="sf-cur">{company.currency}</span>}
-              <input className="b" type="number" min={0} inputMode="decimal" value={ctx.budget} onChange={(e) => ctx.setBudget(e.target.value)}
-                placeholder={t.webBudgetPlaceholder} aria-label={t.budgetLabel} />
+              {el.budget_filter && <>
+                <span className="sf-wsearch-sep" aria-hidden="true" />
+                {company.currency === "OMR" ? <OmrSign /> : <span className="sf-cur">{company.currency}</span>}
+                <input className="b" type="number" min={0} inputMode="decimal" value={ctx.budget} onChange={(e) => ctx.setBudget(e.target.value)}
+                  placeholder={t.webBudgetPlaceholder} aria-label={t.budgetLabel} />
+              </>}
               <button type="submit" className="sf-wsearch-go">{t.findTrips}</button>
-            </form>
-            <ul className="sf-trust">
+            </form>}
+            {el.trust && <ul className="sf-trust">
               <li><Clock />{t.trust[0]}</li>
               <li><Headset />{t.trust[1]}</li>
               <li><ShieldCheck />{t.trust[2]}</li>
-            </ul>
+            </ul>}
           </div>
 
-          <div ref={heroChat} className="sf-herochat" aria-label={t.chatWith(agent)} role="region">
+          {el.hero_chat && <div ref={heroChat} className="sf-herochat" aria-label={t.chatWith(agent)} role="region">
             <div className="sf-herochat-head">
               <ChatAvatar company={company} human={chat.human} size={44} />
               <ChatTitle company={company} human={chat.human} t={t} />
@@ -142,7 +148,7 @@ export function WebLayout({ ctx, pkg, closePackage, widgetOpen, closeWidget, her
             </div>
             <ChatView chat={chat} t={t} lang={lang} packages={ctx.packages} onViewPackage={ctx.openPackage}
               live={!widgetOpen} size="sm" placeholder={t.askAnything(agent)} onFocus={chat.ensure} />
-          </div>
+          </div>}
         </div>
       </div>
 
@@ -151,7 +157,7 @@ export function WebLayout({ ctx, pkg, closePackage, widgetOpen, closeWidget, her
       <footer className="sf-wfoot">
         <span className="sf-wfoot-name">{company.name}</span>
         {company.contact_email && <a href={`mailto:${company.contact_email}`}><bdi dir="ltr">{company.contact_email}</bdi></a>}
-        <span className="sf-wfoot-note">{t.footer}</span>
+        <span className="sf-wfoot-note">{el.footer_note ? t.footer : ""}</span>
         <PoweredBy ctx={ctx} />
       </footer>
 
@@ -167,7 +173,7 @@ export function WebLayout({ ctx, pkg, closePackage, widgetOpen, closeWidget, her
           <ChatView chat={chat} t={t} lang={lang} packages={ctx.packages} onViewPackage={ctx.openPackage}
             inputRef={widgetInput} live size="sm" onFocus={chat.ensure} />
         </div>
-      ) : (
+      ) : el.chat_launcher && (
         <button ref={launcher} type="button" className={`sf-launcher ${heroVisible ? "sf-away" : ""}`} onClick={ctx.openChat}
           tabIndex={heroVisible ? -1 : undefined} aria-hidden={heroVisible || undefined}>
           <span className="sf-dock-avatar" aria-hidden="true">{agent.trim().charAt(0).toUpperCase()}</span>

@@ -214,7 +214,10 @@ class Branding(BaseModel):
     dashboard_color: str = Field(default="#0088b0", pattern=HEX)
     dashboard_sidebar: str = Field(default="#0f0e0d", pattern=HEX)
 
-    _migrate = model_validator(mode="before")(classmethod(lambda cls, data: _migrate(data)))
+    @model_validator(mode="before")
+    @classmethod
+    def migrate(cls, data: Any) -> Any:
+        return _migrate(data)
 
     @field_validator(*IMAGE_FIELDS)
     @classmethod
@@ -259,8 +262,6 @@ class Branding(BaseModel):
 class BrandingUpdate(BaseModel):
     """Partial update: only the fields sent are changed. `elements` and `cards` are merged key by
     key; `texts` replaces the texts of each language sent."""
-
-    model_config = ConfigDict(extra="forbid")
 
     primary_color: str | None = Field(default=None, pattern=HEX)
     accent_color: str | None = Field(default=None, pattern=HEX)

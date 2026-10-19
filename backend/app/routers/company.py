@@ -182,7 +182,7 @@ def read_branding(me: User = Depends(require_permission("settings.manage"))):
 def update_branding(body: BrandingUpdate, me: User = Depends(require_permission("settings.manage")),
                     db: Session = Depends(get_db)):
     """The company admin edits the customer page; dashboard colours stay with the platform owner."""
-    for url in (body.logo, body.hero_image):
+    for url in body.image_urls():
         if not media_belongs_to(db, url, me.company_id):
             raise HTTPException(400, "Use an image uploaded by your company")
     branding = apply_update(me.company, body, allow_dashboard=False)

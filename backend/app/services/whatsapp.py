@@ -124,7 +124,7 @@ def verify_phone_number(phone_number_id: str, token: str) -> bool:
     Proves that a company really owns the number it types in, so it can't take over
     another company's number (and its customers' messages).
     """
-    return check_phone_number(phone_number_id, token)["result"] == "connected"
+    return check_phone_number(phone_number_id, token, fields="id")["result"] == "connected"
 
 
 # Results of check_phone_number, shown on the "Test connection" button.
@@ -141,7 +141,8 @@ CHECK_MESSAGES = {
 }
 
 
-def check_phone_number(phone_number_id: str, token: str) -> dict:
+def check_phone_number(phone_number_id: str, token: str,
+                       fields: str = "id,display_phone_number,verified_name") -> dict:
     """Asks Meta whether this token may use this phone number. Returns {"result", "message",
     "display_number", "verified_name"}; result is one of CHECK_MESSAGES' keys."""
     if not phone_number_id or not token:
@@ -150,7 +151,7 @@ def check_phone_number(phone_number_id: str, token: str) -> dict:
     try:
         resp = httpx.get(
             f"{s.whatsapp_graph_url}/{s.whatsapp_api_version}/{phone_number_id}",
-            params={"fields": "id,display_phone_number,verified_name"},
+            params={"fields": fields},
             headers={"Authorization": f"Bearer {token}"},
             timeout=15,
         )
