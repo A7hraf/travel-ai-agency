@@ -229,3 +229,31 @@ def test_log_out_other_devices(client, owner):
     assert client.get("/api/auth/me", headers=other_device).status_code == 401
     assert client.get("/api/auth/me", headers=owner).status_code == 401
     assert client.post("/api/auth/logout-others").status_code == 401
+
+
+def test_whatsapp_values_saved_on_the_page_are_used_by_the_webhook(client, owner, monkeypatch):
+    import hashlib
+    import hmac
+    import json
+
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "whatsapp_app_secret", "")
+    monkeypatch.setattr(get_settings(), "whatsapp_allow_unsigned", False)
+    body = json.dumps({"object": "whatsapp_business_account", "entry": []}).encode()
+
+    def post(secret):
+        sig = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+        return client.post("/api/webhooks/whatsapp", content=body,
+                           headers={"Content-Type": "application/json", "X-Hub-Signature-256": f"sha256={sig}"})
+
+    assert post("page-secret").status_code == 503  # nothing configured yet
+    r = client.put("/api/system/platform-settings", headers=owner,
+                   json={"whatsapp": {"whatsapp_app_secret": "page-secret",
+                                       "whatsapp_verify_token": "page-verify-token-123"}})
+    assert r.status_code == 200, r.text
+    assert post("page-secret").status_code == 200
+    assert post("wrong-secret").status_code == 403
+    r = client.get("/api/webhooks/whatsapp", params={"hub.mode": "subscribe", "hub.verify_token": "page-verify-token-123",
+                                                     "hub.challenge": "42"})
+    assert r.status_code == 200 and r.text == "42"

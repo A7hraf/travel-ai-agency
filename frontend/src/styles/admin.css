@@ -730,3 +730,5 @@ a.now-waiting:hover { background: rgba(242, 179, 61, .18); }
   .pe-style-pic { width: 70px; height: 48px; margin: 0 8px 0 0; }
   .pe-bar .btn { flex: 1 1 40%; }
 }
+.pe-frame-box { width: 100%; }
+.pe-frame { margin: 0 auto; }

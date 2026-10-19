@@ -44,7 +44,7 @@ def check_production_settings() -> None:
     if settings.system_admin_password == DEFAULT_ADMIN_PASSWORD:
         raise RuntimeError("Set SYSTEM_ADMIN_PASSWORD to your own password before running in production")
     if not settings.whatsapp_app_secret:
-        log.warning("WHATSAPP_APP_SECRET is empty: the shared WhatsApp webhook is disabled until it is set")
+        log.warning("WHATSAPP_APP_SECRET is empty: the shared WhatsApp webhook works only once the app secret is saved in Platform settings")
 
 
 @asynccontextmanager

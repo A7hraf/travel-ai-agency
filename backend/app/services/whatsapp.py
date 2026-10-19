@@ -17,6 +17,7 @@ import httpx
 
 from ..config import get_settings
 from ..models import Company
+from ..platform_settings import effective_api_version, effective_shared_access_token
 
 log = logging.getLogger(__name__)
 
@@ -150,7 +151,7 @@ def check_phone_number(phone_number_id: str, token: str,
     s = get_settings()
     try:
         resp = httpx.get(
-            f"{s.whatsapp_graph_url}/{s.whatsapp_api_version}/{phone_number_id}",
+            f"{s.whatsapp_graph_url}/{effective_api_version()}/{phone_number_id}",
             params={"fields": fields},
             headers={"Authorization": f"Bearer {token}"},
             timeout=15,
@@ -198,9 +199,8 @@ def connection_status(company: Company) -> dict:
     status: connected | not_connected | needs_app_secret | needs_token
     mode: own (the company's own Meta app) | platform (a number on the platform's Meta app) | none
     """
-    s = get_settings()
     own = bool(company.whatsapp_access_token)
-    platform_token = bool(s.whatsapp_default_access_token and s.whatsapp_share_default_token)
+    platform_token = bool(effective_shared_access_token())
     if not company.whatsapp_phone_number_id:
         status, mode = "not_connected", "own" if own else "none"
     elif own:
@@ -224,10 +224,9 @@ def connection_status(company: Company) -> dict:
 
 def access_token_for(company: Company) -> str | None:
     """The company's own token, or the platform's shared one when the platform shares its app."""
-    s = get_settings()
     if company.whatsapp_access_token:
         return company.whatsapp_access_token
-    return s.whatsapp_default_access_token if s.whatsapp_share_default_token else None
+    return effective_shared_access_token()
 
 
 class WhatsAppSender(Protocol):
@@ -242,7 +241,7 @@ class CloudAPISender:
         token = access_token_for(company)
         if not company.whatsapp_phone_number_id or not token:
             raise WhatsAppError("WhatsApp is not configured for this company")
-        url = f"{s.whatsapp_graph_url}/{s.whatsapp_api_version}/{company.whatsapp_phone_number_id}/messages"
+        url = f"{s.whatsapp_graph_url}/{effective_api_version()}/{company.whatsapp_phone_number_id}/messages"
         return url, {"Authorization": f"Bearer {token}"}
 
     def send_text(self, company: Company, to: str, text: str) -> str | None:

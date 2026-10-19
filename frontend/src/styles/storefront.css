@@ -619,3 +619,5 @@ body.sf-body { background: var(--bg-app); }
 .sf.sf-preview { min-height: 100%; height: 100%; }
 .sf.sf-preview .sf-phone { height: 100%; }
 .sf.sf-preview .sf-orbs { position: absolute; }
+.sf-pcard-foot { flex-wrap: wrap; }
+.sf-pcard-foot .sf-btn-cyan { white-space: nowrap; }

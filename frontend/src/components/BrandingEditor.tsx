@@ -592,7 +592,7 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
             {showPreview ? t("Hide preview") : t("Show preview")}
           </button>
         </div>
-        {showPreview && <PreviewFrame key={device} width={device === "phone" ? 390 : 1280} height={device === "phone" ? 780 : 820}>
+        {showPreview && <PreviewFrame key={device} width={device === "phone" ? 390 : 1280} height={device === "phone" ? 780 : 1500}>
           <StorefrontPage slug={slug} company={previewCompany} packages={pkgs.length ? pkgs : SAMPLE} lang={previewLang}
             setLang={setPreviewLang} layout={device} preview />
         </PreviewFrame>}
@@ -632,10 +632,12 @@ function PreviewFrame({ width, height, children }: { width: number; height: numb
   };
   const style = useMemo(() => ({ width, height, transform: `scale(${scale})` }) as CSSProperties, [width, height, scale]);
   return (
-    <div ref={box} className="pe-frame" style={{ height: height * scale }} onClickCapture={stopLinks}>
+    <div ref={box} className="pe-frame-box">
+    <div className="pe-frame" style={{ height: height * scale, maxWidth: width * scale }} onClickCapture={stopLinks}>
       <div className="pe-frame-page" style={style}>
         <div className="pe-frame-scroll">{children}</div>
       </div>
+    </div>
     </div>
   );
 }
