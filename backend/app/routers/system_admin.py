@@ -209,10 +209,94 @@ def update_company_branding(company_id: int, body: BrandingUpdate, _: User = Dep
     from .media import media_belongs_to
 
     company = _get_company(db, company_id)
-    for url in (body.logo, body.hero_image):
+    for url in body.image_urls():
         if not media_belongs_to(db, url, company.id):
             raise HTTPException(400, "Use an image uploaded for this company")
     branding = apply_update(company, body, allow_dashboard=True)
     db.commit()
     return branding
 
+
+
+# --- AI training and WhatsApp of any company (same service functions as the company's own pages) ---
+
+from ..ai import training as training_service  # noqa: E402
+from ..schemas import (  # noqa: E402
+    AIKnowledgeOut,
+    AIKnowledgeUpdate,
+    TrainingImportIn,
+    TrainingImportOut,
+    TrainingIn,
+    TrainingOut,
+    TryAIIn,
+    TryAIOut,
+    WhatsAppStatusOut,
+    WhatsAppTestMessageIn,
+    WhatsAppTestMessageOut,
+    WhatsAppTestOut,
+)
+from ..services import whatsapp as whatsapp_service  # noqa: E402
+
+
+@router.get("/companies/{company_id}/training", response_model=list[TrainingOut])
+def company_training(company_id: int, _: User = Depends(require_system_admin), db: Session = Depends(get_db)):
+    return training_service.list_examples(db, _get_company(db, company_id).id)
+
+
+@router.post("/companies/{company_id}/training", response_model=TrainingOut, status_code=201)
+def add_company_training(company_id: int, body: TrainingIn, _: User = Depends(require_system_admin),
+                         db: Session = Depends(get_db)):
+    return training_service.add_example(db, _get_company(db, company_id).id, body.question, body.answer)
+
+
+@router.post("/companies/{company_id}/training/import", response_model=TrainingImportOut)
+def import_company_training(company_id: int, body: TrainingImportIn, _: User = Depends(require_system_admin),
+                            db: Session = Depends(get_db)):
+    return training_service.import_examples(db, _get_company(db, company_id).id, body.text, body.preview)
+
+
+@router.post("/companies/{company_id}/training/try", response_model=TryAIOut)
+def try_company_ai(company_id: int, body: TryAIIn, me: User = Depends(require_system_admin),
+                   db: Session = Depends(get_db)):
+    company = _get_company(db, company_id)
+    return training_service.try_ai(db, company, me.id, body.message, [t.model_dump() for t in body.history])
+
+
+@router.get("/companies/{company_id}/training/knowledge", response_model=AIKnowledgeOut)
+def company_knowledge(company_id: int, _: User = Depends(require_system_admin), db: Session = Depends(get_db)):
+    return training_service.knowledge_out(db, _get_company(db, company_id))
+
+
+@router.patch("/companies/{company_id}/training/knowledge", response_model=AIKnowledgeOut)
+def update_company_knowledge(company_id: int, body: AIKnowledgeUpdate, _: User = Depends(require_system_admin),
+                             db: Session = Depends(get_db)):
+    return training_service.update_knowledge(db, _get_company(db, company_id), body.model_dump(exclude_unset=True))
+
+
+@router.put("/companies/{company_id}/training/{example_id}", response_model=TrainingOut)
+def update_company_training(company_id: int, example_id: int, body: TrainingIn,
+                            _: User = Depends(require_system_admin), db: Session = Depends(get_db)):
+    company = _get_company(db, company_id)
+    return training_service.update_example(db, company.id, example_id, body.question, body.answer)
+
+
+@router.delete("/companies/{company_id}/training/{example_id}", status_code=204)
+def delete_company_training(company_id: int, example_id: int, _: User = Depends(require_system_admin),
+                            db: Session = Depends(get_db)):
+    training_service.delete_example(db, _get_company(db, company_id).id, example_id)
+
+
+@router.get("/companies/{company_id}/whatsapp", response_model=WhatsAppStatusOut)
+def company_whatsapp(company_id: int, _: User = Depends(require_system_admin), db: Session = Depends(get_db)):
+    return whatsapp_service.connection_status(_get_company(db, company_id))
+
+
+@router.post("/companies/{company_id}/whatsapp/test", response_model=WhatsAppTestOut)
+def test_company_whatsapp(company_id: int, me: User = Depends(require_system_admin), db: Session = Depends(get_db)):
+    return whatsapp_service.run_connection_test(_get_company(db, company_id), me.id)
+
+
+@router.post("/companies/{company_id}/whatsapp/test-message", response_model=WhatsAppTestMessageOut)
+def company_whatsapp_test_message(company_id: int, body: WhatsAppTestMessageIn,
+                                  me: User = Depends(require_system_admin), db: Session = Depends(get_db)):
+    return whatsapp_service.send_test_whatsapp(_get_company(db, company_id), me.id, body.phone)

@@ -18,6 +18,7 @@ from ..deps import get_company_user, require_system_admin
 from ..models import Company, CompanyStatus, MediaFile, TravelPackage, User, utcnow
 from ..permissions import effective_permissions
 from ..security import random_token
+from ..branding import branding_image_urls
 
 router = APIRouter(tags=["media"])
 
@@ -83,7 +84,7 @@ def remove_unused_media(db: Session, company_id: int, min_age: timedelta = timed
     company = db.get(Company, company_id)
     used = {p.image_url for p in db.scalars(select(TravelPackage).where(TravelPackage.company_id == company_id))}
     branding = (company.branding or {}) if company else {}
-    used |= {branding.get("logo"), branding.get("hero_image")}
+    used |= branding_image_urls(branding)
     keys = {u.removeprefix("/api/media/") for u in used if u and u.startswith("/api/media/")}
     stale = db.scalars(
         select(MediaFile).where(MediaFile.company_id == company_id, MediaFile.created_at < utcnow() - min_age)

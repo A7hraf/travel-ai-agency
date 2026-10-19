@@ -17,6 +17,7 @@ const Training = lazy(() => import("./pages/Training"));
 const Users = lazy(() => import("./pages/Users"));
 const Companies = lazy(() => import("./pages/system/Companies"));
 const CompanyDetail = lazy(() => import("./pages/system/CompanyDetail"));
+const PlatformSettings = lazy(() => import("./pages/system/PlatformSettings"));
 
 /** After a new release the old script files are gone: a tab opened before it reloads once to get the
  *  new version instead of showing a broken page. */
@@ -75,6 +76,7 @@ export default function App() {
         <Route index element={<Companies />} />
         <Route path="companies/:id" element={<CompanyDetail />} />
         <Route path="account" element={<Account />} />
+        <Route path="settings" element={<PlatformSettings />} />
       </Route>
 
       <Route path="/app" element={<RequireUser system={false}><Layout /></RequireUser>}>

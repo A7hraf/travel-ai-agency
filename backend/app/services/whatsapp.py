@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import logging
+import re
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -16,6 +17,7 @@ import httpx
 
 from ..config import get_settings
 from ..models import Company
+from ..platform_settings import effective_api_version, effective_shared_access_token
 
 log = logging.getLogger(__name__)
 
@@ -123,26 +125,108 @@ def verify_phone_number(phone_number_id: str, token: str) -> bool:
     Proves that a company really owns the number it types in, so it can't take over
     another company's number (and its customers' messages).
     """
+    return check_phone_number(phone_number_id, token, fields="id")["result"] == "connected"
+
+
+# Results of check_phone_number, shown on the "Test connection" button.
+CHECK_MESSAGES = {
+    "connected": "Connected: Meta confirmed this phone number ID for this access token.",
+    "token_invalid": "The access token is not valid or has expired. Create a permanent token in Meta "
+                     "Business settings → System users and save it again.",
+    "number_not_found": "Meta could not find this phone number ID. Copy it again from your Meta app → "
+                        "WhatsApp → API Setup.",
+    "no_access": "This access token has no access to this phone number. Give the system user access to the "
+                 "WhatsApp Business account of this number.",
+    "network": "Could not reach Meta (WhatsApp). Check the internet connection of the server and try again.",
+    "not_configured": "Add the phone number ID and the access token first.",
+}
+
+
+def check_phone_number(phone_number_id: str, token: str,
+                       fields: str = "id,display_phone_number,verified_name") -> dict:
+    """Asks Meta whether this token may use this phone number. Returns {"result", "message",
+    "display_number", "verified_name"}; result is one of CHECK_MESSAGES' keys."""
+    if not phone_number_id or not token:
+        return {"result": "not_configured", "message": CHECK_MESSAGES["not_configured"]}
     s = get_settings()
     try:
         resp = httpx.get(
-            f"{s.whatsapp_graph_url}/{s.whatsapp_api_version}/{phone_number_id}",
-            params={"fields": "id"},
+            f"{s.whatsapp_graph_url}/{effective_api_version()}/{phone_number_id}",
+            params={"fields": fields},
             headers={"Authorization": f"Bearer {token}"},
             timeout=15,
         )
-        return resp.status_code == 200 and str(resp.json().get("id")) == phone_number_id
-    except (httpx.HTTPError, ValueError, AttributeError) as exc:
-        log.info("Could not verify WhatsApp number %s: %s", phone_number_id, exc)
-        return False
+    except httpx.HTTPError as exc:
+        log.info("Could not reach Meta to check WhatsApp number %s: %s", phone_number_id, exc)
+        return {"result": "network", "message": CHECK_MESSAGES["network"]}
+    try:
+        data = resp.json()
+    except ValueError:
+        data = {}
+    data = data if isinstance(data, dict) else {}
+    if resp.status_code == 200 and str(data.get("id")) == str(phone_number_id):
+        return {"result": "connected", "message": CHECK_MESSAGES["connected"],
+                "display_number": data.get("display_phone_number"), "verified_name": data.get("verified_name")}
+    error = data.get("error") if isinstance(data.get("error"), dict) else {}
+    code = error.get("code")
+    if resp.status_code == 401 or code in (190, 102):
+        result = "token_invalid"
+    elif code in (10, 200) or resp.status_code == 403:
+        result = "no_access"
+    elif resp.status_code >= 500:
+        result = "network"
+    else:
+        result = "number_not_found"
+    log.info("WhatsApp number check %s: HTTP %s %s", phone_number_id, resp.status_code, error.get("message"))
+    return {"result": result, "message": CHECK_MESSAGES[result]}
+
+
+def normalize_phone(text: str) -> str | None:
+    """An international phone number as WhatsApp wants it (digits only, country code first),
+    or None when it is not one: "+968 9123 4567" -> "96891234567"."""
+    cleaned = re.sub(r"[\s\-().]", "", (text or "").translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")))
+    if cleaned.startswith("00"):
+        cleaned = cleaned[2:]
+    cleaned = cleaned.removeprefix("+")
+    if not re.fullmatch(r"[1-9]\d{7,14}", cleaned):
+        return None
+    return cleaned
+
+
+def connection_status(company: Company) -> dict:
+    """How the company's WhatsApp is connected, for the settings page and the platform console.
+
+    status: connected | not_connected | needs_app_secret | needs_token
+    mode: own (the company's own Meta app) | platform (a number on the platform's Meta app) | none
+    """
+    own = bool(company.whatsapp_access_token)
+    platform_token = bool(effective_shared_access_token())
+    if not company.whatsapp_phone_number_id:
+        status, mode = "not_connected", "own" if own else "none"
+    elif own:
+        mode = "own"
+        status = "connected" if company.whatsapp_app_secret else "needs_app_secret"
+    else:
+        mode = "platform"
+        status = "connected" if platform_token else "needs_token"
+    return {
+        "status": status,
+        "mode": mode,
+        "phone_number_id": company.whatsapp_phone_number_id,
+        "display_number": company.whatsapp_display_number,
+        "token_set": own,
+        "app_secret_set": bool(company.whatsapp_app_secret),
+        "platform_available": platform_token,
+        "webhook_path": f"/api/webhooks/whatsapp/c/{company.whatsapp_webhook_key}" if company.whatsapp_webhook_key else None,
+        "verify_token": company.whatsapp_verify_token,
+    }
 
 
 def access_token_for(company: Company) -> str | None:
     """The company's own token, or the platform's shared one when the platform shares its app."""
-    s = get_settings()
     if company.whatsapp_access_token:
         return company.whatsapp_access_token
-    return s.whatsapp_default_access_token if s.whatsapp_share_default_token else None
+    return effective_shared_access_token()
 
 
 class WhatsAppSender(Protocol):
@@ -157,7 +241,7 @@ class CloudAPISender:
         token = access_token_for(company)
         if not company.whatsapp_phone_number_id or not token:
             raise WhatsAppError("WhatsApp is not configured for this company")
-        url = f"{s.whatsapp_graph_url}/{s.whatsapp_api_version}/{company.whatsapp_phone_number_id}/messages"
+        url = f"{s.whatsapp_graph_url}/{effective_api_version()}/{company.whatsapp_phone_number_id}/messages"
         return url, {"Authorization": f"Bearer {token}"}
 
     def send_text(self, company: Company, to: str, text: str) -> str | None:
@@ -204,3 +288,45 @@ def set_whatsapp_sender(sender: WhatsAppSender | None) -> None:
 
 def get_whatsapp_sender() -> WhatsAppSender:
     return _sender_override or CloudAPISender()
+
+
+# --- "Test connection" and "Send a test message" (settings page and platform console) -----
+
+TEST_LIMIT_PER_MINUTE = 10
+TEST_MESSAGE_LIMIT_PER_HOUR = 5
+TEST_MESSAGE_TEXT = (
+    "✅ Test message from {company}: your WhatsApp is connected to your AI travel consultant.\n"
+    "✅ رسالة تجريبية من {company}: تم ربط واتساب بمستشار السفر الذكي."
+)
+
+
+def run_connection_test(company: Company, user_id: int) -> dict:
+    from ..ratelimit import limiter
+
+    limiter.check(f"wa-test:{user_id}", TEST_LIMIT_PER_MINUTE, "Please wait a minute before testing again")
+    token = access_token_for(company)
+    result = check_phone_number(company.whatsapp_phone_number_id or "", token or "")
+    return {**result, "status": connection_status(company)}
+
+
+def send_test_whatsapp(company: Company, user_id: int, phone: str) -> dict:
+    from fastapi import HTTPException
+
+    from ..ratelimit import limiter
+
+    to = normalize_phone(phone)
+    if to is None:
+        raise HTTPException(400, "Enter the phone number with its country code, for example +968 9123 4567")
+    if not company.whatsapp_phone_number_id or not access_token_for(company):
+        raise HTTPException(400, "Connect WhatsApp first: add the phone number ID and the access token.")
+    limiter.check(f"wa-test-msg:{user_id}", 2, "Please wait a minute before sending another test message")
+    limiter.check(f"wa-test-msg-co:{company.id}", TEST_MESSAGE_LIMIT_PER_HOUR,
+                  "Too many test messages. Please try again in an hour.", window=3600)
+    try:
+        get_whatsapp_sender().send_text(company, to, TEST_MESSAGE_TEXT.format(company=company.name))
+    except WhatsAppError as exc:
+        log.info("Test WhatsApp message of company %s failed: %s", company.id, exc)
+        raise HTTPException(502, "WhatsApp did not send the test message. First send any message from this "
+                                 "phone to your WhatsApp business number (Meta only allows replies within "
+                                 "24 hours), then try again.") from exc
+    return {"sent": True, "to": f"+{to}", "message": "Test message sent. Check WhatsApp on this phone."}

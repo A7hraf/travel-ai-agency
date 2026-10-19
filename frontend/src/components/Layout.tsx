@@ -8,7 +8,7 @@ import type { ConversationSummary, Ticket as TicketT } from "../types";
 import { customerLabel, ROLE_LABELS, usePolling } from "../util";
 import { GhanjahMark, usePlatformName } from "./Brand";
 import {
-  ArrowSquareOut, Buildings, ChartLineUp, ChatsCircle, GraduationCap, IconProps, List, PaintBrush, SignOut,
+  ArrowSquareOut, Buildings, ChartLineUp, ChatsCircle, GearSix, GraduationCap, IconProps, List, PaintBrush, SignOut,
   SquaresFour, SuitcaseRolling, Ticket, Translate, UserCircle, UsersThree, WhatsappLogo,
 } from "./Icon";
 import { moneyText } from "./Money";
@@ -37,6 +37,7 @@ const COMPANY_NAV: NavItem[] = [
 
 const SYSTEM_NAV: NavItem[] = [
   { to: "/system", label: "Companies", icon: Buildings },
+  { to: "/system/settings", label: "Platform settings", icon: GearSix },
   { to: "/system/account", label: "My account", icon: UserCircle },
 ];
 

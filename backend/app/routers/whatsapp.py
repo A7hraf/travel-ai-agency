@@ -20,6 +20,7 @@ from ..database import get_db
 from ..models import Company
 from ..services.conversations import process_whatsapp_payload
 from ..services.whatsapp import verify_signature
+from ..platform_settings import effective_verify_token, effective_whatsapp_app_secret
 
 router = APIRouter(prefix="/api/webhooks/whatsapp", tags=["whatsapp"])
 
@@ -60,12 +61,12 @@ def verify(
     challenge: str = Query(alias="hub.challenge", default=""),
 ):
     """Meta calls this once when the platform's webhook is registered."""
-    return _challenge(mode, token, challenge, get_settings().whatsapp_verify_token)
+    return _challenge(mode, token, challenge, effective_verify_token())
 
 
 @router.post("")
 async def receive(request: Request, background: BackgroundTasks):
-    payload = await _read_signed_payload(request, get_settings().whatsapp_app_secret)
+    payload = await _read_signed_payload(request, effective_whatsapp_app_secret())
     # Answer Meta right away; the AI reply is generated in the background.
     background.add_task(process_whatsapp_payload, payload)
     return {"status": "received"}

@@ -3,7 +3,7 @@
 import time
 from urllib.parse import urlparse
 
-from ..config import get_settings
+from ..platform_settings import LLMConfig, llm_config
 from .llm import LLMError, get_llm_client
 from .tools import TOOL_DEFINITIONS
 
@@ -13,22 +13,23 @@ TEST_MESSAGES = [
 ]
 
 
-def check_ai() -> dict:
-    s = get_settings()
-    client = get_llm_client()
+def check_ai(config: LLMConfig | None = None) -> dict:
+    """Tests the AI settings in effect, or ``config`` (values typed on the Platform settings page)."""
+    cfg = config or llm_config()
+    client = get_llm_client(cfg)
     result: dict = {
-        "provider": s.llm_provider,
-        "model": s.llm_model,
-        "fallback_models": [m.strip() for m in s.llm_fallback_models.split(",") if m.strip()],
-        "server": urlparse(s.llm_base_url).netloc or s.llm_base_url,
-        "api_key_set": bool(s.llm_api_key.strip()),
+        "provider": cfg.provider,
+        "model": cfg.model,
+        "fallback_models": list(cfg.fallback_models),
+        "server": urlparse(cfg.base_url).netloc or cfg.base_url,
+        "api_key_set": bool((cfg.api_key or "").strip()),
     }
     started = time.monotonic()
     try:
         resp = client.chat(TEST_MESSAGES, TOOL_DEFINITIONS)
         result["ok"] = True
         result["uses_tools"] = bool(resp.tool_calls)
-        result["answered_by"] = getattr(client, "last_model", None) or s.llm_model
+        result["answered_by"] = getattr(client, "last_model", None) or cfg.model
         result["message"] = (
             "The AI is working and can search your packages."
             if resp.tool_calls
@@ -39,7 +40,7 @@ def check_ai() -> dict:
         result["uses_tools"] = False
         result["message"] = str(exc)
     result["seconds"] = round(time.monotonic() - started, 2)
-    if s.llm_provider == "mock":
+    if cfg.provider == "mock":
         result.update(ok=False, uses_tools=False,
                       message="Demo mode (LLM_PROVIDER=mock): no real AI is connected.")
     return result

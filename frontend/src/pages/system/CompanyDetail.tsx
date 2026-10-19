@@ -2,6 +2,8 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { del, get, patch } from "../../api";
 import { ConfirmSheet, hueOf, initials } from "../../components/admin/AdminUI";
+import TrainingWorkspace, { type TrainingTab } from "../../components/ai/TrainingWorkspace";
+import WhatsAppConnect from "../../components/ai/WhatsAppConnect";
 import BrandingEditor from "../../components/BrandingEditor";
 import { ArrowLeft, ArrowSquareOut, Pause, Play, Trash, WarningOctagon } from "../../components/Icon";
 import { ErrorBox, Field } from "../../components/ui";
@@ -14,11 +16,11 @@ export default function CompanyDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { t } = useI18n();
-  const [tab, setTab] = useState<"plan" | "design">("plan");
+  const [tab, setTab] = useState<"plan" | "design" | "ai" | "whatsapp">("plan");
+  const [aiTab, setAiTab] = useState<TrainingTab>("answers");
   const [c, setC] = useState<CompanyAdmin | null>(null);
   const [name, setName] = useState("");
   const [maxUsers, setMaxUsers] = useState("");
-  const [waNumber, setWaNumber] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -27,7 +29,7 @@ export default function CompanyDetail() {
   const [sheet, setSheet] = useState<"suspend" | "delete" | null>(null);
   const [typed, setTyped] = useState("");
 
-  const apply = (x: CompanyAdmin) => { setC(x); setName(x.name); setMaxUsers(String(x.max_users)); setWaNumber(x.whatsapp_phone_number_id ?? ""); };
+  const apply = (x: CompanyAdmin) => { setC(x); setName(x.name); setMaxUsers(String(x.max_users)); };
   useEffect(() => { get<CompanyAdmin>(`/api/system/companies/${id}`).then(apply).catch((e) => setError(e.message)); }, [id]);
   if (!c) return error ? <div className="error-box">{error}</div> : <div className="skeleton" style={{ height: 300, borderRadius: 24 }} />;
 
@@ -92,26 +94,28 @@ export default function CompanyDetail() {
       <ErrorBox error={topError} />
       {!active && <div className="warn-box">{t("Suspended: employees can't log in, the AI and the customer page are off.")}</div>}
 
-      <div className="cd-tabs" role="tablist" aria-label={c.name}>
+      <div className="cd-tabs ai-tabs" role="tablist" aria-label={c.name}>
         <button role="tab" aria-selected={tab === "plan"} className={tab === "plan" ? "active" : ""} onClick={() => setTab("plan")}>{t("Plan & accounts")}</button>
         <button role="tab" aria-selected={tab === "design"} className={tab === "design" ? "active" : ""} onClick={() => setTab("design")}>{t("Design & colours")}</button>
+        <button role="tab" aria-selected={tab === "ai"} className={tab === "ai" ? "active" : ""} onClick={() => setTab("ai")}>{t("AI training")}</button>
+        <button role="tab" aria-selected={tab === "whatsapp"} className={tab === "whatsapp" ? "active" : ""} onClick={() => setTab("whatsapp")}>{t("WhatsApp")}</button>
       </div>
 
-      {tab === "design" ? (
+      {tab === "ai" ? (
+        <TrainingWorkspace base={`/api/system/companies/${c.id}/training`} tab={aiTab} onTab={setAiTab} />
+      ) : tab === "whatsapp" ? (
+        <WhatsAppConnect variant="owner" base={`/api/system/companies/${c.id}/whatsapp`} companyPath={`/api/system/companies/${c.id}`} />
+      ) : tab === "design" ? (
         <BrandingEditor owner loadPath={`/api/system/companies/${c.id}/branding`} name={c.name}
           uploadPath={`/api/system/companies/${c.id}/media`} slug={c.slug} />
       ) : (<>
-        <form className="ad-card" onSubmit={(e: FormEvent) => { e.preventDefault(); update("plan", { name, max_users: Number(maxUsers), whatsapp_phone_number_id: waNumber.trim() }); }}>
+        <form className="ad-card" onSubmit={(e: FormEvent) => { e.preventDefault(); update("plan", { name, max_users: Number(maxUsers) }); }}>
           <h2 className="ad-card-title">{t("Plan & limits")}</h2>
           <p className="ad-card-note">{t("{a} of {b} accounts used", { a: c.user_count, b: c.max_users })}</p>
           <div className="ad-grid-2">
             <Field label={t("Company name")}><input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={200} dir="auto" /></Field>
             <Field label={t("Account limit")} hint={t("Currently {n} accounts. Disabled accounts don't count; the limit can't be lower than the active accounts.", { n: c.user_count })}>
               <input type="number" min={1} max={10000} step={1} value={maxUsers} onChange={(e) => setMaxUsers(e.target.value)} required />
-            </Field>
-            <Field label={t("WhatsApp phone number ID (platform app)")}
-              hint={t("Only for a number added to the platform's own Meta app. Companies with their own Meta app connect their number in their AI & WhatsApp settings. Leave empty to disconnect.")}>
-              <input value={waNumber} onChange={(e) => setWaNumber(e.target.value.replace(/\D/g, ""))} inputMode="numeric" maxLength={64} dir="ltr" />
             </Field>
           </div>
           <ErrorBox error={error} />

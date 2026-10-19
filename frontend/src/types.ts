@@ -14,11 +14,51 @@ export interface CompanyBrief {
   branding?: DashboardBranding | null;
 }
 
-export type Section = "search" | "featured" | "offers" | "about" | "contact";
+export type Section = "search" | "featured" | "offers" | "how" | "about" | "contact";
+
+/** Smaller parts of the customer page that can be hidden ("powered_by": platform owner only). */
+export interface PageElements {
+  kicker: boolean;
+  trust: boolean;
+  lang_switch: boolean;
+  nav_links: boolean;
+  nav_phone: boolean;
+  whatsapp_icon: boolean;
+  budget_filter: boolean;
+  chips: boolean;
+  hero_chat: boolean;
+  chat_launcher: boolean;
+  offers_count: boolean;
+  prices_note: boolean;
+  footer_note: boolean;
+  powered_by: boolean;
+}
+
+export type CardStyle = "poster" | "photo" | "compact";
+
+export interface CardDesign {
+  style: CardStyle;
+  columns: 2 | 3 | 4;
+  show_price: boolean;
+  show_duration: boolean;
+  show_hotel: boolean;
+  show_next_date: boolean;
+  show_seats: boolean;
+  show_tags: boolean;
+  per_person: boolean;
+  show_button: boolean;
+}
+
+/** Customer-page texts replacing the standard ones: {en: {key: text}, ar: {key: text}}. */
+export type PageTexts = Record<"en" | "ar", Record<string, string>>;
 
 export interface PublicBranding {
   primary_color: string;
   accent_color: string;
+  bg_color: string | null;
+  surface_color: string | null;
+  text_color: string | null;
+  highlight_color: string | null;
   logo: string | null;
   hero_style: "gradient" | "image" | "solid";
   hero_image: string | null;
@@ -30,12 +70,19 @@ export interface PublicBranding {
   about_title_ar: string;
   about_en: string;
   about_ar: string;
+  about_image: string | null;
+  about_bg_image: string | null;
+  how_bg_image: string | null;
   sections: Section[];
+  elements: PageElements;
   card_style: "rounded" | "square";
   layout: "grid" | "list";
+  cards: CardDesign;
+  texts: PageTexts;
 }
 
 export interface Branding extends PublicBranding {
+  version?: number;
   dashboard_color: string;
   dashboard_sidebar: string;
 }
@@ -298,4 +345,96 @@ export interface PublicMessage {
   content: string;
   created_at: string;
   cards?: ChatCard[];
+}
+
+/** One platform setting (Platform settings page). Secrets never carry a value, only whether they are set. */
+export interface PlatformSettingValue {
+  key: string;
+  secret: boolean;
+  /** Saved on the settings page; null = not saved there (the Render environment variable is used). */
+  value: string | boolean | null;
+  saved: boolean;
+  env_value: string | boolean | null;
+  env_set: boolean;
+  effective: string | boolean | null;
+  effective_set: boolean;
+  source: "database" | "environment";
+  updated_at: string | null;
+  updated_by: string | null;
+}
+
+export interface PlatformSettings {
+  ai: Record<string, PlatformSettingValue>;
+  whatsapp: Record<string, PlatformSettingValue>;
+  webhook_path: string;
+  info: {
+    version: string;
+    commit: string | null;
+    database: string;
+    environment: string;
+    demo_data: boolean;
+    companies: number;
+  };
+}
+
+// --- AI training (import, test chat, knowledge) and WhatsApp connection -------------------
+
+export interface TrainingImportResult {
+  added: number;
+  preview: boolean;
+  rows: { line: number; question: string; answer: string }[];
+  duplicates: { line: number; question: string }[];
+  problems: { line: number; error: string }[];
+}
+
+export interface TryPackage {
+  id: number;
+  title: string | null;
+  destination: string | null;
+  country: string | null;
+  duration_days: number | null;
+  price_per_person: number | null;
+  currency: string | null;
+  image_url: string | null;
+}
+
+export interface TryAIResult {
+  ok: boolean;
+  reply: string | null;
+  error: string | null;
+  used_answers: { id: number; question: string; answer: string }[];
+  packages: TryPackage[];
+  tools: string[];
+  simulated: string[];
+}
+
+export interface AIKnowledge {
+  ai_agent_name: string;
+  ai_welcome_message: string | null;
+  ai_welcome_message_ar: string | null;
+  ai_instructions: string;
+  knowledge_base: string;
+  examples: number;
+}
+
+export type WhatsAppConnectionStatus = "connected" | "not_connected" | "needs_app_secret" | "needs_token";
+
+export interface WhatsAppStatus {
+  status: WhatsAppConnectionStatus;
+  mode: "own" | "platform" | "none";
+  phone_number_id: string | null;
+  display_number: string | null;
+  token_set: boolean;
+  app_secret_set: boolean;
+  platform_available: boolean;
+  webhook_path: string | null;
+  verify_token: string | null;
+}
+
+export interface WhatsAppTestResult {
+  result: "connected" | "token_invalid" | "number_not_found" | "no_access" | "network" | "not_configured";
+  message: string;
+  display_number: string | null;
+  verified_name: string | null;
+  status: WhatsAppStatus;
 }

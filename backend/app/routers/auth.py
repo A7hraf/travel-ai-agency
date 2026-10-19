@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -91,6 +92,47 @@ def change_password(body: ChangePasswordIn, user: User = Depends(get_current_use
     if not verify_password(body.current_password, user.password_hash):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Current password is wrong")
     user.password_hash = hash_password(body.new_password)
+    user.tokens_valid_after = revoke_sessions_now()
+    db.commit()
+    return TokenOut(access_token=create_access_token(user.id), user=me_out(user))
+
+
+class ProfileUpdate(BaseModel):
+    """Only the name and the login email can be changed here (never the role or permissions)."""
+
+    full_name: str | None = Field(default=None, min_length=1, max_length=200)
+    email: EmailStr | None = None
+    # Needed to change the email: whoever has an open session must not take over the login.
+    current_password: str | None = Field(default=None, max_length=200)
+
+
+@router.patch("/profile", response_model=MeOut)
+def update_profile(body: ProfileUpdate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if body.full_name is not None:
+        name = body.full_name.strip()
+        if not name:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Enter your name")
+        user.full_name = name
+    if body.email is not None:
+        email = str(body.email).strip().lower()
+        if email != user.email:
+            if not body.current_password or not verify_password(body.current_password, user.password_hash):
+                raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                                    "Enter your current password to change your email")
+            # Unique within the same company (or among platform owner accounts).
+            same_place = User.company_id.is_(None) if user.company_id is None else User.company_id == user.company_id
+            taken = db.scalar(select(User.id).where(User.email == email, same_place, User.id != user.id))
+            if taken:
+                raise HTTPException(status.HTTP_409_CONFLICT, "Another account already uses this email")
+            user.email = email
+    db.commit()
+    db.refresh(user)
+    return me_out(user)
+
+
+@router.post("/logout-others", response_model=TokenOut)
+def logout_other_devices(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Ends every other session of this account; returns a fresh token for this one."""
     user.tokens_valid_after = revoke_sessions_now()
     db.commit()
     return TokenOut(access_token=create_access_token(user.id), user=me_out(user))

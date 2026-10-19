@@ -1,0 +1,88 @@
+/* AI training workspace and the "Connect WhatsApp" steps. */
+
+.ai-tabs { overflow-x: auto; scrollbar-width: none; flex-wrap: nowrap; }
+.ai-tabs::-webkit-scrollbar { display: none; }
+.ai-tabs button { display: inline-flex; align-items: center; gap: 8px; }
+.ai-tabs .ai-tab-count { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: rgba(243, 242, 242, .1); }
+.ai-tabs button.active .ai-tab-count { background: rgba(32, 30, 29, .12); }
+@media (max-width: 560px) { .ai-tabs button { padding: 0 14px; font-size: 14px; } }
+
+/* How training works */
+.ai-how { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 14px 0 4px; padding: 0; list-style: none; }
+.ai-how li { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: 18px; background: var(--surface-2); text-align: start; }
+.ai-how-num { flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 14px; background: var(--brand-soft); color: var(--brand); }
+.ai-how strong { display: block; color: var(--text); font-size: 15px; margin-bottom: 3px; }
+.ai-how p { margin: 0; color: var(--text-muted); font-size: 13.5px; line-height: 1.5; }
+.ai-how button { margin-top: 8px; }
+@media (max-width: 760px) { .ai-how { grid-template-columns: 1fr; } }
+
+.ai-intro { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.ai-intro .spacer { flex: 1; }
+
+/* Import */
+.ai-import textarea { font-family: inherit; }
+.ai-import-sum { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.ai-import-list { list-style: none; margin: 8px 0; padding: 0; max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.ai-import-list li { padding: 8px 12px; border-radius: 12px; background: var(--surface-2); font-size: 13.5px; line-height: 1.45; overflow-wrap: anywhere; }
+.ai-import-list li.bad { color: #f6cd7b; background: rgba(242, 179, 61, .08); }
+.ai-import-list .ln { color: var(--text-faint); font-size: 12px; margin-inline-end: 8px; }
+
+/* Test chat */
+.ai-try { display: flex; flex-direction: column; min-height: 420px; }
+.ai-try-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ai-try-head .spacer { flex: 1; }
+.ai-try-log { display: flex; flex-direction: column; gap: 14px; padding: 16px 0; flex: 1; }
+.ai-bubble { max-width: min(88%, 620px); padding: 12px 15px; border-radius: 18px; line-height: 1.55; font-size: 15px; overflow-wrap: anywhere; }
+.ai-turn { display: flex; flex-direction: column; gap: 6px; }
+.ai-turn.user { align-items: flex-end; }
+.ai-turn.user .ai-bubble { background: var(--brand); color: var(--on-brand); border-end-end-radius: 6px; }
+.ai-turn.ai { align-items: flex-start; }
+.ai-turn.ai .ai-bubble { background: var(--surface-2); color: var(--text); border-end-start-radius: 6px; }
+.ai-turn.ai.bad .ai-bubble { background: var(--accent-soft); color: var(--text); }
+.ai-who { font-size: 11.5px; color: var(--text-faint); display: inline-flex; gap: 5px; align-items: center; }
+.ai-turn.ai .ai-who { color: var(--brand); }
+.ai-meta { display: flex; flex-direction: column; gap: 6px; max-width: min(88%, 620px); font-size: 13px; color: var(--text-muted); }
+.ai-meta-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ai-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; background: rgba(243, 242, 242, .07); color: var(--text); font-size: 12.5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ai-chip.brand { background: var(--brand-soft); color: var(--brand); }
+.ai-sim { padding: 8px 12px; border-radius: 12px; background: rgba(242, 179, 61, .1); color: #f6cd7b; font-size: 13px; }
+.ai-teach { width: min(100%, 620px); padding: 14px; border-radius: 16px; background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--brand-line); }
+.ai-try-form { display: flex; gap: 8px; align-items: flex-end; padding-top: 12px; box-shadow: inset 0 1px 0 var(--line); }
+.ai-try-form textarea { flex: 1; min-height: 48px; max-height: 160px; resize: vertical; }
+.ai-suggest { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 0; }
+.ai-try-empty { text-align: center; color: var(--text-muted); padding: 28px 8px 8px; }
+.ai-try-empty svg { font-size: 34px; color: var(--brand); }
+.ai-try-empty strong { display: block; color: var(--text); font-size: 17px; margin: 8px 0 4px; }
+
+/* Connect WhatsApp */
+.wa-connect-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.wa-connect-head .spacer { flex: 1; }
+.wa-choice { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 14px 0; }
+.wa-choice button { text-align: start; padding: 14px 16px; border-radius: 16px; border: 0; background: var(--surface-2); color: var(--text); font: inherit; cursor: pointer; box-shadow: inset 0 0 0 1px var(--line); line-height: 1.45; min-height: 48px; }
+.wa-choice button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--brand); background: var(--brand-soft); }
+.wa-choice strong { display: block; font-size: 15px; margin-bottom: 3px; }
+.wa-choice span { color: var(--text-muted); font-size: 13px; }
+@media (max-width: 640px) { .wa-choice { grid-template-columns: 1fr; } }
+.wa-step { display: flex; gap: 14px; padding: 18px 0; box-shadow: inset 0 1px 0 var(--line); }
+.wa-step:first-of-type { box-shadow: none; }
+.wa-step-num { flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; background: var(--surface-2); color: var(--text); }
+.wa-step.done .wa-step-num { background: rgba(92, 201, 138, .18); color: var(--ok); }
+.wa-step-body { flex: 1; min-width: 0; }
+.wa-step-body h3 { margin: 4px 0 8px; font-size: 16.5px; }
+.wa-step-body ol, .wa-step-body ul { margin: 6px 0; padding-inline-start: 20px; line-height: 1.6; color: var(--text-muted); font-size: 14px; }
+.wa-step-body li { margin-bottom: 4px; }
+.wa-step-body li strong { color: var(--text); }
+.wa-step-body .copy-row { margin: 4px 0 10px; }
+.wa-step-body .copy-row code { min-width: 0; }
+.wa-test-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
+.wa-test-row .field { flex: 1; min-width: 200px; margin: 0; }
+.wa-result { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 14px; margin: 10px 0; font-size: 14px; line-height: 1.5; }
+.wa-result svg { flex-shrink: 0; font-size: 20px; margin-top: 1px; }
+.wa-result.ok { background: rgba(92, 201, 138, .12); color: var(--ok); }
+.wa-result.bad { background: var(--accent-soft); color: var(--accent); }
+.wa-result span { color: var(--text); }
+@media (max-width: 560px) {
+  .wa-step { gap: 10px; }
+  .wa-step-num { width: 28px; height: 28px; font-size: 14px; }
+  .ai-try-form { flex-direction: column; align-items: stretch; }
+}

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from ..ai.prompts import welcome_message
 from ..ai.tools import is_bookable
-from ..branding import public_branding
+from ..branding import public_branding, welcome_override
 from ..config import get_settings
 from ..database import get_db
 from ..models import (
@@ -109,7 +109,7 @@ def start_chat(slug: str, body: StartChatIn, request: Request, db: Session = Dep
                         public_token=random_token())
     db.add(conv)
     db.flush()
-    welcome = Message(conversation_id=conv.id, sender=Sender.AI, content=welcome_message(company, body.lang))
+    welcome = Message(conversation_id=conv.id, sender=Sender.AI, content=welcome_override(company, body.lang) or welcome_message(company, body.lang))
     db.add(welcome)
     db.commit()
     return StartChatOut(token=conv.public_token, status=conv.status, messages=[public_message_out(welcome)])

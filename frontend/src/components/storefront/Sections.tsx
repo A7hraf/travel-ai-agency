@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { Binoculars, ChatCircleDots, Envelope, Headset, Phone, Receipt, SunHorizon, WhatsappLogo } from "../Icon";
 import { GhanjahMark } from "../Brand";
 import { telLink } from "./shared";
@@ -51,8 +52,9 @@ export function TripsEmpty({ ctx }: { ctx: StoreCtx }) {
 export function HowSteps({ ctx }: { ctx: StoreCtx }) {
   const { t, agent } = ctx;
   const icons = [ChatCircleDots, Receipt, Headset];
+  const bg = sectionBg(ctx.company.branding.how_bg_image);
   return (
-    <section id="how" className="sf-how" aria-labelledby="sf-how-title">
+    <section id="how" className={`sf-how ${bg ? "sf-has-bg" : ""}`} style={bg} aria-labelledby="sf-how-title">
       <div className="sf-kicker-cyan">{t.howKicker}</div>
       <h2 id="sf-how-title" className="sf-how-title">{t.howTitle(agent)} <em className="sf-accent">{t.howAccent}</em> {t.howEnd}</h2>
       <div className="sf-how-grid">
@@ -89,21 +91,33 @@ export function ContactButtons({ ctx }: { ctx: StoreCtx }) {
 export function AboutBlock({ ctx }: { ctx: StoreCtx }) {
   const { t, about, showContact } = ctx;
   if (!about && !showContact) return null;
+  const b = ctx.company.branding;
+  const bg = sectionBg(b.about_bg_image);
+  const photo = about ? b.about_image : null;
   return (
-    <section id="about" className="sf-about" aria-labelledby="sf-about-title">
+    <section id="about" className={`sf-about ${bg ? "sf-has-bg" : ""} ${photo ? "sf-has-photo" : ""}`} style={bg} aria-labelledby="sf-about-title">
       <div className="sf-about-side">
         <div id="sf-about-title" className="sf-kicker-cyan" dir="auto">{about ? about.title : t.contactTitle}</div>
-        <blockquote className="sf-quote-big">{about ? t.aboutQuote : t.contactText}</blockquote>
+        <blockquote className="sf-quote-big" dir="auto">{about ? t.aboutQuote : t.contactText}</blockquote>
+        {photo && <img className="sf-about-photo" src={photo} alt="" loading="lazy" />}
       </div>
       <div className="sf-about-main">
-        {about && <p className="sf-about-text" dir="auto">{about.text}</p>}
+        {about?.text && <p className="sf-about-text" dir="auto">{about.text}</p>}
         {showContact && <ContactButtons ctx={ctx} />}
       </div>
     </section>
   );
 }
 
+/** Background photo of a section, darkened so the text stays readable. */
+function sectionBg(url: string | null | undefined): CSSProperties | undefined {
+  if (!url) return undefined;
+  return { backgroundImage: `linear-gradient(180deg, color-mix(in srgb, var(--sf-bg) 72%, transparent), color-mix(in srgb, var(--sf-bg) 88%, transparent)), url(${JSON.stringify(url)})` };
+}
+
+/** "Powered by Ghanjah" (only the platform owner can hide it). */
 export function PoweredBy({ ctx }: { ctx: StoreCtx }) {
+  if (!ctx.el.powered_by) return null;
   return (
     <a className="sf-powered" href="/" aria-label={ctx.t.poweredBy}>
       <GhanjahMark dark size={22} /><span>{ctx.t.poweredBy}</span>

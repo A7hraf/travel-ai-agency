@@ -6,7 +6,7 @@ import { ChatHeader, ChatView } from "./ChatView";
 import type { StoreCtx } from "./context";
 import { PhonePackage } from "./PackageDetails";
 import { AboutBlock, AgencyMark, CategoryChips, HowSteps, PoweredBy, TripsEmpty } from "./Sections";
-import { FeaturedPoster, OfferRow } from "./TripCards";
+import { FeaturedPoster, OfferRow, PhotoCard } from "./TripCards";
 
 /** Open screens, most recent last: Escape closes only the top one. */
 const openScreens: symbol[] = [];
@@ -73,29 +73,41 @@ export function PhoneLayout({ ctx, pkg, pkgOnTop, closePackage, chatOpen, closeC
   const custom = ctx.heroTitle;
   const showFeatured = !ctx.filtering && ctx.featured.length > 0;
 
+  const { cards, el } = ctx;
+  const row = (p: TravelPackage) => cards.style === "photo"
+    ? <PhotoCard key={p.id} p={p} t={t} lang={lang} cards={cards} agent={agent} phone onOpen={() => ctx.openPackage(p)} onBook={() => ctx.book(p)} />
+    : <OfferRow key={p.id} p={p} t={t} lang={lang} cards={cards} onOpen={() => ctx.openPackage(p)} onBook={() => ctx.book(p)} />;
+
   const blocks = ctx.blocks.map((b) => {
     if (b === "featured") {
-      return showFeatured ? (
+      if (!showFeatured) return null;
+      return cards.style === "compact" ? (
+        <section key="featured" className="sf-p-offers sf-p-featured-list" aria-labelledby="sf-feat-title">
+          <div className="sf-p-offers-head"><h2 id="sf-feat-title">{t.featuredTitle}</h2></div>
+          <div className={`sf-offer-list ${company.branding.card_style === "square" ? "sf-square" : ""}`}>{ctx.featured.map(row)}</div>
+        </section>
+      ) : (
         <section key="featured" className="sf-p-featured" aria-label={t.featuredTitle}>
-          <div className="sf-carousel">
-            {ctx.featured.map((p) => <FeaturedPoster key={p.id} p={p} t={t} lang={lang} onOpen={() => ctx.openPackage(p)} />)}
+          <div className={`sf-carousel ${cards.style === "photo" ? "sf-photo-carousel" : ""}`}>
+            {ctx.featured.map((p) => cards.style === "photo" ? row(p)
+              : <FeaturedPoster key={p.id} p={p} t={t} lang={lang} cards={cards} onOpen={() => ctx.openPackage(p)} />)}
           </div>
         </section>
-      ) : null;
+      );
     }
     if (b === "offers") {
       return (
         <section key="offers" id="trips" className="sf-p-offers" aria-labelledby="sf-offers-title">
           <div className="sf-p-offers-head">
             <h2 id="sf-offers-title">{t.offers}</h2>
-            {ctx.packages.length > 0 && <span className="sf-count">{t.count(ctx.shown.length, ctx.packages.length)}</span>}
+            {el.offers_count && ctx.packages.length > 0 && <span className="sf-count">{t.count(ctx.shown.length, ctx.packages.length)}</span>}
           </div>
           {ctx.shown.length === 0 ? <TripsEmpty ctx={ctx} /> : (
-            <div className={`sf-offer-list ${company.branding.card_style === "square" ? "sf-square" : ""}`}>
-              {ctx.shown.map((p) => <OfferRow key={p.id} p={p} t={t} lang={lang} onOpen={() => ctx.openPackage(p)} onBook={() => ctx.book(p)} />)}
+            <div className={`sf-offer-list ${cards.style === "photo" ? "sf-photo-list" : ""} ${company.branding.card_style === "square" ? "sf-square" : ""}`}>
+              {ctx.shown.map(row)}
             </div>
           )}
-          {company.currency === "OMR" && ctx.shown.length > 0 && <p className="sf-note">{t.pricesNote}</p>}
+          {el.prices_note && company.currency === "OMR" && ctx.shown.length > 0 && <p className="sf-note">{t.pricesNote}</p>}
         </section>
       );
     }
@@ -111,28 +123,28 @@ export function PhoneLayout({ ctx, pkg, pkgOnTop, closePackage, chatOpen, closeC
             <header className="sf-p-header">
               <AgencyMark ctx={ctx} />
               <span className="sf-p-name">{company.name}</span>
-              <button type="button" className="sf-lang" onClick={ctx.toggleLang} lang={lang === "ar" ? "en" : "ar"}>{t.switchTo}</button>
-              {ctx.whatsapp && (
+              {el.lang_switch && <button type="button" className="sf-lang" onClick={ctx.toggleLang} lang={lang === "ar" ? "en" : "ar"}>{t.switchTo}</button>}
+              {el.whatsapp_icon && ctx.whatsapp && (
                 <a className="sf-wa-icon" href={ctx.whatsapp} target="_blank" rel="noreferrer" aria-label={t.whatsapp}><WhatsappLogo weight="fill" /></a>
               )}
             </header>
             <div className="sf-p-hero">
-              <div className="sf-kicker-online"><span className="sf-online-dot" />{t.online(agent)}</div>
+              {el.kicker && <div className="sf-kicker-online"><span className="sf-online-dot" />{t.online(agent)}</div>}
               <h1 className="sf-p-title" dir="auto">
                 {custom ?? <>{t.heroA} <em className="sf-accent">{t.heroB}</em></>}
               </h1>
               {ctx.heroText && <p className="sf-p-lead" dir="auto">{ctx.heroText}</p>}
-              <div className="sf-p-search">
+              {ctx.showSearch && <div className="sf-p-search">
                 <MagnifyingGlass className="sf-p-search-icon" aria-hidden="true" />
                 <input type="search" value={ctx.query} onChange={(e) => ctx.setQuery(e.target.value)}
                   placeholder={t.searchPlaceholder} aria-label={t.searchLabel} enterKeyHint="search" />
-                <button type="button" className={`sf-p-filter ${budgetOpen ? "sf-open" : ""} ${ctx.budget ? "sf-set" : ""}`}
+                {el.budget_filter && <button type="button" className={`sf-p-filter ${budgetOpen ? "sf-open" : ""} ${ctx.budget ? "sf-set" : ""}`}
                   aria-expanded={budgetOpen} aria-controls="sf-budget" aria-label={t.budgetLabel} title={t.budgetToggle}
                   onClick={() => setBudgetOpen((o) => !o)}>
                   <SlidersHorizontal />
-                </button>
-              </div>
-              {budgetOpen && (
+                </button>}
+              </div>}
+              {ctx.showSearch && el.budget_filter && budgetOpen && (
                 <label className="sf-p-budget anim-in" id="sf-budget">
                   {company.currency === "OMR" ? <OmrSign /> : <span className="sf-cur">{company.currency}</span>}
                   <input type="number" min={0} inputMode="decimal" value={ctx.budget} onChange={(e) => ctx.setBudget(e.target.value)}
@@ -144,16 +156,18 @@ export function PhoneLayout({ ctx, pkg, pkgOnTop, closePackage, chatOpen, closeC
           <CategoryChips ctx={ctx} className="sf-p-chips" />
           {blocks}
           <footer className="sf-p-footer">
-            <PoweredBy ctx={ctx} /><span aria-hidden="true">·</span><span>{t.footer}</span>
+            <PoweredBy ctx={ctx} />
+            {el.powered_by && el.footer_note && <span aria-hidden="true">·</span>}
+            {el.footer_note && <span>{t.footer}</span>}
           </footer>
         </div>
-        <div className="sf-dock">
+        {el.chat_launcher && <div className="sf-dock">
           <button type="button" className="sf-dock-btn" onClick={ctx.openChat}>
             <span className="sf-dock-avatar" aria-hidden="true">{agent.trim().charAt(0).toUpperCase()}</span>
             <span className="sf-dock-text"><strong>{t.chatWith(agent)}</strong><span>{t.chatButtonSub}</span></span>
             <ArrowRight className="flip sf-dock-arrow" aria-hidden="true" />
           </button>
-        </div>
+        </div>}
       </div>
 
       <PushScreen open={!!pkg} onClose={closePackage} label={lastPkg ? t.openPackage(lastPkg.title) : t.back}

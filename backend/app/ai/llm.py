@@ -18,6 +18,7 @@ from typing import Protocol
 import httpx
 
 from ..config import get_settings
+from ..platform_settings import LLMConfig, llm_config
 
 log = logging.getLogger(__name__)
 
@@ -277,18 +278,21 @@ def set_llm_client(client: LLMClient | None) -> None:
     _client_override = client
 
 
-def get_llm_client() -> LLMClient:
+def get_llm_client(config: LLMConfig | None = None) -> LLMClient:
+    """The AI client for the settings in effect: saved on the Platform settings page, otherwise the
+    environment variables. ``config`` tests other values (the owner's unsaved form)."""
     if _client_override is not None:
         return _client_override
     s = get_settings()
-    if s.llm_provider == "mock":
+    cfg = config or llm_config()
+    if cfg.provider == "mock":
         return MockTravelLLM()
     return OpenAICompatibleClient(
-        base_url=s.llm_base_url,
-        api_key=s.llm_api_key,
-        model=s.llm_model,
+        base_url=cfg.base_url,
+        api_key=cfg.api_key,
+        model=cfg.model,
         temperature=s.llm_temperature,
         timeout=s.llm_timeout_seconds,
-        fallback_models=[m.strip() for m in s.llm_fallback_models.split(",") if m.strip()],
-        reasoning_effort=s.llm_reasoning_effort,
+        fallback_models=cfg.fallback_models,
+        reasoning_effort=cfg.reasoning_effort,
     )

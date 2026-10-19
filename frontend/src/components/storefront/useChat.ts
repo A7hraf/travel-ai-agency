@@ -36,13 +36,15 @@ function writeSaved(key: string, token: string) {
  * A previous conversation on this device is resumed from localStorage, but only if the visitor
  * wrote within the last day, so the next person on a shared device doesn't see it.
  */
-export function useChat({ slug, company, lang, t, active }: {
+export function useChat({ slug, company, lang, t, active, offline = false }: {
   slug: string;
   company: PublicCompany;
   lang: Lang;
   t: StorefrontText;
   /** Poll for staff replies only while a chat view is on screen. */
   active: boolean;
+  /** Editor preview: show the welcome only, never create or resume a conversation. */
+  offline?: boolean;
 }) {
   const storageKey = `travel_chat_${slug}`;
   const base = `/api/public/companies/${slug}/chats`;
@@ -85,7 +87,7 @@ export function useChat({ slug, company, lang, t, active }: {
 
   // Resume the previous chat on this device (if any).
   useEffect(() => {
-    const saved = readSaved(storageKey);
+    const saved = offline ? null : readSaved(storageKey);
     if (!saved) { setReady(true); return; }
     let cancelled = false;
     get<ChatReply>(`${base}/${saved}/messages?after_id=0`)
@@ -99,13 +101,13 @@ export function useChat({ slug, company, lang, t, active }: {
       .catch(() => { try { localStorage.removeItem(storageKey); } catch { /* ignore */ } })
       .finally(() => { if (!cancelled) setReady(true); });
     return () => { cancelled = true; };
-  }, [base, storageKey]);
+  }, [base, storageKey, offline]);
 
   /** Make sure a conversation exists (called when a chat view opens or gets focus). */
   const ensure = useCallback(() => {
-    if (tokenRef.current || !ready) return;
+    if (tokenRef.current || !ready || offline) return;
     startNew().catch(() => setError(t.notSent));
-  }, [ready, startNew, t]);
+  }, [ready, startNew, t, offline]);
 
   // Pick up replies written by employees, every 5 s while the page is visible.
   useEffect(() => {
@@ -122,7 +124,7 @@ export function useChat({ slug, company, lang, t, active }: {
 
   const send = useCallback(async (raw: string) => {
     const content = raw.trim();
-    if (!content) return;
+    if (!content || offline) return;
     if (busy.current) { queued.current.push(content); return; }
     busy.current = true;
     setError(null);
@@ -150,7 +152,7 @@ export function useChat({ slug, company, lang, t, active }: {
     }
     busy.current = false;
     setWaiting(false);
-  }, [base, storageKey, merge, startNew, t]);
+  }, [base, storageKey, merge, startNew, t, offline]);
 
   const retry = useCallback(() => {
     if (!failed) return;
@@ -160,6 +162,7 @@ export function useChat({ slug, company, lang, t, active }: {
   }, [failed, send]);
 
   const restart = useCallback(() => {
+    if (offline) return;
     try { localStorage.removeItem(storageKey); } catch { /* ignore */ }
     tokenRef.current = null;
     setToken(null);
@@ -168,12 +171,14 @@ export function useChat({ slug, company, lang, t, active }: {
     setError(null);
     setFailed(null);
     startNew().catch(() => setError(t.notSent));
-  }, [storageKey, startNew, t]);
+  }, [storageKey, startNew, t, offline]);
 
   // Before the conversation exists, the welcome message is shown locally.
   const shown = useMemo<PublicMessage[]>(() => {
     if (messages.length || token) return messages;
-    const welcome = lang === "en" && company.welcome_message ? company.welcome_message : t.welcome(company.ai_agent_name, company.name);
+    // The agency's own welcome text from the page editor wins over the AI settings' welcome.
+    const own = company.branding.texts?.[lang]?.welcome?.trim();
+    const welcome = !own && lang === "en" && company.welcome_message ? company.welcome_message : t.welcome(company.ai_agent_name, company.name);
     return [{ id: 0, sender: "ai", content: welcome, created_at: "" }];
   }, [messages, token, lang, company, t]);
 

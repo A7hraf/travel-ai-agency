@@ -587,3 +587,116 @@ class AnalyticsOut(BaseModel):
     # Paid and confirmed bookings.
     paid_value: float
 
+
+
+# --- AI training: import, test chat, company knowledge; WhatsApp connection -------------
+
+
+class TrainingImportIn(BaseModel):
+    text: str = Field(min_length=1, max_length=200_000)
+    preview: bool = False
+
+
+class TrainingImportRow(BaseModel):
+    line: int
+    question: str
+    answer: str = ""
+
+
+class TrainingImportProblem(BaseModel):
+    line: int
+    error: str
+
+
+class TrainingImportOut(BaseModel):
+    added: int
+    preview: bool
+    rows: list[TrainingImportRow]
+    duplicates: list[TrainingImportRow]
+    problems: list[TrainingImportProblem]
+
+
+class TryTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(max_length=4000)
+
+
+class TryAIIn(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+    history: list[TryTurn] = Field(default_factory=list, max_length=30)
+
+
+class TryUsedAnswer(BaseModel):
+    id: int
+    question: str
+    answer: str
+
+
+class TryPackage(BaseModel):
+    id: int
+    title: str | None = None
+    destination: str | None = None
+    country: str | None = None
+    duration_days: int | None = None
+    price_per_person: float | None = None
+    currency: str | None = None
+    image_url: str | None = None
+
+
+class TryAIOut(BaseModel):
+    ok: bool
+    reply: str | None
+    error: str | None = None
+    used_answers: list[TryUsedAnswer]
+    packages: list[TryPackage]
+    tools: list[str]
+    # What a real chat would have done here ("booking", "handover"); nothing was saved.
+    simulated: list[str]
+    cards: list[dict]
+
+
+class AIKnowledgeOut(BaseModel):
+    ai_agent_name: str
+    ai_welcome_message: str | None
+    ai_welcome_message_ar: str | None
+    ai_instructions: str
+    knowledge_base: str
+    examples: int
+
+
+class AIKnowledgeUpdate(BaseModel):
+    ai_agent_name: str | None = Field(default=None, min_length=1, max_length=80)
+    ai_welcome_message: str | None = Field(default=None, max_length=1000)
+    ai_welcome_message_ar: str | None = Field(default=None, max_length=1000)
+    ai_instructions: str | None = Field(default=None, max_length=8000)
+    knowledge_base: str | None = Field(default=None, max_length=30000)
+
+
+class WhatsAppStatusOut(BaseModel):
+    status: Literal["connected", "not_connected", "needs_app_secret", "needs_token"]
+    mode: Literal["own", "platform", "none"]
+    phone_number_id: str | None
+    display_number: str | None
+    token_set: bool
+    app_secret_set: bool
+    platform_available: bool
+    webhook_path: str | None = None
+    verify_token: str | None = None
+
+
+class WhatsAppTestOut(BaseModel):
+    result: Literal["connected", "token_invalid", "number_not_found", "no_access", "network", "not_configured"]
+    message: str
+    display_number: str | None = None
+    verified_name: str | None = None
+    status: WhatsAppStatusOut
+
+
+class WhatsAppTestMessageIn(BaseModel):
+    phone: str = Field(min_length=6, max_length=30)
+
+
+class WhatsAppTestMessageOut(BaseModel):
+    sent: bool
+    to: str
+    message: str

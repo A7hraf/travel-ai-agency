@@ -1,6 +1,6 @@
 import type { Lang } from "../Money";
 import type { StorefrontText } from "../../i18n";
-import type { PublicCompany, TravelPackage } from "../../types";
+import type { CardDesign, PageElements, PublicCompany, TravelPackage } from "../../types";
 import type { ChatEngine } from "./useChat";
 
 /** Page parts in display order: trips (featured / offers), "How booking works", about & contact. */
@@ -35,6 +35,12 @@ export interface StoreCtx {
   heroText: string | null;
   about: { title: string; text: string } | null;
   showContact: boolean;
+  /** Search box (and budget filter) on the page. */
+  showSearch: boolean;
+  /** Small parts the agency can hide. */
+  el: PageElements;
+  /** Package card design. */
+  cards: CardDesign;
   // actions
   openPackage: (p: TravelPackage) => void;
   book: (p: TravelPackage) => void;

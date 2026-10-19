@@ -15,6 +15,7 @@ import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app.ai.llm import LLMResponse, set_llm_client  # noqa: E402
+from app import platform_settings  # noqa: E402
 from app.database import Base, engine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.ratelimit import limiter  # noqa: E402
@@ -60,6 +61,7 @@ class FakeWhatsApp:
 def client():
     Base.metadata.drop_all(bind=engine)
     limiter.reset()
+    platform_settings.invalidate()  # values saved by an earlier test must not leak into this one
     set_llm_client(None)
     set_whatsapp_sender(None)
     with TestClient(app) as c:
