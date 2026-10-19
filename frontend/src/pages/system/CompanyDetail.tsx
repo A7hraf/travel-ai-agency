@@ -18,6 +18,7 @@ export default function CompanyDetail() {
   const [c, setC] = useState<CompanyAdmin | null>(null);
   const [name, setName] = useState("");
   const [maxUsers, setMaxUsers] = useState("");
+  const [waNumber, setWaNumber] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -26,7 +27,7 @@ export default function CompanyDetail() {
   const [sheet, setSheet] = useState<"suspend" | "delete" | null>(null);
   const [typed, setTyped] = useState("");
 
-  const apply = (x: CompanyAdmin) => { setC(x); setName(x.name); setMaxUsers(String(x.max_users)); };
+  const apply = (x: CompanyAdmin) => { setC(x); setName(x.name); setMaxUsers(String(x.max_users)); setWaNumber(x.whatsapp_phone_number_id ?? ""); };
   useEffect(() => { get<CompanyAdmin>(`/api/system/companies/${id}`).then(apply).catch((e) => setError(e.message)); }, [id]);
   if (!c) return error ? <div className="error-box">{error}</div> : <div className="skeleton" style={{ height: 300, borderRadius: 24 }} />;
 
@@ -100,13 +101,17 @@ export default function CompanyDetail() {
         <BrandingEditor owner loadPath={`/api/system/companies/${c.id}/branding`} name={c.name}
           uploadPath={`/api/system/companies/${c.id}/media`} slug={c.slug} />
       ) : (<>
-        <form className="ad-card" onSubmit={(e: FormEvent) => { e.preventDefault(); update("plan", { name, max_users: Number(maxUsers) }); }}>
+        <form className="ad-card" onSubmit={(e: FormEvent) => { e.preventDefault(); update("plan", { name, max_users: Number(maxUsers), whatsapp_phone_number_id: waNumber.trim() }); }}>
           <h2 className="ad-card-title">{t("Plan & limits")}</h2>
           <p className="ad-card-note">{t("{a} of {b} accounts used", { a: c.user_count, b: c.max_users })}</p>
           <div className="ad-grid-2">
             <Field label={t("Company name")}><input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={200} dir="auto" /></Field>
             <Field label={t("Account limit")} hint={t("Currently {n} accounts. Disabled accounts don't count; the limit can't be lower than the active accounts.", { n: c.user_count })}>
               <input type="number" min={1} max={10000} step={1} value={maxUsers} onChange={(e) => setMaxUsers(e.target.value)} required />
+            </Field>
+            <Field label={t("WhatsApp phone number ID (platform app)")}
+              hint={t("Only for a number added to the platform's own Meta app. Companies with their own Meta app connect their number in their AI & WhatsApp settings. Leave empty to disconnect.")}>
+              <input value={waNumber} onChange={(e) => setWaNumber(e.target.value.replace(/\D/g, ""))} inputMode="numeric" maxLength={64} dir="ltr" />
             </Field>
           </div>
           <ErrorBox error={error} />
@@ -117,7 +122,8 @@ export default function CompanyDetail() {
         <section className="cd-accounts">
           <h2 className="co-section">{t("Accounts")}</h2>
           <UserManager key={usersKey} basePath="/api/system/users" listPath={`/api/system/companies/${c.id}/users`}
-            createPath={`/api/system/companies/${c.id}/users`} />
+            createPath={`/api/system/companies/${c.id}/users`}
+            onChanged={() => { get<CompanyAdmin>(`/api/system/companies/${id}`).then(setC).catch(() => {}); }} />
         </section>
 
         <section className="ad-card cd-danger">

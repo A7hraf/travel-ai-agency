@@ -149,6 +149,12 @@ def update_company(company_id: int, body: CompanyAdminUpdate, _: User = Depends(
             raise HTTPException(400, f"This company has {used} active accounts. Disable or delete some "
                                      f"before lowering the limit to {body.max_users}.")
         company.max_users = body.max_users
+    if body.whatsapp_phone_number_id is not None:
+        number = body.whatsapp_phone_number_id.strip() or None
+        if number and db.scalar(select(Company.id).where(Company.whatsapp_phone_number_id == number,
+                                                         Company.id != company.id)):
+            raise HTTPException(409, "This WhatsApp number is already connected to another company")
+        company.whatsapp_phone_number_id = number
     if body.status is not None:
         if body.status == CompanyStatus.SUSPENDED and company.status != CompanyStatus.SUSPENDED:
             # Log the staff out for good: reactivating the company must not revive old sessions.

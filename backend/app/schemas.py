@@ -157,6 +157,8 @@ class CompanyAdminUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=200)
     max_users: int | None = Field(default=None, ge=1, le=10000)
     status: CompanyStatus | None = None
+    # The platform owner connects a number of the platform's own Meta app ("" disconnects it).
+    whatsapp_phone_number_id: str | None = Field(default=None, max_length=64, pattern=r"^\d*$")
 
     @field_validator("name")
     @classmethod
@@ -175,6 +177,7 @@ class CompanyAdminOut(ORM):
     contact_email: str | None
     contact_phone: str | None
     whatsapp_connected: bool
+    whatsapp_phone_number_id: str | None = None
     package_count: int
     open_tickets: int
     created_at: datetime

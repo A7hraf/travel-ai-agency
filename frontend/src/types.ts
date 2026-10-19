@@ -91,6 +91,7 @@ export interface CompanyAdmin {
   contact_email: string | null;
   contact_phone: string | null;
   whatsapp_connected: boolean;
+  whatsapp_phone_number_id: string | null;
   package_count: number;
   open_tickets: number;
   created_at: string;

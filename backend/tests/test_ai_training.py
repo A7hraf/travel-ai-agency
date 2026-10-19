@@ -143,7 +143,9 @@ def test_omani_rial_prices_keep_three_decimals(client, company_a, scripted):
         return LLMResponse("Booked.")
 
     llm = scripted([
-        LLMResponse(None, [ToolCall("b", "create_booking_ticket", {
+        LLMResponse(None, [ToolCall("q", "quote_booking", {
+            "package_id": pkg["id"], "departure_date": future(30), "adults": 2, "children": 1}),
+            ToolCall("b", "create_booking_ticket", {
             "package_id": pkg["id"], "departure_date": future(30), "adults": 2, "children": 1,
             "lead_traveler_name": "Salim", "contact_phone": "+968 9000 1111"})]),
         capture,

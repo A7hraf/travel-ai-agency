@@ -21,7 +21,9 @@ def add_user(client, headers, email, role="support", permissions=None, path="/ap
 
 
 def booked_ticket(client, company, admin, scripted, pkg, adults=2):
-    scripted([LLMResponse(None, [ToolCall("b", "create_booking_ticket", {
+    scripted([LLMResponse(None, [ToolCall("q", "quote_booking", {
+        "package_id": pkg["id"], "departure_date": future(30), "adults": adults}),
+        ToolCall("b", "create_booking_ticket", {
         "package_id": pkg["id"], "departure_date": future(30), "adults": adults,
         "lead_traveler_name": "Ali", "contact_phone": "+968"})]), LLMResponse("Booked")])
     slug = company["slug"]
@@ -160,10 +162,10 @@ def test_ticket_status_rules_and_history(client, company_a, scripted):
     assert client.patch(url, headers=agent, json={"total_price": 0.001}).status_code == 403  # admins only
     assert client.patch(url, headers=agent, json={"status": "confirmed"}).status_code == 200
     assert client.patch(url, headers=agent, json={"status": "cancelled"}).status_code == 200
-    assert client.get(f"/api/packages/{pkg['id']}", headers=admin).json()["seats_available"] == 8
+    assert client.get(f"/api/packages/{pkg['id']}", headers=admin).json()["seats_left_by_date"][future(30)] == 8
     assert client.patch(url, headers=agent, json={"status": "pending_payment"}).status_code == 403  # admin reopens
     assert client.patch(url, headers=admin, json={"status": "pending_payment"}).status_code == 200
-    assert client.get(f"/api/packages/{pkg['id']}", headers=admin).json()["seats_available"] == 6
+    assert client.get(f"/api/packages/{pkg['id']}", headers=admin).json()["seats_left_by_date"][future(30)] == 6
     assert client.patch(url, headers=admin, json={"total_price": 3500}).status_code == 200
 
     events = client.get(f"{url}/events", headers=admin).json()
@@ -194,7 +196,9 @@ def test_package_edit_keeps_seats_taken_meanwhile(client, company_a, scripted):
     body = {k: loaded[k] for k in ("title", "destination", "country", "duration_days", "price_per_person",
                                    "departure_dates", "seats_available")}
     body.update(description="New text", seats_loaded=loaded["seats_available"])
-    assert client.put(f"/api/packages/{pkg['id']}", headers=admin, json=body).json()["seats_available"] == 2
+    # Bookings no longer change the seats per departure date, only the seats left on the booked date.
+    saved = client.put(f"/api/packages/{pkg['id']}", headers=admin, json=body).json()
+    assert saved["seats_available"] == 4 and saved["seats_left_by_date"][future(30)] == 2
     body.update(seats_available=10)  # the employee really changed it
     assert client.put(f"/api/packages/{pkg['id']}", headers=admin, json=body).json()["seats_available"] == 10
 
@@ -226,7 +230,9 @@ def test_dashboard_days_follow_oman_time_and_currencies_are_not_mixed(client, co
     omr = make_package(client, admin, title="OMR trip", price_per_person=100)
     usd = make_package(client, admin, title="USD trip", price_per_person=100, currency="USD")
     booked_ticket(client, company, admin, scripted, omr, adults=1)
-    scripted([LLMResponse(None, [ToolCall("b", "create_booking_ticket", {
+    scripted([LLMResponse(None, [ToolCall("q", "quote_booking", {
+        "package_id": usd["id"], "departure_date": future(30), "adults": 1}),
+        ToolCall("b", "create_booking_ticket", {
         "package_id": usd["id"], "departure_date": future(30), "adults": 1,
         "lead_traveler_name": "Sam", "contact_phone": "+1"})]), LLMResponse("Booked")])
     slug = company["slug"]

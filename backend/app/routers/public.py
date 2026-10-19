@@ -31,16 +31,13 @@ from ..schemas import (
     StartChatIn,
     StartChatOut,
 )
+from ..netutil import client_ip
 from ..security import random_token
 from ..serializers import public_message_out
 from ..services.conversations import handle_customer_message, is_customer_visible
 from ..timeutil import local_today
 
 router = APIRouter(prefix="/api/public/companies/{slug}", tags=["public"])
-
-
-def client_ip(request: Request) -> str:
-    return request.client.host if request.client else "?"
 
 
 def _company(db: Session, slug: str) -> Company:

@@ -187,3 +187,22 @@ def test_suspended_company_media_hidden_and_sessions_revoked(client, owner):
     assert client.get("/api/auth/me", headers=admin).status_code == 401
     fresh = login(client, "admin@bluesky.com", "AdminPass123!")
     assert client.get("/api/auth/me", headers=fresh).status_code == 200
+
+
+def test_platform_owner_assigns_a_shared_whatsapp_number(client, owner):
+    from tests.conftest import make_company
+
+    a, _ = make_company(client, owner, name="Alpha", admin_email="a@alpha.com")
+    b, admin_b = make_company(client, owner, name="Beta", admin_email="b@beta.com")
+    r = client.patch(f"/api/system/companies/{a['id']}", headers=owner, json={"whatsapp_phone_number_id": "1234567"})
+    assert r.status_code == 200 and r.json()["whatsapp_phone_number_id"] == "1234567"
+    assert r.json()["whatsapp_connected"] is True
+    # Never two companies on one number, and a company admin can't use this owner endpoint.
+    r = client.patch(f"/api/system/companies/{b['id']}", headers=owner, json={"whatsapp_phone_number_id": "1234567"})
+    assert r.status_code == 409
+    assert client.patch(f"/api/system/companies/{b['id']}", headers=admin_b,
+                        json={"whatsapp_phone_number_id": "999"}).status_code == 403
+    assert client.patch(f"/api/system/companies/{a['id']}", headers=owner,
+                        json={"whatsapp_phone_number_id": "12ab"}).status_code == 422
+    r = client.patch(f"/api/system/companies/{a['id']}", headers=owner, json={"whatsapp_phone_number_id": ""})
+    assert r.json()["whatsapp_phone_number_id"] is None

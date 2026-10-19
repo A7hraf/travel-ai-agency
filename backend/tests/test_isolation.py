@@ -22,7 +22,9 @@ def _fill(client, admin, slug, scripted, number_id):
                                                           "whatsapp_access_token": f"EAAG-{slug}"})
     assert r.status_code == 200, r.text
     scripted([
-        LLMResponse(None, [ToolCall("b", "create_booking_ticket", {
+        LLMResponse(None, [ToolCall("q", "quote_booking", {
+            "package_id": pkg["id"], "departure_date": future(30), "adults": 1}),
+            ToolCall("b", "create_booking_ticket", {
             "package_id": pkg["id"], "departure_date": future(30), "adults": 1,
             "lead_traveler_name": f"Customer of {slug}", "contact_phone": "+968 9999 0000"})]),
         LLMResponse("Booked."),

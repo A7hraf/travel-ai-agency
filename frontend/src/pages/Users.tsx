@@ -9,7 +9,11 @@ import type { PermissionCatalog, Role, User, UserList } from "../types";
 import { dateTime, ROLE_LABELS } from "../util";
 
 /** Shared by the company admin's team page and the system admin's company page. */
-export function UserManager({ basePath, listPath, createPath }: { basePath: string; listPath: string; createPath: string }) {
+export function UserManager({ basePath, listPath, createPath, onChanged }: {
+  basePath: string; listPath: string; createPath: string;
+  /** Called after an account was added, changed or deleted (the owner's company page refreshes its counts). */
+  onChanged?: () => void;
+}) {
   const { user: me } = useAuth();
   const { t } = useI18n();
   const [data, setData] = useState<UserList | null>(null);
@@ -17,6 +21,7 @@ export function UserManager({ basePath, listPath, createPath }: { basePath: stri
   const [editing, setEditing] = useState<User | "new" | null>(null);
 
   const load = () => get<UserList>(listPath).then(setData).catch(() => {});
+  const changed = () => { load(); onChanged?.(); };
   useEffect(() => {
     load();
     get<PermissionCatalog>("/api/permissions").then(setCatalog).catch(() => {});
@@ -83,7 +88,7 @@ export function UserManager({ basePath, listPath, createPath }: { basePath: stri
         <UserForm user={editing === "new" ? null : editing} catalog={catalog} basePath={basePath} createPath={createPath}
           isSelf={editing !== "new" && editing.id === me?.id} delegate={delegate} myPermissions={me?.permissions ?? []}
           limitReached={full}
-          onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
+          onClose={() => setEditing(null)} onSaved={() => { setEditing(null); changed(); }} />
       )}
     </div>
   );
