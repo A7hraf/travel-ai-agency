@@ -2,8 +2,9 @@
 # Step-by-step guide: docs/DEPLOY_FREE.md
 services:
   - type: web
-    # The service name is also the web address: https://ghanjah.onrender.com
-    name: ghanjah
+    # The service name is also the web address: https://travel-ai-agency.onrender.com
+    # (Render can't change the address of an existing service, so the name stays).
+    name: travel-ai-agency
     runtime: docker
     plan: free
     region: frankfurt
