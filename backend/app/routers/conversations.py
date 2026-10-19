@@ -44,6 +44,14 @@ def _get(db: Session, me: User, conversation_id: int) -> Conversation:
     return conv
 
 
+def _check_colleague(conv: Conversation, me: User, force: bool) -> None:
+    """Taking over, handing back or closing a colleague's conversation needs force=true.
+    The message matches the translated pattern the dashboard already knows."""
+    current = conv.assigned_to
+    if current is not None and current.id != me.id and current.is_active and not force:
+        raise HTTPException(409, f"{current.full_name} is already handling this conversation")
+
+
 def _event(db: Session, conv: Conversation, text: str) -> None:
     db.add(Message(conversation_id=conv.id, sender=Sender.SYSTEM, kind=MessageKind.TEXT, content=text))
 
@@ -70,8 +78,10 @@ def list_conversations(
     if mine:
         stmt = stmt.where(Conversation.assigned_to_id == me.id)
     if q:
-        like = f"%{q}%"
-        stmt = stmt.where(or_(Customer.name.ilike(like), Customer.phone.ilike(like), Customer.email.ilike(like)))
+        # % and _ are searched as typed, not as wildcards.
+        like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        columns = (Customer.name, Customer.phone, Customer.email)
+        stmt = stmt.where(or_(*(col.ilike(like, escape="\\") for col in columns)))
     rows = db.scalars(stmt.order_by(Conversation.last_message_at.desc()).limit(limit)).all()
     return [conversation_summary(db, c) for c in rows]
 
@@ -85,6 +95,8 @@ def get_conversation(conversation_id: int, me: User = Depends(can_view), db: Ses
 def reply(conversation_id: int, body: AgentMessageIn, me: User = Depends(can_reply), db: Session = Depends(get_db)):
     """An employee writes to the customer. This pauses the AI on this conversation."""
     conv = _get(db, me, conversation_id)
+    # Two people answering one customer at once confuses them: take it over first (with force).
+    _check_colleague(conv, me, force=False)
     if conv.channel == Channel.WHATSAPP and (
         conv.last_customer_message_at is None or utcnow() - conv.last_customer_message_at > WHATSAPP_WINDOW
     ):
@@ -112,9 +124,7 @@ def reply(conversation_id: int, body: AgentMessageIn, me: User = Depends(can_rep
 def take_over(conversation_id: int, force: bool = False, me: User = Depends(can_reply),
               db: Session = Depends(get_db)):
     conv = _get(db, me, conversation_id)
-    current = conv.assigned_to
-    if current is not None and current.id != me.id and current.is_active and not force:
-        raise HTTPException(409, f"{current.full_name} is already handling this conversation")
+    _check_colleague(conv, me, force)
     conv.was_handed_over = True
     conv.status = ConversationStatus.HUMAN
     conv.assigned_to_id = me.id
@@ -126,9 +136,11 @@ def take_over(conversation_id: int, force: bool = False, me: User = Depends(can_
 
 
 @router.post("/{conversation_id}/release", response_model=ConversationDetail)
-def release_to_ai(conversation_id: int, me: User = Depends(can_reply), db: Session = Depends(get_db)):
+def release_to_ai(conversation_id: int, force: bool = False, me: User = Depends(can_reply),
+                  db: Session = Depends(get_db)):
     """Give the conversation back to the AI agent."""
     conv = _get(db, me, conversation_id)
+    _check_colleague(conv, me, force)
     conv.status = ConversationStatus.AI
     conv.handover_reason = None
     conv.assigned_to_id = None
@@ -139,8 +151,9 @@ def release_to_ai(conversation_id: int, me: User = Depends(can_reply), db: Sessi
 
 
 @router.post("/{conversation_id}/close", response_model=ConversationDetail)
-def close(conversation_id: int, me: User = Depends(can_reply), db: Session = Depends(get_db)):
+def close(conversation_id: int, force: bool = False, me: User = Depends(can_reply), db: Session = Depends(get_db)):
     conv = _get(db, me, conversation_id)
+    _check_colleague(conv, me, force)
     conv.status = ConversationStatus.CLOSED
     conv.assigned_to_id = None
     _event(db, conv, f"{me.full_name} closed the conversation")

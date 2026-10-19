@@ -33,6 +33,7 @@ from ..schemas import (
     TopPackage,
 )
 from ..serializers import OPEN_TICKET_STATUSES, company_settings_out
+from ..services import whatsapp as whatsapp_service
 from ..services.users import seats_used
 from ..timeutil import days_back, local_date
 from .media import media_belongs_to
@@ -50,20 +51,20 @@ def update_company(body: CompanySettingsUpdate, me: User = Depends(require_permi
                    db: Session = Depends(get_db)):
     company = me.company
     data = body.model_dump(exclude_unset=True)
+    # These columns can't be empty in the database: null means "leave as it is".
+    for key in NOT_NULL_FIELDS:
+        if key in data and data[key] is None:
+            del data[key]
 
-    if "whatsapp_phone_number_id" in data:
-        number_id = (data.pop("whatsapp_phone_number_id") or "").strip() or None
-        if number_id:
-            taken = db.scalar(
-                select(Company.id).where(Company.whatsapp_phone_number_id == number_id, Company.id != company.id)
-            )
-            if taken:
-                raise HTTPException(409, "This WhatsApp number is already connected to another company")
-        company.whatsapp_phone_number_id = number_id
     for secret in ("whatsapp_access_token", "whatsapp_app_secret"):
         if secret in data:
             value = (data.pop(secret) or "").strip()
             setattr(company, secret, value or None)
+    if "whatsapp_phone_number_id" in data:
+        number_id = (data.pop("whatsapp_phone_number_id") or "").strip() or None
+        if number_id and number_id != company.whatsapp_phone_number_id:
+            _check_number_is_ours(db, company, number_id)
+        company.whatsapp_phone_number_id = number_id
     if data.get("currency"):
         data["currency"] = data["currency"].upper()
     for key, value in data.items():
@@ -72,6 +73,25 @@ def update_company(body: CompanySettingsUpdate, me: User = Depends(require_permi
         setattr(company, key, value)
     db.commit()
     return company_settings_out(company, can_manage=True)
+
+
+NOT_NULL_FIELDS = ("currency", "ai_agent_name", "ai_instructions", "knowledge_base")
+
+
+def _check_number_is_ours(db: Session, company: Company, number_id: str) -> None:
+    """A company may only connect a WhatsApp number its own Meta access token can use.
+
+    Otherwise anybody could type in another company's phone number ID and receive its
+    customers' messages. (The platform owner assigns numbers on the shared app.)
+    """
+    taken = db.scalar(select(Company.id).where(Company.whatsapp_phone_number_id == number_id, Company.id != company.id))
+    if taken:
+        raise HTTPException(409, "This WhatsApp number is already connected to another company")
+    if not company.whatsapp_access_token:
+        raise HTTPException(400, "Add your WhatsApp access token to connect a phone number ID")
+    if not whatsapp_service.verify_phone_number(number_id, company.whatsapp_access_token):
+        raise HTTPException(400, "WhatsApp did not confirm this phone number ID for your access token. "
+                                 "Check both in your Meta app and try again.")
 
 
 @router.post("/company/ai-check", response_model=AICheckOut)

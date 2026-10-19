@@ -1,8 +1,9 @@
 import re
 from datetime import date, datetime
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, computed_field, field_validator, model_validator
 
 from .branding import DashboardBranding, PublicBranding
 from .models import CompanyStatus, Role, TicketStatus
@@ -256,6 +257,19 @@ class PackageBase(BaseModel):
     is_active: bool = True
     is_featured: bool = False
 
+    @field_validator("price_per_person", "child_price")
+    @classmethod
+    def check_price(cls, v: float | None, info) -> float | None:
+        # Stored with 3 decimals: a price like 0.0004 would silently become 0.
+        if v is None:
+            return v
+        rounded = Decimal(str(v)).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+        if info.field_name == "child_price" and v == 0:
+            return 0.0  # children travel free
+        if rounded < Decimal("0.001"):
+            raise ValueError("Price must be at least 0.001")
+        return float(rounded)
+
     @field_validator("image_url")
     @classmethod
     def check_image_url(cls, v: str | None) -> str | None:
@@ -285,7 +299,10 @@ class PackageOut(ORM):
     tags: list[str]
     hotel_name: str | None
     hotel_stars: int | None
+    # Seats of each departure date (empty: unlimited).
     seats_available: int | None
+    # Seats left on each upcoming departure date (and booked flexible dates); None: unlimited.
+    seats_left_by_date: dict[str, int] | None = None
     image_url: str | None
     is_active: bool
     is_featured: bool
@@ -367,12 +384,21 @@ class TicketOut(ORM):
     currency: str
     internal_notes: str
     payment_reference: str | None
+    seats_held: int = 0
+    seats_held_at: datetime | None = Field(default=None, exclude=True)
     created_by: str
     conversation_id: int | None
     customer: CustomerOut
     assigned_to: UserBrief | None
     created_at: datetime
     updated_at: datetime
+
+    @computed_field
+    @property
+    def seats_released(self) -> bool:
+        """The booking's seats were given back because it was not paid in time (see services/seats.py)."""
+        return self.status in ("pending_payment", "in_progress") and not self.seats_held and \
+            self.seats_held_at is not None
 
 
 class TicketUpdate(BaseModel):
@@ -442,9 +468,22 @@ class PublicPackageOut(ORM):
     tags: list[str]
     hotel_name: str | None
     hotel_stars: int | None
+    # The most seats left on any upcoming departure date (seats are per date; see seats_left_by_date).
     seats_available: int | None
+    seats_left_by_date: dict[str, int] | None = None
     image_url: str | None
     is_featured: bool
+
+    @model_validator(mode="before")
+    @classmethod
+    def _seats_left(cls, obj):
+        if isinstance(obj, dict):
+            return obj
+        data = {name: getattr(obj, name, None) for name in cls.model_fields}
+        left = data.get("seats_left_by_date")
+        if left and data.get("departure_dates"):
+            data["seats_available"] = max(left.values())
+        return data
 
 
 class StartChatIn(BaseModel):

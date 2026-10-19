@@ -24,10 +24,15 @@ def get_current_user(
     user = db.get(User, user_id)
     if user is None or not user.is_active:
         raise unauthorized
-    if user.tokens_valid_after is not None and issued_ms < int(user.tokens_valid_after.timestamp() * 1000):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Your session has ended, please log in again")
+    # A token older than the account belongs to a deleted user whose id was given out again
+    # (SQLite reuses ids), so it must not log in as the new account.
+    if user.created_at is not None and issued_ms < int(user.created_at.timestamp() * 1000):
+        raise unauthorized
+    # Suspension first: suspending also ends every session, but "suspended" says why.
     if user.company is not None and user.company.status != CompanyStatus.ACTIVE:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Your company account is suspended")
+    if user.tokens_valid_after is not None and issued_ms < int(user.tokens_valid_after.timestamp() * 1000):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Your session has ended, please log in again")
     return user
 
 

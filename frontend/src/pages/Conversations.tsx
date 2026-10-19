@@ -252,12 +252,23 @@ function ConversationView({ id, backTo }: { id: number; backTo: string }) {
         refreshCounts();
       } catch (e) {
         // Someone else took it a moment ago: ask before taking it from them.
-        if (path === "takeover" && !force && e instanceof ApiError && e.status === 409) {
-          setConfirmReq({
-            title: t("{message}. Do you want to take it over anyway?", { message: e.message.replace(/\.$/, "") }),
+        if (!force && e instanceof ApiError && e.status === 409) {
+          const message = e.message.replace(/\.$/, "");
+          setConfirmReq(path === "takeover" ? {
+            title: t("{message}. Do you want to take it over anyway?", { message }),
             text: t("They will see that you took over."),
             okLabel: t("Take over"),
             onConfirm: () => run("takeover", true),
+          } : path === "release" ? {
+            title: t("{message}. Do you want to hand it back to the AI anyway?", { message }),
+            text: t("They will see that you handed it back."),
+            okLabel: t("Hand back to AI"),
+            onConfirm: () => run("release", true),
+          } : {
+            title: t("{message}. Do you want to close it anyway?", { message }),
+            text: t("They will see that you closed it."),
+            okLabel: t("Close"),
+            onConfirm: () => run("close", true),
           });
         } else {
           throw e;
@@ -283,19 +294,25 @@ function ConversationView({ id, backTo }: { id: number; backTo: string }) {
       run("takeover");
     }
   };
+  // On a colleague's chat the server wants force=true, so say whose chat it is before asking.
+  const colleagueName = colleague ? firstName(colleague.full_name) : null;
   const handBack = () => setConfirmReq({
-    title: t("Hand this chat back to the AI?"),
+    title: colleagueName
+      ? t("{name} is handling this chat. Hand it back to the AI anyway?", { name: colleagueName })
+      : t("Hand this chat back to the AI?"),
     text: t("{agent} will answer the customer's next messages.", { agent }),
     okLabel: t("Hand back to AI"),
     tone: "brand",
-    onConfirm: () => run("release"),
+    onConfirm: () => run("release", !!colleague),
   });
   const closeChat = () => setConfirmReq({
-    title: t("Close this conversation?"),
+    title: colleagueName
+      ? t("{name} is handling this chat. Close it anyway?", { name: colleagueName })
+      : t("Close this conversation?"),
     text: t("The customer can still write again later."),
     okLabel: t("Close"),
     tone: "brand",
-    onConfirm: () => run("close"),
+    onConfirm: () => run("close", !!colleague),
   });
 
   const send = async (e?: FormEvent) => {
@@ -311,7 +328,13 @@ function ConversationView({ id, backTo }: { id: number; backTo: string }) {
       setText("");
       await load();
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409 && conv.channel === "whatsapp") setWindowClosed(err.message);
+      // A 409 is either the closed WhatsApp window or a colleague who took the chat meanwhile.
+      const fresh = err instanceof ApiError && err.status === 409
+        ? await get<ConversationDetail>(`/api/conversations/${id}`).catch(() => null) : null;
+      if (fresh && fresh.assigned_to && fresh.assigned_to.id !== user?.id) {
+        setConv(fresh);
+        setError((err as Error).message);
+      } else if (err instanceof ApiError && err.status === 409 && conv.channel === "whatsapp") setWindowClosed(err.message);
       else setReplyError((err as Error).message);
     } finally {
       setBusy(false);

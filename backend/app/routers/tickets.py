@@ -21,6 +21,7 @@ from ..models import (
 from ..permissions import effective_permissions
 from ..schemas import TicketEventOut, TicketOut, TicketUpdate
 from ..services import seats
+from ..timeutil import local_today
 
 router = APIRouter(prefix="/api/tickets", tags=["tickets"])
 
@@ -41,6 +42,9 @@ def list_tickets(
     me: User = Depends(require_permission("tickets.view")),
     db: Session = Depends(get_db),
 ):
+    # Unpaid bookings past their hold time give their seats back (shown in their history).
+    if seats.release_expired(db, company_id=me.company_id):
+        db.commit()
     stmt = select(Ticket).where(Ticket.company_id == me.company_id).options(
         selectinload(Ticket.customer), selectinload(Ticket.assigned_to)
     )
@@ -49,15 +53,19 @@ def list_tickets(
     if mine:
         stmt = stmt.where(Ticket.assigned_to_id == me.id)
     if q:
-        like = f"%{q}%"
+        # % and _ are searched as typed, not as wildcards.
+        like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
         stmt = stmt.where(
-            or_(Ticket.reference.ilike(like), Ticket.lead_traveler_name.ilike(like), Ticket.contact_phone.ilike(like))
+            or_(Ticket.reference.ilike(like, escape="\\"), Ticket.lead_traveler_name.ilike(like, escape="\\"),
+                Ticket.contact_phone.ilike(like, escape="\\"))
         )
     return db.scalars(stmt.order_by(Ticket.id.desc()).limit(limit)).all()
 
 
 @router.get("/{ticket_id}", response_model=TicketOut)
 def get_ticket(ticket_id: int, me: User = Depends(require_permission("tickets.view")), db: Session = Depends(get_db)):
+    if seats.release_expired(db, company_id=me.company_id):
+        db.commit()
     return _get(db, me, ticket_id)
 
 
@@ -85,7 +93,8 @@ def ticket_events(ticket_id: int, me: User = Depends(require_permission("tickets
 
 
 @router.patch("/{ticket_id}", response_model=TicketOut)
-def update_ticket(ticket_id: int, body: TicketUpdate, me: User = Depends(require_permission("tickets.manage")),
+def update_ticket(ticket_id: int, body: TicketUpdate,
+                  me: User = Depends(require_permission("tickets.view", "tickets.manage")),
                   db: Session = Depends(get_db)):
     # Lock the ticket so two employees can't apply the same change twice at the same moment.
     ticket = db.get(Ticket, ticket_id, with_for_update=True)
@@ -94,6 +103,7 @@ def update_ticket(ticket_id: int, body: TicketUpdate, me: User = Depends(require
     can_assign = "tickets.assign" in effective_permissions(me)
     is_admin = me.role == Role.COMPANY_ADMIN
     chat_events: list[str] = []
+    reference_before = ticket.payment_reference
 
     if body.unassign:
         if ticket.assigned_to_id is not None:
@@ -108,6 +118,8 @@ def update_ticket(ticket_id: int, body: TicketUpdate, me: User = Depends(require
         assignee = db.get(User, body.assigned_to_id)
         if assignee is None or assignee.company_id != me.company_id or not assignee.is_active:
             raise HTTPException(400, "Assignee must be an active employee of your company")
+        if "tickets.view" not in effective_permissions(assignee):
+            raise HTTPException(400, "This employee can't see tickets. Give them the tickets.view permission first")
         _event(db, ticket, me, "assigned", ticket.assigned_to.full_name if ticket.assigned_to else None,
                assignee.full_name)
         ticket.assigned_to_id = assignee.id
@@ -137,10 +149,22 @@ def update_ticket(ticket_id: int, body: TicketUpdate, me: User = Depends(require
             raise HTTPException(403, "Only a company admin can reopen a cancelled booking")
         if new in NEEDS_PAYMENT_REFERENCE and not ticket.payment_reference:
             raise HTTPException(400, "Enter the payment reference (receipt or transfer number) first")
+        departed = ticket.departure_date and ticket.departure_date < local_today().isoformat()
+        if new in NEEDS_PAYMENT_REFERENCE and departed:
+            raise HTTPException(400, f"The departure date ({ticket.departure_date}) has passed: "
+                                     "this booking can only be cancelled")
         if new == TicketStatus.CANCELLED:
             seats.release(db, ticket)
         else:
-            seats.hold_or_409(db, ticket)  # also covers bookings made before seats were held at booking time
+            # Also re-takes seats released after an unpaid hold expired, and covers bookings made
+            # before seats were held at booking time.
+            seats.hold_or_409(db, ticket)
+        if (new == TicketStatus.CANCELLED or old == TicketStatus.CANCELLED) and ticket.payment_reference \
+                and ticket.payment_reference == reference_before:
+            # A cancelled or reopened booking must be paid again with a new receipt; the old one stays
+            # in the history.
+            _event(db, ticket, me, "payment_reference", ticket.payment_reference, None)
+            ticket.payment_reference = None
         _event(db, ticket, me, "status", old, new)
         chat_events.append(f"Ticket {ticket.reference}: {old} → {new} by {me.full_name}")
         ticket.status = new

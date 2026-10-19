@@ -25,6 +25,7 @@ from ..schemas import (
     UserOut,
     UserUpdate,
 )
+from ..security import revoke_sessions_now
 from ..serializers import company_admin_out, user_out
 from ..services.users import (
     create_company_user,
@@ -149,6 +150,11 @@ def update_company(company_id: int, body: CompanyAdminUpdate, _: User = Depends(
                                      f"before lowering the limit to {body.max_users}.")
         company.max_users = body.max_users
     if body.status is not None:
+        if body.status == CompanyStatus.SUSPENDED and company.status != CompanyStatus.SUSPENDED:
+            # Log the staff out for good: reactivating the company must not revive old sessions.
+            revoked = revoke_sessions_now()
+            for user in db.scalars(select(User).where(User.company_id == company.id)):
+                user.tokens_valid_after = revoked
         company.status = body.status
     db.commit()
     return company_admin_out(db, company)

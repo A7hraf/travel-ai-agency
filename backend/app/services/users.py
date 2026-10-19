@@ -5,7 +5,7 @@ row first, so two requests at the same moment cannot both pass the check.
 
 An employee who is not a company admin but has the ``users.manage`` permission is a *delegate*:
 they manage support and ticket accounts only, can only give permissions they have themselves,
-and cannot touch company admins.
+and cannot touch company admins or colleagues who have a permission they lack.
 """
 
 from fastapi import HTTPException, status
@@ -73,6 +73,16 @@ def _check_delegate_permissions(acting_user: User | None, permissions: list[str]
                             f"You can only give permissions you have yourself (not: {', '.join(sorted(extra))})")
 
 
+def _check_delegate_can_manage(acting_user: User | None, target: User) -> None:
+    """A delegate who could reset the password of a more powerful colleague could log in as them."""
+    if not _is_delegate(acting_user) or target.id == acting_user.id:
+        return
+    extra = set(effective_permissions(target)) - set(effective_permissions(acting_user))
+    if extra:
+        raise HTTPException(status.HTTP_403_FORBIDDEN,
+                            "Only a company admin can manage an account with permissions you don't have")
+
+
 def create_company_user(db: Session, company: Company, data: UserCreate, acting_user: User | None = None,
                         commit: bool = True) -> User:
     if data.role not in COMPANY_ROLES:
@@ -122,8 +132,14 @@ def update_company_user(db: Session, user: User, data: UserUpdate, acting_user: 
         effective_permissions(user)
     ):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "You can't change your own permissions")
+    if is_self and data.password:
+        # Changing your own password needs the current one (Account page), so a stolen session
+        # cannot take the account over for good.
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "Change your own password on the My account page (it asks for your current password)")
     if delegate and not is_self and (user.role == Role.COMPANY_ADMIN or data.role == Role.COMPANY_ADMIN):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Only a company admin can manage admin accounts")
+    _check_delegate_can_manage(acting_user, user)
     if data.permissions is not None and not is_self:
         _check_delegate_permissions(acting_user, clean_permissions(data.permissions))
     if delegate and data.role is not None and data.permissions is None and data.role != user.role:
@@ -169,6 +185,7 @@ def delete_company_user(db: Session, user: User, acting_user: User) -> None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "You can't delete your own account")
     if _is_delegate(acting_user) and user.role == Role.COMPANY_ADMIN:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Only a company admin can delete admin accounts")
+    _check_delegate_can_manage(acting_user, user)
     _lock_company(db, user.company_id)
     db.refresh(user)
     if user.role == Role.COMPANY_ADMIN and user.is_active and _active_admins(db, user.company_id) <= 1:

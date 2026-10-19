@@ -136,7 +136,7 @@ export default function CompanyDetail() {
 
       {sheet === "suspend" && (
         <ConfirmSheet title={t("Suspend {name}?", { name: c.name })} tone="accent" busy={busy === "status"}
-          text={t("Staff can't sign in, the customer page shows \"temporarily unavailable\" and the AI stops answering on WhatsApp. Nothing is deleted.")}
+          text={t("Staff are logged out and can't sign in, the customer page shows \"temporarily unavailable\", its images are hidden and the AI stops answering on WhatsApp. Nothing is deleted.")}
           confirmLabel={busy === "status" ? t("Please wait…") : t("Suspend company")}
           onConfirm={() => update("status", { status: "suspended" })} onCancel={() => setSheet(null)} />
       )}

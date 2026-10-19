@@ -13,12 +13,14 @@ import pytest
 from app.ai.llm import LLMResponse, ToolCall
 from app.services.whatsapp import set_whatsapp_sender
 from tests.conftest import FakeWhatsApp, future, login, make_company, make_package
-from tests.test_whatsapp import wa_payload
+from tests.test_whatsapp import meta_stub, wa_payload  # noqa: F401  (meta_stub: autouse fixture)
 
 
 def _fill(client, admin, slug, scripted, number_id):
     pkg = make_package(client, admin, title=f"{slug} trip")
-    client.patch("/api/company", headers=admin, json={"whatsapp_phone_number_id": number_id})
+    r = client.patch("/api/company", headers=admin, json={"whatsapp_phone_number_id": number_id,
+                                                          "whatsapp_access_token": f"EAAG-{slug}"})
+    assert r.status_code == 200, r.text
     scripted([
         LLMResponse(None, [ToolCall("b", "create_booking_ticket", {
             "package_id": pkg["id"], "departure_date": future(30), "adults": 1,

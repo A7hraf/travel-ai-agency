@@ -9,11 +9,32 @@ interface StartReply extends ChatReply { token: string }
 
 export interface QuickReply { label: string; message: string }
 
+/** A saved chat is resumed only within a day of the visitor's last message (shared devices). */
+const RESUME_MS = 24 * 60 * 60 * 1000;
+
+interface SavedChat { token: string; at: number }
+
+function readSaved(key: string): string | null {
+  try {
+    const saved = JSON.parse(localStorage.getItem(key) ?? "null") as SavedChat | null;
+    if (saved && typeof saved.token === "string" && typeof saved.at === "number" && Date.now() - saved.at < RESUME_MS) {
+      return saved.token;
+    }
+    localStorage.removeItem(key); // too old, or saved by an older version without a time
+  } catch { /* storage unavailable or not JSON */ }
+  return null;
+}
+
+function writeSaved(key: string, token: string) {
+  try { localStorage.setItem(key, JSON.stringify({ token, at: Date.now() } satisfies SavedChat)); } catch { /* storage unavailable */ }
+}
+
 /**
  * One conversation per visitor and agency, shared by every chat view on the page (phone screen,
  * desktop hero card, floating widget). The conversation is created on the server only when the
  * visitor opens or uses the chat; before that the welcome message is shown locally.
- * A previous conversation on this device is resumed from localStorage.
+ * A previous conversation on this device is resumed from localStorage, but only if the visitor
+ * wrote within the last day, so the next person on a shared device doesn't see it.
  */
 export function useChat({ slug, company, lang, t, active }: {
   slug: string;
@@ -51,7 +72,7 @@ export function useChat({ slug, company, lang, t, active }: {
   const startNew = useCallback((): Promise<string> => {
     if (starting.current) return starting.current;
     const p = post<StartReply>(base, { lang }).then((res) => {
-      try { localStorage.setItem(storageKey, res.token); } catch { /* storage unavailable */ }
+      writeSaved(storageKey, res.token);
       tokenRef.current = res.token;
       setToken(res.token);
       setStatus(res.status);
@@ -64,8 +85,7 @@ export function useChat({ slug, company, lang, t, active }: {
 
   // Resume the previous chat on this device (if any).
   useEffect(() => {
-    let saved: string | null = null;
-    try { saved = localStorage.getItem(storageKey); } catch { /* storage unavailable */ }
+    const saved = readSaved(storageKey);
     if (!saved) { setReady(true); return; }
     let cancelled = false;
     get<ChatReply>(`${base}/${saved}/messages?after_id=0`)
@@ -115,6 +135,7 @@ export function useChat({ slug, company, lang, t, active }: {
       try {
         const tk = tokenRef.current ?? await startNew();
         const r = await post<ChatReply>(`${base}/${tk}/messages`, { content: text });
+        writeSaved(storageKey, tk);
         setStatus(r.status);
         merge(r.messages);
         next = queued.current.shift();
@@ -129,7 +150,7 @@ export function useChat({ slug, company, lang, t, active }: {
     }
     busy.current = false;
     setWaiting(false);
-  }, [base, merge, startNew, t]);
+  }, [base, storageKey, merge, startNew, t]);
 
   const retry = useCallback(() => {
     if (!failed) return;

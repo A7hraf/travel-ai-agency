@@ -15,7 +15,7 @@ from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from ..models import (
     Company,
@@ -37,7 +37,8 @@ from .text import Matcher, keyword_groups
 
 log = logging.getLogger(__name__)
 
-MAX_TRAVELERS = 50
+# Bigger groups need a consultant (group fares, rooming); it also stops one chat holding a whole trip.
+MAX_TRAVELERS = 9
 MAX_BOOKING_HORIZON_DAYS = 730
 
 TOOL_DEFINITIONS: list[dict] = [
@@ -86,7 +87,8 @@ TOOL_DEFINITIONS: list[dict] = [
         "function": {
             "name": "quote_booking",
             "description": "Check a booking and get the exact total price from the system, without booking. "
-            "Call it before showing the summary to the customer, and use only the total it returns.",
+            "Call it before showing the summary to the customer, and use only the total it returns. "
+            "A booking can only be created for the details and total of the last quote.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -104,8 +106,9 @@ TOOL_DEFINITIONS: list[dict] = [
         "function": {
             "name": "create_booking_ticket",
             "description": (
-                "Create the booking ticket once the customer has confirmed the summary. This hands the "
-                "booking to a human employee who will contact the customer for payment."
+                "Create the booking ticket once the customer has confirmed the summary of quote_booking "
+                "(same package, date and travelers). This hands the booking to a human employee who will "
+                "contact the customer for payment."
             ),
             "parameters": {
                 "type": "object",
@@ -203,18 +206,40 @@ def _upcoming_dates(pkg: TravelPackage, today: date) -> list[str]:
     return sorted(d for d in (pkg.departure_dates or []) if d >= today.isoformat())
 
 
+def _seats_left(pkg: TravelPackage, today: date) -> dict[str, int] | None:
+    """Seats left on each upcoming departure date (None: unlimited). Seats are per departure date."""
+    db = object_session(pkg)
+    if db is None or pkg.seats_available is None:
+        return None if pkg.seats_available is None else {d: pkg.seats_available for d in _upcoming_dates(pkg, today)}
+    return seats.left_by_date(db, pkg, _upcoming_dates(pkg, today), today.isoformat())
+
+
+def _open_dates(pkg: TravelPackage, today: date, left: dict[str, int] | None) -> list[str]:
+    """Upcoming departure dates that still have seats."""
+    return [d for d in _upcoming_dates(pkg, today) if left is None or left.get(d, 0) > 0]
+
+
 def is_bookable(pkg: TravelPackage, today: date) -> bool:
     if not pkg.is_active:
         return False
     if pkg.seats_available is not None and pkg.seats_available <= 0:
         return False
-    # Packages with fixed dates that have all passed are no longer bookable.
-    if pkg.departure_dates and not _upcoming_dates(pkg, today):
+    left = _seats_left(pkg, today)
+    # Packages with fixed dates that have all passed (or are all sold out) are no longer bookable.
+    if pkg.departure_dates and not _open_dates(pkg, today, left):
         return False
     return True
 
 
 def _summary(pkg: TravelPackage, today: date) -> dict:
+    left = _seats_left(pkg, today)
+    open_dates = _open_dates(pkg, today, left)
+    if pkg.seats_available is None:
+        seats_info = None
+    elif pkg.departure_dates:
+        seats_info = {d: left[d] for d in open_dates[:6]}
+    else:
+        seats_info = f"{pkg.seats_available} per departure date"
     return {
         "id": pkg.id,
         "title": pkg.title,
@@ -224,10 +249,11 @@ def _summary(pkg: TravelPackage, today: date) -> dict:
         "price_per_person": _money(pkg.price_per_person),
         "child_price": _money(pkg.child_price),
         "currency": pkg.currency,
-        "next_departures": _upcoming_dates(pkg, today)[:6] or "flexible, on request",
+        "next_departures": open_dates[:6] or "flexible, on request",
         "hotel": f"{pkg.hotel_name} ({pkg.hotel_stars}*)" if pkg.hotel_name and pkg.hotel_stars else pkg.hotel_name,
         "tags": pkg.tags or [],
-        "seats_left": pkg.seats_available,
+        # Seats are per departure date: seats left on each of the next departures.
+        "seats_left": seats_info,
         "image_url": pkg.image_url,
     }
 
@@ -320,7 +346,8 @@ def get_package_details(ctx: ToolContext, package_id=None, **_) -> dict:
             "description": (pkg.description or "")[:2000],
             "includes": pkg.includes or [],
             "excludes": pkg.excludes or [],
-            "all_upcoming_departures": _upcoming_dates(pkg, ctx.today) or "flexible, on request",
+            "all_upcoming_departures": _open_dates(pkg, ctx.today, _seats_left(pkg, ctx.today))
+            or "flexible, on request",
         }
     )
     return details
@@ -338,8 +365,8 @@ def _check_booking(ctx: ToolContext, package_id, departure_date, adults, childre
         return {"error": "Give the number of adults (at least 1) and of children as whole numbers. "
                          "Ask the customer if unsure."}, None
     if n_adults + n_children > MAX_TRAVELERS:
-        return {"error": f"Groups of more than {MAX_TRAVELERS} travelers are handled by a consultant: "
-                         "call request_human_agent."}, None
+        return {"error": f"Online bookings are for up to {MAX_TRAVELERS} travelers. Tell the customer our team "
+                         "arranges group trips and call request_human_agent."}, None
 
     try:
         dep = date.fromisoformat(_text(departure_date, 20))
@@ -354,8 +381,11 @@ def _check_booking(ctx: ToolContext, package_id, departure_date, adults, childre
     elif dep > ctx.today + timedelta(days=MAX_BOOKING_HORIZON_DAYS):
         return {"error": "This date is too far ahead. Ask the customer for a date within two years."}, None
 
-    if pkg.seats_available is not None and n_adults + n_children > pkg.seats_available:
-        return {"error": f"Only {pkg.seats_available} seats are left on this package."}, None
+    left = seats.seats_left(ctx.db, pkg, dep.isoformat())
+    if left is not None and n_adults + n_children > left:
+        others = _open_dates(pkg, ctx.today, _seats_left(pkg, ctx.today))
+        return {"error": f"Only {left} seats are left on {dep.isoformat()}.",
+                **({"dates_with_seats": others} if pkg.departure_dates else {})}, None
 
     child_unit = pkg.child_price if pkg.child_price is not None else pkg.price_per_person
     total = pkg.price_per_person * n_adults + child_unit * n_children
@@ -367,6 +397,8 @@ def quote_booking(ctx: ToolContext, package_id=None, departure_date="", adults=N
     if error:
         return error
     pkg, dep, n_adults, n_children, total = values
+    # Remembered so the booking is made at exactly this total (see create_booking_ticket).
+    ctx.conversation.booking_quote = _quote_record(pkg, dep, n_adults, n_children, total)
     return {
         "package": pkg.title,
         "destination": pkg.destination,
@@ -376,8 +408,31 @@ def quote_booking(ctx: ToolContext, package_id=None, departure_date="", adults=N
         "price_per_child": _money(pkg.child_price if pkg.child_price is not None else pkg.price_per_person),
         "total_price": _money(total),
         "currency": pkg.currency,
+        "seats_left_on_date": seats.seats_left(ctx.db, pkg, dep),
         "next_step": "Show this summary and total to the customer and ask them to confirm.",
     }
+
+
+def _quote_record(pkg: TravelPackage, dep: str, n_adults: int, n_children: int, total) -> dict:
+    return {"package_id": pkg.id, "departure_date": dep, "adults": n_adults, "children": n_children,
+            "total": str(total.quantize(Decimal("0.001"))), "currency": pkg.currency}
+
+
+def _quote_problem(ctx: ToolContext, current: dict) -> dict | None:
+    """Why this booking can't be made from the last quote the customer saw, or None when it matches."""
+    quoted = ctx.conversation.booking_quote
+    same_trip = isinstance(quoted, dict) and all(
+        quoted.get(k) == current[k] for k in ("package_id", "departure_date", "adults", "children"))
+    if not same_trip:
+        return {"error": "No quote for these booking details. Call quote_booking with exactly these details, "
+                         "show the total to the customer and book only after they confirm it."}
+    if quoted.get("total") != current["total"] or quoted.get("currency") != current["currency"]:
+        return {"error": f"The price changed since the quote: the total is now {current['total']} "
+                         f"{current['currency']} (quoted {quoted.get('total')} {quoted.get('currency')}). "
+                         "Call quote_booking again, show the new total to the customer and book only after "
+                         "they confirm it.", "new_total": _money(Decimal(current["total"])),
+                "currency": current["currency"]}
+    return None
 
 
 def _ticket_summary(ticket: Ticket) -> dict:
@@ -432,8 +487,10 @@ def create_booking_ticket(ctx: ToolContext, package_id=None, departure_date="", 
                     "tell the customer so, with the reference.")
         return {**_ticket_summary(existing), "note": note}
 
-    child_unit = pkg.child_price if pkg.child_price is not None else pkg.price_per_person
-    total = pkg.price_per_person * n_adults + child_unit * n_children
+    # The customer confirmed a quoted total: never book at a different one (the price may have changed).
+    problem = _quote_problem(ctx, _quote_record(pkg, departure_date, n_adults, n_children, total))
+    if problem:
+        return problem
 
     customer = ctx.customer
     customer.name = customer.name or name
@@ -471,10 +528,11 @@ def create_booking_ticket(ctx: ToolContext, package_id=None, departure_date="", 
     except seats.NotEnoughSeats as exc:
         ctx.db.delete(ticket)
         ctx.db.flush()
-        return {"error": f"Only {exc.left} seats are left on this package."}
+        return {"error": f"Only {exc.left} seats are left on {departure_date}."}
     ctx.db.add(TicketEvent(ticket_id=ticket.id, actor="AI", action="created",
                            new_value=f"{n_adults} adults, {n_children} children, {_money(total)} {pkg.currency}"))
     ctx.ticket_reference = ref
+    ctx.conversation.booking_quote = None
     _hand_over(ctx, f"Payment for ticket {ref}")
     return {
         "ticket_reference": ref,

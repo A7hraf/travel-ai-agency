@@ -16,4 +16,5 @@ USER appuser
 EXPOSE 8000
 # One worker per container keeps the per-conversation AI lock effective;
 # scale with more containers behind a load balancer instead of more workers.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
+# No --proxy-headers: set TRUSTED_PROXY_HOPS to the number of proxies in front (see app/netutil.py).
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

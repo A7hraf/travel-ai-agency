@@ -42,7 +42,11 @@ class StatusUpdate:
 
 
 def verify_signature(raw_body: bytes, signature_header: str | None, secret: str | None) -> bool:
-    """Checks Meta's X-Hub-Signature-256 header with the app secret. No secret: nothing to check."""
+    """Checks Meta's X-Hub-Signature-256 header with the app secret.
+
+    No secret: nothing to check; the webhook refuses that case unless unsigned webhooks
+    are explicitly allowed (local development).
+    """
     if not secret:
         return True
     if not signature_header or not signature_header.startswith("sha256="):
@@ -113,6 +117,34 @@ def split_text(text: str, limit: int = MAX_TEXT_LENGTH) -> list[str]:
     return parts
 
 
+def verify_phone_number(phone_number_id: str, token: str) -> bool:
+    """True when Meta confirms that this access token may use this phone number.
+
+    Proves that a company really owns the number it types in, so it can't take over
+    another company's number (and its customers' messages).
+    """
+    s = get_settings()
+    try:
+        resp = httpx.get(
+            f"{s.whatsapp_graph_url}/{s.whatsapp_api_version}/{phone_number_id}",
+            params={"fields": "id"},
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=15,
+        )
+        return resp.status_code == 200 and str(resp.json().get("id")) == phone_number_id
+    except (httpx.HTTPError, ValueError, AttributeError) as exc:
+        log.info("Could not verify WhatsApp number %s: %s", phone_number_id, exc)
+        return False
+
+
+def access_token_for(company: Company) -> str | None:
+    """The company's own token, or the platform's shared one when the platform shares its app."""
+    s = get_settings()
+    if company.whatsapp_access_token:
+        return company.whatsapp_access_token
+    return s.whatsapp_default_access_token if s.whatsapp_share_default_token else None
+
+
 class WhatsAppSender(Protocol):
     def send_text(self, company: Company, to: str, text: str) -> str | None: ...
 
@@ -122,7 +154,7 @@ class WhatsAppSender(Protocol):
 class CloudAPISender:
     def _endpoint(self, company: Company) -> tuple[str, dict]:
         s = get_settings()
-        token = company.whatsapp_access_token or s.whatsapp_default_access_token
+        token = access_token_for(company)
         if not company.whatsapp_phone_number_id or not token:
             raise WhatsAppError("WhatsApp is not configured for this company")
         url = f"{s.whatsapp_graph_url}/{s.whatsapp_api_version}/{company.whatsapp_phone_number_id}/messages"

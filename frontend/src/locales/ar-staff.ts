@@ -61,4 +61,10 @@ export const AR_STAFF: Record<string, string> = {
   "Admins only": "للمدير فقط",
   "Only your team sees this": "لا يراها إلا فريقك",
   "Discard": "تجاهل",
+  "Meta App → WhatsApp → API Setup → Phone number ID. Checked with Meta using your access token.": "Meta App → WhatsApp → API Setup → Phone number ID. تتحقق Meta منه باستخدام رمز الوصول الخاص بك.",
+  "Required for your own Meta app: without it WhatsApp messages are refused. Meta App → App settings → Basic → App secret.": "مطلوب لتطبيق Meta الخاص بك: بدونه تُرفض رسائل واتساب. Meta App → App settings → Basic → App secret.",
+  "Save your app secret above first: messages sent to this address are refused without it.": "احفظ سر التطبيق أعلاه أولًا: تُرفض الرسائل المرسلة إلى هذا العنوان بدونه.",
+  "Add your WhatsApp access token to connect a phone number ID": "أضف رمز الوصول الخاص بواتساب لربط معرّف رقم الهاتف",
+  "WhatsApp did not confirm this phone number ID for your access token. Check both in your Meta app and try again.": "لم يؤكد واتساب معرّف رقم الهاتف هذا لرمز الوصول الخاص بك. تحقق من كليهما في تطبيق Meta وحاول مرة أخرى.",
+  "WhatsApp app secret is not configured": "لم يُضبط سر تطبيق واتساب",
 };

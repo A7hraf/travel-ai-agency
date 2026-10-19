@@ -46,5 +46,8 @@ services:
       # Faster logins on the small free instance.
       - key: BCRYPT_ROUNDS
         value: "10"
+      # Render runs one proxy in front of the app: the client IP is the last X-Forwarded-For entry.
+      - key: TRUSTED_PROXY_HOPS
+        value: "1"
       - key: WHATSAPP_VERIFY_TOKEN
         generateValue: true
