@@ -28,6 +28,12 @@ def book(pkg_id, adults=2, **extra):
     return ToolCall("b", "create_booking_ticket", args)
 
 
+def quote(pkg_id, adults=2, **extra):
+    """The quote a booking must match (bookings need the customer to have seen the total)."""
+    return ToolCall("q", "quote_booking", {"package_id": pkg_id, "departure_date": future(30), "adults": adults,
+                                           **extra})
+
+
 def tool_results(llm) -> list[dict]:
     """Tool results of this reply, in order (the last model call sees all of them)."""
     messages = llm.calls[-1]
@@ -38,7 +44,7 @@ def tool_results(llm) -> list[dict]:
 def test_wrong_argument_types_do_not_break_the_booking(client, company_a, scripted):
     company, admin = company_a
     pkg = make_package(client, admin)
-    scripted([LLMResponse(None, [book(pkg["id"], adults="2", contact_phone=96891234567,
+    scripted([LLMResponse(None, [quote(pkg["id"]), book(pkg["id"], adults="2", contact_phone=96891234567,
                                       special_requests=["window seat"])]),
               LLMResponse("Booked!")])
     _, r = chat(client, company, "book")
@@ -69,9 +75,11 @@ def test_bad_values_return_errors_to_the_model(client, company_a, scripted):
 def test_seats_are_held_when_booked_so_the_ai_cannot_oversell(client, company_a, scripted):
     company, admin = company_a
     pkg = make_package(client, admin, seats_available=2)
-    scripted([LLMResponse(None, [book(pkg["id"], adults=2)]), LLMResponse("Booked")])
+    scripted([LLMResponse(None, [quote(pkg["id"]), book(pkg["id"], adults=2)]), LLMResponse("Booked")])
     chat(client, company, "book")
-    assert client.get(f"/api/packages/{pkg['id']}", headers=admin).json()["seats_available"] == 0
+    # Seats are per departure date: the package keeps 2 seats per date, none left on the booked one.
+    left = client.get(f"/api/packages/{pkg['id']}", headers=admin).json()["seats_left_by_date"]
+    assert left == {future(30): 0, future(60): 2}
     llm = scripted([LLMResponse(None, [book(pkg["id"], adults=2)]), LLMResponse("Sorry")])
     chat(client, company, "book")
     assert "error" in tool_results(llm)[0]
@@ -79,7 +87,7 @@ def test_seats_are_held_when_booked_so_the_ai_cannot_oversell(client, company_a,
     # Cancelling gives the seats back, exactly once.
     ticket = client.get("/api/tickets", headers=admin).json()[0]
     assert client.patch(f"/api/tickets/{ticket['id']}", headers=admin, json={"status": "cancelled"}).status_code == 200
-    assert client.get(f"/api/packages/{pkg['id']}", headers=admin).json()["seats_available"] == 2
+    assert client.get(f"/api/packages/{pkg['id']}", headers=admin).json()["seats_left_by_date"][future(30)] == 2
 
 
 def test_quote_gives_the_server_total(client, company_a, scripted):
@@ -101,7 +109,7 @@ def test_changing_a_booking_goes_to_a_consultant(client, company_a, scripted):
     pkg = make_package(client, admin)
     slug = company["slug"]
     token = client.post(f"/api/public/companies/{slug}/chats", json={}).json()["token"]
-    scripted([LLMResponse(None, [book(pkg["id"], adults=2)]), LLMResponse("Booked")])
+    scripted([LLMResponse(None, [quote(pkg["id"]), book(pkg["id"], adults=2)]), LLMResponse("Booked")])
     client.post(f"/api/public/companies/{slug}/chats/{token}/messages", json={"content": "book"})
     conv_id = client.get("/api/tickets", headers=admin).json()[0]["conversation_id"]
     client.post(f"/api/conversations/{conv_id}/release", headers=admin)
@@ -263,7 +271,7 @@ def test_long_knowledge_base_is_trimmed_to_relevant_parts():
 def test_ticket_history_records_the_ai_booking(client, company_a, scripted):
     company, admin = company_a
     pkg = make_package(client, admin)
-    scripted([LLMResponse(None, [book(pkg["id"])]), LLMResponse("Booked")])
+    scripted([LLMResponse(None, [quote(pkg["id"]), book(pkg["id"])]), LLMResponse("Booked")])
     chat(client, company, "book")
     ticket = client.get("/api/tickets", headers=admin).json()[0]
     events = client.get(f"/api/tickets/{ticket['id']}/events", headers=admin).json()

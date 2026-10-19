@@ -156,7 +156,7 @@ a.now-waiting:hover { background: rgba(242, 179, 61, .18); }
 .dc-dot { position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--chart-line, #4fb6dc); box-shadow: 0 0 0 3px #201e1d, 0 0 12px #4fb6dc; pointer-events: none; }
 .dc-meter { background: rgba(243, 242, 242, .06); overflow: hidden; }
 .dc-meter > div { height: 100%; }
-.dash-table { margin-top: 14px; max-height: 254px; overflow-y: auto; font-size: 14px; }
+.dash-table { margin-top: 14px; max-height: 330px; overflow-y: auto; font-size: 14px; }
 .dash-table table { width: 100%; border-collapse: collapse; }
 .dash-table th { text-align: start; font-weight: 400; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: rgba(243, 242, 242, .55); padding: 8px 0; position: sticky; top: 0; background: #1d1b1a; }
 .dash-table td { padding: 7px 0; box-shadow: inset 0 1px 0 rgba(243, 242, 242, .06); }

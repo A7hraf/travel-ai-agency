@@ -11,8 +11,11 @@ import { trServer, useI18n } from "../lang";
 import type { Ticket, TicketEvent, TicketStatus, User } from "../types";
 import {
   customerLabel, dateTime, NEEDS_PAYMENT_REFERENCE, NEXT_TICKET_STATUSES, shortDate, TICKET_STATUS_LABELS,
-  travelersText, usePolling,
+  todayIso, travelersText, usePolling,
 } from "../util";
+
+/** An unpaid booking gives its seats back after the hold time; marking it paid takes them again. */
+const seatsReleased = (tk: Ticket) => tk.seats_released;
 
 type Filter = "open" | "paid" | "confirmed" | "all";
 const OPEN = ["pending_payment", "in_progress"];
@@ -135,6 +138,9 @@ export default function Tickets() {
                 <bdi dir="ltr" className="tk-ref">{tk.reference}</bdi>
                 <span className={`pill st-${tk.status}`}>{t(TICKET_STATUS_LABELS[tk.status])}</span>
               </span>
+              {seatsReleased(tk) && (
+                <span className="pill" style={{ alignSelf: "flex-start", background: "rgba(143, 139, 138, .18)" }}>{t("Seats released")}</span>
+              )}
               <span className="tk-who"><bdi>{tk.lead_traveler_name || customerLabel(tk.customer)}</bdi> · {tk.package_title}</span>
               <span className="tk-card-foot">
                 <span>{shortDate(tk.departure_date)} · {travelersText(tk.adults, tk.children)}</span>
@@ -219,8 +225,11 @@ function TicketPanel({ id, onClose, onSaved }: { id: number; onClose: () => void
   };
 
   // Only the changes the server accepts from the current status (a cancelled booking: admins only).
+  // After the departure date a booking can only be cancelled.
+  const departed = !!ticket?.departure_date && ticket.departure_date < todayIso();
   const nexts = ticket
-    ? (NEXT_TICKET_STATUSES[ticket.status] ?? []).filter(() => ticket.status !== "cancelled" || isAdmin)
+    ? (NEXT_TICKET_STATUSES[ticket.status] ?? []).filter((s) => (ticket.status !== "cancelled" || isAdmin)
+      && !(departed && NEEDS_PAYMENT_REFERENCE.includes(s)))
     : [];
   // Mark as paid comes first when waiting for payment; Cancel always last.
   const actions = [...nexts].sort((a, b) => {
@@ -278,7 +287,7 @@ function TicketPanel({ id, onClose, onSaved }: { id: number; onClose: () => void
     if (to === "cancelled") {
       setConfirmReq({
         title: t("Cancel this booking?"),
-        text: t("The seats go back to the package. Only a company admin can reopen it."),
+        text: t("The seats go back to the package and the payment reference is cleared. Only a company admin can reopen it."),
         okLabel: t("Cancel booking"),
         onConfirm: () => move(to),
       });
@@ -356,6 +365,14 @@ function TicketPanel({ id, onClose, onSaved }: { id: number; onClose: () => void
             })}
           </ol>
           {cancelled && <div className="tk-cancelled">{t("Cancelled. The seats went back to the package.")}</div>}
+          {seatsReleased(ticket) && (
+            <div className="tk-cancelled" role="note">
+              {t("Not paid in time: the seats went back on sale. Marking it paid takes them again if seats are still left on this date.")}
+            </div>
+          )}
+          {departed && !cancelled && (
+            <div className="tk-cancelled" role="note">{t("The departure date has passed: this booking can only be cancelled.")}</div>
+          )}
 
           <dl className="tk-grid-details">
             <dt>{t("Package")}</dt><dd>{ticket.package_title}</dd>
@@ -449,7 +466,7 @@ function TicketHistory({ events, currency, lang }: { events: TicketEvent[] | nul
   const money = (v: string | null) => (v == null || v === "" || Number.isNaN(Number(v)) ? v ?? "—" : moneyText(Number(v), currency, lang));
 
   const describe = (ev: TicketEvent): string => {
-    const who = ev.actor === "AI" ? t("AI agent") : ev.actor;
+    const who = ev.actor === "AI" ? t("AI agent") : ev.actor === "System" ? t("System") : ev.actor;
     switch (ev.action) {
       case "created":
         return ev.new_value
@@ -473,6 +490,8 @@ function TicketHistory({ events, currency, lang }: { events: TicketEvent[] | nul
         return t("{who} changed the status from {old} to {new}", { who, old: status(ev.old_value), new: status(ev.new_value) });
       case "notes":
         return t("{who} updated the internal notes", { who });
+      case "seats_released":
+        return trServer(ev.new_value) || t("Seats released");
       default:
         return `${who}: ${ev.action}`;
     }
@@ -481,7 +500,7 @@ function TicketHistory({ events, currency, lang }: { events: TicketEvent[] | nul
     ev.action === "status" ? STATUS_COLOR[ev.new_value ?? ""] ?? "var(--brand)"
       : ev.action === "payment_reference" ? "var(--st-paid)"
         : ev.action === "price" ? "var(--accent)"
-          : ev.action === "notes" ? "var(--st-cancelled)" : "var(--brand)";
+          : ev.action === "notes" || ev.action === "seats_released" ? "var(--st-cancelled)" : "var(--brand)";
 
   return (
     <section className="tk-history" aria-label={t("History")}>

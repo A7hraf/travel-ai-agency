@@ -102,7 +102,9 @@ def test_dashboard_analytics(client, company_a, scripted):
     company, admin = company_a
     pkg = make_package(client, admin, title="Salalah", price_per_person=100)
     scripted([
-        LLMResponse(None, [ToolCall("b", "create_booking_ticket", {
+        LLMResponse(None, [ToolCall("q", "quote_booking", {
+            "package_id": pkg["id"], "departure_date": future(30), "adults": 2}),
+            ToolCall("b", "create_booking_ticket", {
             "package_id": pkg["id"], "departure_date": future(30), "adults": 2,
             "lead_traveler_name": "Ali", "contact_phone": "+968"})]),
         LLMResponse("Booked."),

@@ -59,6 +59,8 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-travel}:${POSTGRES_PASSWORD:-travel}@db:5432/${POSTGRES_DB:-travel_ai}
       LLM_BASE_URL: ${LLM_BASE_URL:-http://ollama:11434/v1}
+      # nginx (the frontend service) sits in front and adds the visitor's address.
+      TRUSTED_PROXY_HOPS: "1"
     depends_on:
       db:
         condition: service_healthy

@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..deps import get_company_user, require_system_admin
-from ..models import Company, MediaFile, TravelPackage, User, utcnow
+from ..models import Company, CompanyStatus, MediaFile, TravelPackage, User, utcnow
 from ..permissions import effective_permissions
 from ..security import random_token
 
@@ -125,7 +125,9 @@ def upload_for_company(company_id: int, body: UploadIn, _: User = Depends(requir
 @router.get("/api/media/{key}")
 def serve(key: str, db: Session = Depends(get_db)):
     media = db.scalar(select(MediaFile).where(MediaFile.key == key))
-    if media is None:
+    # A suspended company's pages are offline, so its images are too. (Images are loaded by
+    # <img> tags without a login, so the platform owner can't be told apart here.)
+    if media is None or db.scalar(select(Company.status).where(Company.id == media.company_id)) != CompanyStatus.ACTIVE:
         raise HTTPException(404, "Not found")
     return Response(
         content=media.data,

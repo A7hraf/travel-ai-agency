@@ -6,6 +6,7 @@ from ..config import get_settings
 from ..database import get_db
 from ..deps import get_current_user
 from ..models import CompanyStatus, User, utcnow
+from ..netutil import client_ip
 from ..ratelimit import limiter
 from ..schemas import ChangePasswordIn, DemoAccount, LoginChoice, LoginChoicesOut, LoginIn, MeOut, TokenOut
 from ..security import (
@@ -40,11 +41,15 @@ def _account_key(user: User) -> str:
 @router.post("/login", response_model=TokenOut | LoginChoicesOut)
 def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
     email = body.email.strip().lower()
-    ip = request.client.host if request.client else "?"
-    limiter.check(f"login:{ip}:{email}", 10, "Too many login attempts, try again in a minute")
-    limiter.check(f"login-ip:{ip}", 40, "Too many login attempts, try again in a minute")
-    limiter.check(f"login-account:{email}", 30, "Too many login attempts for this account, try again later",
-                  window=900)
+    ip = client_ip(request)
+    too_many = HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many login attempts, try again in a minute")
+    limiter.check(f"login-ip:{ip}", 40, too_many.detail)
+    # The per-email limits count failed attempts only, and the per-account one does not stop the
+    # right password: otherwise anyone could lock a colleague (or the owner) out by guessing wrong.
+    ip_email_key, account_key = f"login:{ip}:{email}", f"login-account:{email}"
+    if limiter.blocked(ip_email_key, 10):
+        raise too_many
+    account_locked = limiter.blocked(account_key, 30, window=900)
     candidates = db.scalars(select(User).where(User.email == email).order_by(User.id)).all()
     if not candidates:
         verify_password(body.password, _DUMMY_HASH)
@@ -54,6 +59,11 @@ def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
     if body.account:
         matches = [u for u in matches if _account_key(u) == body.account]
     if not matches:
+        limiter.hit(ip_email_key)
+        limiter.hit(account_key)
+        if account_locked:
+            raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS,
+                                "Too many login attempts for this account, try again later")
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Wrong email or password")
     if len(matches) > 1:
         return LoginChoicesOut(choose=[

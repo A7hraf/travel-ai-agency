@@ -26,7 +26,7 @@ from ..models import (
     utcnow,
 )
 from ..ratelimit import limiter
-from .whatsapp import WhatsAppError, get_whatsapp_sender, parse_webhook
+from .whatsapp import IncomingMessage, StatusUpdate, WhatsAppError, get_whatsapp_sender, parse_webhook
 
 log = logging.getLogger(__name__)
 
@@ -119,27 +119,55 @@ def deliver(db: Session, conversation: Conversation, message: Message) -> None:
     db.commit()
 
 
-def _whatsapp_conversation(db: Session, company: Company, wa_id: str, profile_name: str | None) -> Conversation:
-    customer = db.scalar(select(Customer).where(Customer.company_id == company.id, Customer.whatsapp_id == wa_id))
+def _whatsapp_customer(db: Session, company: Company, wa_id: str, profile_name: str | None) -> Customer:
+    stmt = select(Customer).where(Customer.company_id == company.id, Customer.whatsapp_id == wa_id)
+    customer = db.scalar(stmt)
     if customer is None:
-        customer = Customer(company_id=company.id, whatsapp_id=wa_id, phone=f"+{wa_id}", name=profile_name)
-        db.add(customer)
-        db.flush()
-    elif profile_name and not customer.name:
+        try:
+            with db.begin_nested():
+                customer = Customer(company_id=company.id, whatsapp_id=wa_id, phone=f"+{wa_id}", name=profile_name)
+                db.add(customer)
+        except IntegrityError:
+            # A second message from this new customer arrived at the same moment and created
+            # them first: use that record instead of losing this message.
+            customer = db.scalar(stmt)
+            if customer is None:
+                raise
+    if profile_name and not customer.name:
         customer.name = profile_name
+    return customer
 
-    conversation = db.scalar(
+
+def _open_whatsapp_conversation(db: Session, customer: Customer) -> Conversation | None:
+    return db.scalar(
         select(Conversation)
         .where(
             Conversation.customer_id == customer.id,
             Conversation.channel == Channel.WHATSAPP,
             Conversation.status != ConversationStatus.CLOSED,
         )
-        .order_by(Conversation.id.desc())
+        .order_by(Conversation.id)
+        .limit(1)
     )
+
+
+def _whatsapp_conversation(db: Session, company: Company, wa_id: str, profile_name: str | None) -> Conversation:
+    customer = _whatsapp_customer(db, company, wa_id, profile_name)
+    # Lock the customer so two messages arriving together pick the same open conversation
+    # (PostgreSQL waits here; SQLite already allows one writer at a time and ignores it).
+    db.execute(select(Customer.id).where(Customer.id == customer.id).with_for_update())
+
+    conversation = _open_whatsapp_conversation(db, customer)
     if conversation is None:
         conversation = Conversation(company_id=company.id, customer_id=customer.id, channel=Channel.WHATSAPP)
         db.add(conversation)
+        db.flush()
+        # Another message may have opened one in the meantime: keep the oldest, so the
+        # customer has a single open conversation.
+        first = _open_whatsapp_conversation(db, customer)
+        if first is not None and first.id != conversation.id:
+            db.delete(conversation)
+            conversation = first
     db.commit()
     return conversation
 
@@ -156,32 +184,48 @@ def process_whatsapp_payload(payload: dict, only_company_id: int | None = None) 
     max_len = get_settings().public_chat_max_message_length
     db = SessionLocal()
     try:
-        for status in statuses:
-            stmt = select(Message).where(Message.external_id == status.message_id)
-            if only_company_id is not None:
-                stmt = stmt.join(Conversation, Conversation.id == Message.conversation_id).where(
-                    Conversation.company_id == only_company_id
-                )
-            msg = db.scalar(stmt)
-            if msg is not None and msg.delivery_status != "failed":
-                msg.delivery_status = status.status
-        db.commit()
+        try:
+            _apply_statuses(db, statuses, only_company_id)
+        except Exception:
+            log.exception("Could not store WhatsApp delivery statuses")
+            db.rollback()
 
         for item in incoming:
-            company = db.scalar(select(Company).where(Company.whatsapp_phone_number_id == item.phone_number_id))
-            if company is None or company.status != CompanyStatus.ACTIVE:
-                log.info("Ignoring WhatsApp message for unknown/suspended number %s", item.phone_number_id)
-                continue
-            if only_company_id is not None and company.id != only_company_id:
-                log.warning("Company %s webhook sent a message for another company's number; ignored",
-                            only_company_id)
-                continue
-            if db.scalar(select(Message.id).where(Message.external_id == item.message_id)):
-                continue  # Meta retried a delivery we already handled
-            conversation = _whatsapp_conversation(db, company, item.wa_id, item.profile_name)
-            get_whatsapp_sender().mark_read(company, item.message_id)
-            replies = handle_customer_message(db, conversation, item.text[:max_len], external_id=item.message_id)
-            for reply in replies or []:
-                deliver(db, conversation, reply)
+            # Meta already got its 200: one broken message must not drop the others in the payload.
+            try:
+                _process_whatsapp_message(db, item, only_company_id, max_len)
+            except Exception:
+                log.exception("Could not process WhatsApp message %s", item.message_id)
+                db.rollback()
     finally:
         db.close()
+
+
+def _apply_statuses(db: Session, statuses: list[StatusUpdate], only_company_id: int | None) -> None:
+    for status in statuses:
+        stmt = select(Message).where(Message.external_id == status.message_id)
+        if only_company_id is not None:
+            stmt = stmt.join(Conversation, Conversation.id == Message.conversation_id).where(
+                Conversation.company_id == only_company_id
+            )
+        msg = db.scalar(stmt)
+        if msg is not None and msg.delivery_status != "failed":
+            msg.delivery_status = status.status
+    db.commit()
+
+
+def _process_whatsapp_message(db: Session, item: IncomingMessage, only_company_id: int | None, max_len: int) -> None:
+    company = db.scalar(select(Company).where(Company.whatsapp_phone_number_id == item.phone_number_id))
+    if company is None or company.status != CompanyStatus.ACTIVE:
+        log.info("Ignoring WhatsApp message for unknown/suspended number %s", item.phone_number_id)
+        return
+    if only_company_id is not None and company.id != only_company_id:
+        log.warning("Company %s webhook sent a message for another company's number; ignored", only_company_id)
+        return
+    if db.scalar(select(Message.id).where(Message.external_id == item.message_id)):
+        return  # Meta retried a delivery we already handled
+    conversation = _whatsapp_conversation(db, company, item.wa_id, item.profile_name)
+    get_whatsapp_sender().mark_read(company, item.message_id)
+    replies = handle_customer_message(db, conversation, item.text[:max_len], external_id=item.message_id)
+    for reply in replies or []:
+        deliver(db, conversation, reply)

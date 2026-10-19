@@ -23,6 +23,8 @@ NEW_COLUMNS = [
     ("companies", "branding", "JSON"),
     ("tickets", "seats_held", "INTEGER NOT NULL DEFAULT 0"),
     ("conversations", "was_handed_over", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("conversations", "booking_quote", "JSON"),
+    ("tickets", "seats_held_at", "TIMESTAMP WITH TIME ZONE"),
 ]
 
 # Filled once, right after the column is added.
@@ -30,6 +32,13 @@ BACKFILL = {
     ("tickets", "seats_held"): (
         "UPDATE tickets SET seats_held = adults + children WHERE status = 'confirmed' AND package_id IN "
         "(SELECT id FROM travel_packages WHERE seats_available IS NOT NULL)"
+    ),
+    # Released together with seats per departure date: seats_available used to be the seats left in one
+    # pool for every date (booked seats were taken off it). It is now the seats of each departure, so the
+    # booked seats are added back once.
+    ("tickets", "seats_held_at"): (
+        "UPDATE travel_packages SET seats_available = seats_available + (SELECT COALESCE(SUM(t.seats_held), 0) "
+        "FROM tickets t WHERE t.package_id = travel_packages.id) WHERE seats_available IS NOT NULL"
     ),
     ("conversations", "was_handed_over"): (
         "UPDATE conversations SET was_handed_over = TRUE WHERE handover_reason IS NOT NULL "

@@ -25,4 +25,5 @@ USER appuser
 
 EXPOSE 8000
 # Hosts like Render tell the app which port to use through $PORT.
-CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips '*'"]
+# No --proxy-headers: the client IP comes from X-Forwarded-For only as far as TRUSTED_PROXY_HOPS allows.
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

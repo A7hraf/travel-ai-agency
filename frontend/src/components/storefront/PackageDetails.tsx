@@ -5,6 +5,16 @@ import type { StorefrontText } from "../../i18n";
 import type { TravelPackage } from "../../types";
 import { stars, todayIso } from "./shared";
 
+/** One departure date: past dates are struck through, full ones say "Sold out" (seats are per date). */
+function DateChip({ p, d, today, t }: { p: TravelPackage; d: string; today: string; t: StorefrontText }) {
+  const full = d >= today && p.seats_left_by_date?.[d] === 0;
+  return (
+    <span className={`sf-date ${d < today || full ? "sf-past" : ""}`}>
+      {t.date(d)}{full && <> · {t.soldOut}</>}
+    </span>
+  );
+}
+
 function Facts({ p, t }: { p: TravelPackage; t: StorefrontText }) {
   const low = p.seats_available != null && p.seats_available <= 6;
   return (
@@ -68,7 +78,7 @@ export function PhonePackage({ p, t, lang, agent, onBack, onBook }: {
           <h3 className="sf-pd-h sf-first">{t.departures}</h3>
           <div className="sf-dates">
             {p.departure_dates.length
-              ? p.departure_dates.map((d) => <span key={d} className={`sf-date ${d < today ? "sf-past" : ""}`}>{t.date(d)}</span>)
+              ? p.departure_dates.map((d) => <DateChip key={d} p={p} d={d} today={today} t={t} />)
               : <span className="sf-date">{t.flexible}</span>}
           </div>
           {p.description && <p className="sf-pd-desc" dir="auto">{p.description}</p>}
@@ -108,7 +118,7 @@ export function WebPackage({ p, t, lang, agent, onClose, onBook }: {
         {p.description && <p className="sf-pkgwin-desc" dir="auto">{p.description}</p>}
         {p.departure_dates.length > 0 && (
           <div className="sf-dates sf-sm">
-            {p.departure_dates.map((d) => <span key={d} className={`sf-date ${d < today ? "sf-past" : ""}`}>{t.date(d)}</span>)}
+            {p.departure_dates.map((d) => <DateChip key={d} p={p} d={d} today={today} t={t} />)}
           </div>
         )}
         <div className="sf-pkgwin-lists">

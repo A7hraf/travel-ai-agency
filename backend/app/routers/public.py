@@ -1,5 +1,7 @@
 """Customer-facing API: a company's offers page and web chat with the AI agent."""
 
+from datetime import timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -18,6 +20,7 @@ from ..models import (
     Message,
     Sender,
     TravelPackage,
+    utcnow,
 )
 from ..ratelimit import limiter
 from ..schemas import (
@@ -28,16 +31,13 @@ from ..schemas import (
     StartChatIn,
     StartChatOut,
 )
+from ..netutil import client_ip
 from ..security import random_token
 from ..serializers import public_message_out
 from ..services.conversations import handle_customer_message, is_customer_visible
 from ..timeutil import local_today
 
 router = APIRouter(prefix="/api/public/companies/{slug}", tags=["public"])
-
-
-def client_ip(request: Request) -> str:
-    return request.client.host if request.client else "?"
 
 
 def _company(db: Session, slug: str) -> Company:
@@ -50,6 +50,10 @@ def _company(db: Session, slug: str) -> Company:
 def _conversation(db: Session, company: Company, token: str) -> Conversation:
     conv = db.scalar(select(Conversation).where(Conversation.public_token == token))
     if conv is None or conv.company_id != company.id:
+        raise HTTPException(404, "Chat not found")
+    # A chat link left on a shared device must not open an old chat forever: after a quiet
+    # month it behaves like an unknown link and the page starts a new chat.
+    if conv.last_message_at < utcnow() - timedelta(days=get_settings().public_chat_resume_days):
         raise HTTPException(404, "Chat not found")
     return conv
 

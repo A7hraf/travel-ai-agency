@@ -36,6 +36,9 @@ function toForm(p: TravelPackage): FormState {
   };
 }
 
+/** Seats are per departure date: the API adds the seats left on each upcoming date. */
+const seatsLeftOn = (p: TravelPackage | null, d: string): number | undefined => p?.seats_left_by_date?.[d];
+
 const lines = (s: string) => s.split("\n").map((x) => x.trim()).filter(Boolean);
 const optNum = (s: string) => (s.trim() === "" ? null : Number(s));
 
@@ -82,7 +85,9 @@ export default function Packages() {
         <div className="pk-grid">
           {shown.map((p, i) => {
             const next = p.departure_dates.find((d) => d >= today);
-            const low = p.seats_available != null && p.seats_available <= 6;
+            // Seats left on the next departure (each date has its own seats).
+            const nextLeft = p.seats_available == null ? null : next ? seatsLeftOn(p, next) ?? p.seats_available : p.seats_available;
+            const low = nextLeft != null && nextLeft <= 6;
             return (
               <article key={p.id} className={`pk-card ${p.is_active ? "" : "inactive"}`} style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}>
                 <Poster destination={p.destination} country={p.country} title={p.title} imageUrl={p.image_url} className="pk-poster">
@@ -106,9 +111,13 @@ export default function Packages() {
                   </div>
                   <div className="pk-facts">
                     <span className="pk-fact"><CalendarBlank />{next ? <>{t("Next")} · {shortDate(next)}</> : t("Flexible dates")}</span>
-                    {p.seats_available != null && (
-                      <span className={`pk-fact ${low ? "low" : ""}`}>{p.seats_available === 1 ? t("1 seat left") : t("{n} seats left", { n: p.seats_available })}</span>
-                    )}
+                    {nextLeft != null && (p.departure_dates.length ? (
+                      <span className={`pk-fact ${low ? "low" : ""}`} title={t("Seats left on the next departure. Each date has its own seats.")}>
+                        {nextLeft === 1 ? t("1 seat left") : t("{n} seats left", { n: nextLeft })}
+                      </span>
+                    ) : (
+                      <span className="pk-fact">{t("{n} seats per date", { n: nextLeft })}</span>
+                    ))}
                   </div>
                   {p.tags.length > 0 && <div className="pk-tags">{p.tags.map((tag) => <span key={tag} dir="auto">{tag}</span>)}</div>}
                   {manage && (
@@ -168,7 +177,7 @@ function PackageForm({ pkg, onClose, onSaved }: {
       image_url: f.image_url || null, is_active: f.is_active, is_featured: f.is_featured,
     };
     // The seat count the form was opened with: if it was not changed here, the server keeps the
-    // current count (bookings made meanwhile have changed it).
+    // current count (someone may have changed it meanwhile).
     if (pkg) body.seats_loaded = pkg.seats_available;
     setBusy(true);
     try {
@@ -219,7 +228,7 @@ function PackageForm({ pkg, onClose, onSaved }: {
             <Field label={t("Currency")} hint={t("Empty = company currency")}><input maxLength={3} pattern="[A-Za-z]{3}" title={t("3 English letters, for example OMR")} dir="ltr" placeholder="OMR" value={f.currency} onChange={(e) => set("currency", e.target.value.toUpperCase())} /></Field>
           </div>
           <div className="ad-grid-3">
-            <Field label={t("Seats")} hint={t("Empty = unlimited")}><input type="number" min={0} step={1} value={f.seats_available} onChange={(e) => set("seats_available", e.target.value)} /></Field>
+            <Field label={t("Seats per departure date")} hint={t("Each date has its own seats. Empty = unlimited")}><input type="number" min={0} step={1} value={f.seats_available} onChange={(e) => set("seats_available", e.target.value)} /></Field>
             <Field label={t("Hotel")}><input value={f.hotel_name} onChange={(e) => set("hotel_name", e.target.value)} dir="auto" /></Field>
             <Field label={t("Stars")}><input type="number" min={1} max={7} value={f.hotel_stars} onChange={(e) => set("hotel_stars", e.target.value)} /></Field>
           </div>
@@ -234,10 +243,12 @@ function PackageForm({ pkg, onClose, onSaved }: {
           <div className="date-chips">
             {f.departure_dates.map((d) => {
               const past = d < today;
+              const left = past ? undefined : seatsLeftOn(pkg, d);
               return (
                 <span key={d} className={`date-chip ${past ? "past" : ""}`} title={past ? t("Past date") : undefined}>
                   <span className={past ? "struck" : ""}>{shortDate(d)}</span>
                   {past && <span className="sr-only">{t("Past date")}</span>}
+                  {left != null && <span className={`muted small ${left <= 6 ? "low" : ""}`}>· {t("{n} left", { n: left })}</span>}
                   <button type="button" aria-label={t("Remove {date}", { date: shortDate(d) })}
                     onClick={() => set("departure_dates", f.departure_dates.filter((x) => x !== d))}><X size={14} /></button>
                 </span>

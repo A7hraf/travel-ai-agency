@@ -31,8 +31,8 @@ def _challenge(mode: str, token: str, challenge: str, expected: str | None) -> s
 
 
 async def _read_signed_payload(request: Request, app_secret: str | None) -> dict:
-    if not app_secret and get_settings().environment == "production":
-        # Without an app secret anybody could post fake WhatsApp messages.
+    if not app_secret and not get_settings().whatsapp_allow_unsigned:
+        # Without an app secret anybody could post fake WhatsApp messages (in any environment).
         raise HTTPException(503, "WhatsApp app secret is not configured")
     raw = await request.body()
     if not verify_signature(raw, request.headers.get("X-Hub-Signature-256"), app_secret):
@@ -86,7 +86,8 @@ def verify_company(
 @router.post("/c/{key}")
 async def receive_company(key: str, request: Request, background: BackgroundTasks, db: Session = Depends(get_db)):
     company = _company_by_key(db, key)
-    secret = company.whatsapp_app_secret or get_settings().whatsapp_app_secret
-    payload = await _read_signed_payload(request, secret)
+    # Only the company's own app secret: the platform's secret signs the platform's app, and
+    # accepting it here would let that app post into this company's private address.
+    payload = await _read_signed_payload(request, company.whatsapp_app_secret)
     background.add_task(process_whatsapp_payload, payload, company.id)
     return {"status": "received"}

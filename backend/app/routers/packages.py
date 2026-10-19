@@ -6,6 +6,7 @@ from ..database import get_db
 from ..deps import require_permission
 from ..models import Ticket, TravelPackage, User
 from ..schemas import PackageIn, PackageOut
+from ..services import seats
 from ..timeutil import local_today
 from .media import media_belongs_to
 
@@ -17,7 +18,8 @@ def _apply(pkg: TravelPackage, body: PackageIn, default_currency: str, db: Sessi
         raise HTTPException(400, "Use a photo uploaded by your company")
     data = body.model_dump(exclude={"seats_loaded"})
     # The edit form sends the seat count it loaded. If the employee did not change it, keep the current
-    # count: bookings made while the form was open have changed it.
+    # count (another employee may have changed it while the form was open). It is the number of seats of
+    # each departure date; bookings never change it (see services/seats.py).
     if pkg.id is not None and "seats_loaded" in body.model_fields_set and body.seats_available == body.seats_loaded:
         data.pop("seats_available")
     data["currency"] = (data.get("currency") or default_currency).upper()
@@ -34,6 +36,13 @@ def _apply(pkg: TravelPackage, body: PackageIn, default_currency: str, db: Sessi
         setattr(pkg, key, value)
 
 
+def _with_seats(db: Session, pkg: TravelPackage) -> TravelPackage:
+    """Adds the seats left on each upcoming departure date (seats_left_by_date) for the response."""
+    today = local_today().isoformat()
+    seats.left_by_date(db, pkg, [d for d in pkg.departure_dates or [] if d >= today], today)
+    return pkg
+
+
 def _get(db: Session, me: User, package_id: int) -> TravelPackage:
     pkg = db.get(TravelPackage, package_id)
     if pkg is None or pkg.company_id != me.company_id:
@@ -43,15 +52,16 @@ def _get(db: Session, me: User, package_id: int) -> TravelPackage:
 
 @router.get("", response_model=list[PackageOut])
 def list_packages(me: User = Depends(require_permission("packages.view")), db: Session = Depends(get_db)):
-    return db.scalars(
+    rows = db.scalars(
         select(TravelPackage).where(TravelPackage.company_id == me.company_id).order_by(TravelPackage.id.desc())
     ).all()
+    return [_with_seats(db, p) for p in rows]
 
 
 @router.get("/{package_id}", response_model=PackageOut)
 def get_package(package_id: int, me: User = Depends(require_permission("packages.view")),
                 db: Session = Depends(get_db)):
-    return _get(db, me, package_id)
+    return _with_seats(db, _get(db, me, package_id))
 
 
 @router.post("", response_model=PackageOut, status_code=201)
@@ -62,7 +72,7 @@ def create_package(body: PackageIn, me: User = Depends(require_permission("packa
     db.add(pkg)
     db.commit()
     db.refresh(pkg)
-    return pkg
+    return _with_seats(db, pkg)
 
 
 @router.put("/{package_id}", response_model=PackageOut)
@@ -72,7 +82,7 @@ def update_package(package_id: int, body: PackageIn, me: User = Depends(require_
     _apply(pkg, body, me.company.currency, db)
     db.commit()
     db.refresh(pkg)
-    return pkg
+    return _with_seats(db, pkg)
 
 
 @router.delete("/{package_id}", status_code=204)

@@ -51,7 +51,9 @@ def test_ai_books_until_payment_then_hands_over(client, company_a, scripted):
     llm = scripted([
         LLMResponse(None, [ToolCall("c1", "search_packages", {"query": "Maldives honeymoon"})]),
         recommend,
-        LLMResponse(None, [ToolCall("c2", "create_booking_ticket", {
+        LLMResponse(None, [ToolCall("q2", "quote_booking", {
+            "package_id": pkg["id"], "departure_date": future(30), "adults": 2, "children": 1}),
+            ToolCall("c2", "create_booking_ticket", {
             "package_id": pkg["id"], "departure_date": future(30), "adults": 2, "children": 1,
             "lead_traveler_name": "Ali Hassan", "contact_phone": "+971500000000",
             # a price sent by the model is ignored
@@ -177,7 +179,9 @@ def test_failure_after_booking_keeps_the_ticket(client, company_a, scripted):
     company, admin = company_a
     pkg = make_package(client, admin)
     scripted([
-        LLMResponse(None, [ToolCall("b", "create_booking_ticket", {
+        LLMResponse(None, [ToolCall("q", "quote_booking", {
+            "package_id": pkg["id"], "departure_date": future(30), "adults": 1}),
+            ToolCall("b", "create_booking_ticket", {
             "package_id": pkg["id"], "departure_date": future(30), "adults": 1,
             "lead_traveler_name": "Ali", "contact_phone": "+1"})]),
         LLMError("timeout"),

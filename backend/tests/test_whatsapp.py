@@ -4,12 +4,22 @@ import hashlib
 import hmac
 import json
 
+import pytest
+
 from app.ai.llm import LLMResponse
 from app.config import get_settings
+from app.services import whatsapp as whatsapp_service
 from app.services.whatsapp import set_whatsapp_sender, split_text
 from tests.conftest import FakeWhatsApp, make_company, make_package
 
 HOOK = "/api/webhooks/whatsapp"
+
+
+@pytest.fixture(autouse=True)
+def meta_stub(monkeypatch):
+    """These tests post unsigned webhooks and connect numbers without calling Meta."""
+    monkeypatch.setattr(get_settings(), "whatsapp_allow_unsigned", True)
+    monkeypatch.setattr(whatsapp_service, "verify_phone_number", lambda number_id, token: True)
 
 
 def wa_payload(phone_number_id, wa_id, text, message_id, name="Omar"):

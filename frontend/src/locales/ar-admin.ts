@@ -139,4 +139,18 @@ export const AR_ADMIN: Record<string, string> = {
   "Choose the account to open": "اختر الحساب الذي تريد فتحه",
   "This email has several accounts. Which one do you want to open?": "لهذا البريد أكثر من حساب. أي حساب تريد أن تفتح؟",
   "An account with this email already exists in this company": "يوجد حساب بهذا البريد الإلكتروني في هذه الشركة بالفعل",
+  // Security fixes
+  "Only a company admin can manage an account with permissions you don't have": "يستطيع مدير الشركة فقط إدارة حساب لديه صلاحيات لا تملكها",
+  "Change your own password on the My account page (it asks for your current password)": "غيّر كلمة مرورك من صفحة «حسابي» (تطلب كلمة المرور الحالية)",
+  "Change your own password on the My account page.": "غيّر كلمة مرورك من صفحة «حسابي».",
+  "{message}. Do you want to hand it back to the AI anyway?": "{message}. هل تريد إعادتها إلى المساعد الذكي على أي حال؟",
+  "{message}. Do you want to close it anyway?": "{message}. هل تريد إغلاقها على أي حال؟",
+  "They will see that you handed it back.": "سيرى أنك أعدتها إلى المساعد الذكي.",
+  "They will see that you closed it.": "سيرى أنك أغلقتها.",
+  "{name} is handling this chat. Hand it back to the AI anyway?": "{name} يتولّى هذه المحادثة الآن. هل تريد إعادتها إلى المساعد الذكي على أي حال؟",
+  "{name} is handling this chat. Close it anyway?": "{name} يتولّى هذه المحادثة الآن. هل تريد إغلاقها على أي حال؟",
+  "Staff are logged out and can't sign in, the customer page shows \"temporarily unavailable\", its images are hidden and the AI stops answering on WhatsApp. Nothing is deleted.": "سيُسجَّل خروج الموظفين ولن يتمكنوا من الدخول، وستظهر صفحة العملاء \"غير متاحة مؤقتاً\" وتُخفى صورها، وسيتوقف الذكاء الاصطناعي عن الرد على الواتساب. لن يُحذف أي شيء.",
+  "WhatsApp phone number ID (platform app)": "معرّف رقم واتساب (تطبيق المنصة)",
+  "Only for a number added to the platform's own Meta app. Companies with their own Meta app connect their number in their AI & WhatsApp settings. Leave empty to disconnect.": "فقط لرقم مضاف إلى تطبيق Meta الخاص بالمنصة. الشركات التي لديها تطبيق Meta خاص بها تربط رقمها من إعدادات الذكاء الاصطناعي وواتساب. اتركه فارغاً لفصل الرقم.",
+  "This WhatsApp number is already connected to another company": "رقم واتساب هذا مربوط بشركة أخرى بالفعل",
 };

@@ -91,6 +91,7 @@ export interface CompanyAdmin {
   contact_email: string | null;
   contact_phone: string | null;
   whatsapp_connected: boolean;
+  whatsapp_phone_number_id: string | null;
   package_count: number;
   open_tickets: number;
   created_at: string;
@@ -167,6 +168,8 @@ export interface TravelPackage {
   image_url: string | null;
   is_active: boolean;
   is_featured: boolean;
+  /** Seats left on each departure date ("YYYY-MM-DD"), when the package limits seats. */
+  seats_left_by_date?: Record<string, number> | null;
 }
 
 export interface Customer {
@@ -237,6 +240,9 @@ export interface Ticket {
   assigned_to: UserBrief | null;
   created_at: string;
   updated_at: string;
+  seats_held: number;
+  /** The seats went back on sale because the booking was not paid in time. */
+  seats_released: boolean;
 }
 
 export interface TicketEvent {

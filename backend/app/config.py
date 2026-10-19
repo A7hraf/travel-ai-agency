@@ -58,21 +58,34 @@ class Settings(BaseSettings):
 
     # --- WhatsApp Cloud API (Meta) --------------------------------------------
     whatsapp_verify_token: str = "travel-ai-verify"
-    # App secret used to verify the X-Hub-Signature-256 header. Leave empty to skip
-    # verification (development only).
+    # App secret used to verify the X-Hub-Signature-256 header of the platform's webhook.
     whatsapp_app_secret: str = ""
+    # Accept webhooks without a signature when no app secret is set. Local development only:
+    # otherwise anybody could post fake WhatsApp messages.
+    whatsapp_allow_unsigned: bool = False
     whatsapp_api_version: str = "v21.0"
     whatsapp_graph_url: str = "https://graph.facebook.com"
-    # Fallback access token when a company has not stored its own.
+    # Fallback access token when a company has not stored its own: the platform's shared Meta
+    # app, to which the platform owner adds the companies' numbers.
     whatsapp_default_access_token: str = ""
+    # Use the token above for companies without their own token. Turn off when the platform
+    # does not share its Meta app, so a company's number is never used with the platform's token.
+    whatsapp_share_default_token: bool = True
+    # Days a web chat link stays usable after its last message; older chats start fresh.
+    public_chat_resume_days: int = 30
 
     # Abuse protection (also protects your AI provider quota)
+    # Number of proxies in front of the app that append to X-Forwarded-For (Render: 1).
+    # 0: use the connecting address. Never more than you really have, or clients can fake their IP.
+    trusted_proxy_hops: int = 0
     public_chat_max_messages_per_minute: int = 12
     public_chat_max_messages_per_ip_per_minute: int = 30
     ai_max_replies_per_company_per_hour: int = 300
     # Days, dashboards and departure dates follow the agencies' local time (Oman has no daylight saving).
     business_timezone: str = "Asia/Muscat"
     public_chat_max_message_length: int = 2000
+    # Bookings not paid within this many hours give their seats back (see services/seats.py).
+    seat_hold_hours: int = 48
 
     @property
     def cors_origin_list(self) -> list[str]:

@@ -9,7 +9,11 @@ import type { PermissionCatalog, Role, User, UserList } from "../types";
 import { dateTime, ROLE_LABELS } from "../util";
 
 /** Shared by the company admin's team page and the system admin's company page. */
-export function UserManager({ basePath, listPath, createPath }: { basePath: string; listPath: string; createPath: string }) {
+export function UserManager({ basePath, listPath, createPath, onChanged }: {
+  basePath: string; listPath: string; createPath: string;
+  /** Called after an account was added, changed or deleted (the owner's company page refreshes its counts). */
+  onChanged?: () => void;
+}) {
   const { user: me } = useAuth();
   const { t } = useI18n();
   const [data, setData] = useState<UserList | null>(null);
@@ -17,6 +21,7 @@ export function UserManager({ basePath, listPath, createPath }: { basePath: stri
   const [editing, setEditing] = useState<User | "new" | null>(null);
 
   const load = () => get<UserList>(listPath).then(setData).catch(() => {});
+  const changed = () => { load(); onChanged?.(); };
   useEffect(() => {
     load();
     get<PermissionCatalog>("/api/permissions").then(setCatalog).catch(() => {});
@@ -48,7 +53,12 @@ export function UserManager({ basePath, listPath, createPath }: { basePath: stri
 
       <ul className="tm-list">
         {data.users.map((u) => {
-          const locked = delegate && u.role === "company_admin" && u.id !== me?.id;
+          // A delegate can't manage admins, nor colleagues who have a permission the delegate lacks.
+          const lockedReason = !delegate || u.id === me?.id ? null
+            : u.role === "company_admin" ? "Only a company admin can manage admin accounts"
+            : u.permissions.some((p) => !(me?.permissions ?? []).includes(p))
+              ? "Only a company admin can manage an account with permissions you don't have" : null;
+          const locked = !!lockedReason;
           return (
             <li key={u.id} className={`tm-row ${u.is_active ? "" : "off"}`}>
               <span className={`tm-avatar role-${u.role}`} aria-hidden="true">{initials(u.full_name)}</span>
@@ -66,7 +76,7 @@ export function UserManager({ basePath, listPath, createPath }: { basePath: stri
               </div>
               <div className="tm-action">
                 {locked
-                  ? <span className="tm-locked" title={t("Only a company admin can manage admin accounts")}><LockSimple />{t("Admin only")}</span>
+                  ? <span className="tm-locked" title={t(lockedReason ?? "")}><LockSimple />{t("Admin only")}</span>
                   : <button className="btn btn-sm btn-soft" onClick={() => setEditing(u)} aria-label={t("Edit {name}", { name: u.full_name })}><PencilSimple />{t("Edit")}</button>}
               </div>
             </li>
@@ -78,7 +88,7 @@ export function UserManager({ basePath, listPath, createPath }: { basePath: stri
         <UserForm user={editing === "new" ? null : editing} catalog={catalog} basePath={basePath} createPath={createPath}
           isSelf={editing !== "new" && editing.id === me?.id} delegate={delegate} myPermissions={me?.permissions ?? []}
           limitReached={full}
-          onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
+          onClose={() => setEditing(null)} onSaved={() => { setEditing(null); changed(); }} />
       )}
     </div>
   );
@@ -165,10 +175,17 @@ function UserForm({ user, catalog, basePath, createPath, isSelf, delegate, myPer
         <div className="form-grid">
           <Field label={t("Full name")}><input value={fullName} onChange={(e) => setFullName(e.target.value)} required maxLength={200} dir="auto" autoComplete="off" /></Field>
           <Field label={t("Email (login)")}><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required dir="ltr" autoComplete="off" /></Field>
-          <Field label={user ? t("New password") : t("Password")} hint={user ? t("Leave empty to keep the current password") : t("8 to 72 characters")}>
-            <input type="password" value={password} minLength={8} maxLength={72} autoComplete="new-password"
-              onChange={(e) => setPassword(e.target.value)} required={!user} />
-          </Field>
+          {isSelf ? (
+            // Your own password is changed on My account, which asks for the current one.
+            <Field label={t("Password")} hint={t("Change your own password on the My account page.")}>
+              <input type="password" value="" disabled placeholder="••••••••" />
+            </Field>
+          ) : (
+            <Field label={user ? t("New password") : t("Password")} hint={user ? t("Leave empty to keep the current password") : t("8 to 72 characters")}>
+              <input type="password" value={password} minLength={8} maxLength={72} autoComplete="new-password"
+                onChange={(e) => setPassword(e.target.value)} required={!user} />
+            </Field>
+          )}
           <Field label={t("Role")}>
             <select value={role} disabled={isSelf} onChange={(e) => changeRole(e.target.value as Role)}>
               {(!delegate || role === "company_admin") && <option value="company_admin">{t("Company admin")}</option>}

@@ -8,7 +8,9 @@ from tests.conftest import future, login, make_package
 
 def create_ticket(client, company, admin, scripted, pkg, adults=2):
     scripted([
-        LLMResponse(None, [ToolCall("b", "create_booking_ticket", {
+        LLMResponse(None, [ToolCall("q", "quote_booking", {
+            "package_id": pkg["id"], "departure_date": future(30), "adults": adults}),
+            ToolCall("b", "create_booking_ticket", {
             "package_id": pkg["id"], "departure_date": future(30), "adults": adults,
             "lead_traveler_name": "Ali", "contact_phone": "+1"})]),
         LLMResponse("Booked."),
@@ -40,10 +42,10 @@ def test_ticket_workflow_and_seats(client, company_a, scripted):
     assert r.json()["payment_reference"] == "BANK-123"
 
     client.patch(f"/api/tickets/{ticket['id']}", headers=agent, json={"status": "confirmed"})
-    assert client.get(f"/api/packages/{pkg['id']}", headers=admin).json()["seats_available"] == 3
+    assert client.get(f"/api/packages/{pkg['id']}", headers=admin).json()["seats_left_by_date"][future(30)] == 3
 
     client.patch(f"/api/tickets/{ticket['id']}", headers=agent, json={"status": "cancelled"})
-    assert client.get(f"/api/packages/{pkg['id']}", headers=admin).json()["seats_available"] == 5
+    assert client.get(f"/api/packages/{pkg['id']}", headers=admin).json()["seats_left_by_date"][future(30)] == 5
 
     # Status changes are visible in the conversation history for the team.
     conv = client.get(f"/api/conversations/{ticket['conversation_id']}", headers=admin).json()

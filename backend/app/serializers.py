@@ -71,6 +71,7 @@ def company_admin_out(db: Session, company: Company) -> CompanyAdminOut:
         contact_email=company.contact_email,
         contact_phone=company.contact_phone,
         whatsapp_connected=bool(company.whatsapp_phone_number_id),
+        whatsapp_phone_number_id=company.whatsapp_phone_number_id,
         package_count=count(select(func.count(TravelPackage.id)).where(TravelPackage.company_id == company.id)),
         open_tickets=count(
             select(func.count(Ticket.id)).where(

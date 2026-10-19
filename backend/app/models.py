@@ -231,6 +231,9 @@ class Conversation(Base):
     last_customer_message_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     # Stays true once the team was involved (for "handled fully by the AI" statistics).
     was_handed_over: Mapped[bool] = mapped_column(Boolean, default=False)
+    # The last price the AI quoted in this chat (package, date, travellers, total). A booking must match
+    # it, so the customer is never booked at a total they did not see (see ai/tools.py).
+    booking_quote: Mapped[dict | None] = mapped_column(JSON)
 
     customer: Mapped[Customer] = relationship()
     assigned_to: Mapped[User | None] = relationship()
@@ -284,8 +287,11 @@ class Ticket(Base):
     assigned_to_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     internal_notes: Mapped[str] = mapped_column(Text, default="")
     payment_reference: Mapped[str | None] = mapped_column(String(200))
-    # Seats this booking holds on its package (taken when booked, given back when cancelled).
+    # Seats this booking holds on its package and departure date (taken when booked, given back when
+    # cancelled or when an unpaid hold expires).
     seats_held: Mapped[int] = mapped_column(Integer, default=0)
+    # When the seats were last taken. Unpaid bookings give them back after SEAT_HOLD_HOURS.
+    seats_held_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     created_by: Mapped[str] = mapped_column(String(20), default="ai")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, onupdate=utcnow)

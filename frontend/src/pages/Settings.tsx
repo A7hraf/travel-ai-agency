@@ -140,7 +140,7 @@ export default function Settings() {
           {t("Each company has its own WhatsApp Business number and its own connection. Customers who message your number talk to your AI agent only; their chats are visible only to your team.")}
         </p>
         <div className="ad-grid-2">
-          <Field label={t("Phone number ID")} hint={t("Meta App → WhatsApp → API Setup → Phone number ID")}>
+          <Field label={t("Phone number ID")} hint={t("Meta App → WhatsApp → API Setup → Phone number ID. Checked with Meta using your access token.")}>
             <input dir="ltr" maxLength={64} value={s.whatsapp_phone_number_id ?? ""} onChange={(e) => set("whatsapp_phone_number_id", e.target.value)} />
           </Field>
           <Field label={t("Public WhatsApp number")} hint={t("Shown on your customer page, e.g. {example}", { example: "+968 9123 4567" })}>
@@ -149,7 +149,7 @@ export default function Settings() {
           <Field label={t("Access token")} hint={s.whatsapp_token_set ? t("Saved (encrypted). Type a new one to replace it.") : t("Permanent token of a Meta system user with {permission}.", { permission: "whatsapp_business_messaging" })}>
             <input type="password" value={token} placeholder={s.whatsapp_token_set ? `•••••••• (${t("saved")})` : ""} onChange={(e) => { setToken(e.target.value); setSaved((p) => ({ ...p, wa: false })); }} autoComplete="new-password" dir="ltr" />
           </Field>
-          <Field label={t("App secret")} hint={s.whatsapp_app_secret_set ? t("Saved (encrypted). Type a new one to replace it.") : t("Meta App → App settings → Basic → App secret.")}>
+          <Field label={t("App secret")} hint={s.whatsapp_app_secret_set ? t("Saved (encrypted). Type a new one to replace it.") : t("Required for your own Meta app: without it WhatsApp messages are refused. Meta App → App settings → Basic → App secret.")}>
             <input type="password" value={appSecret} placeholder={s.whatsapp_app_secret_set ? `•••••••• (${t("saved")})` : ""} onChange={(e) => { setAppSecret(e.target.value); setSaved((p) => ({ ...p, wa: false })); }} autoComplete="new-password" dir="ltr" />
           </Field>
         </div>
@@ -159,6 +159,7 @@ export default function Settings() {
             <div>{t("Callback URL:")}</div><CopyRow value={ownWebhook} />
             <div>{t("Verify token:")}</div><CopyRow value={s.whatsapp_verify_token ?? ""} />
             <div>{t("Then subscribe to the {field} field. Keep these private.", { field: "messages" })}</div>
+            {!s.whatsapp_app_secret_set && <div><strong>{t("Save your app secret above first: messages sent to this address are refused without it.")}</strong></div>}
           </div>
         )}
         <ErrorBox error={errors.wa ?? null} />
