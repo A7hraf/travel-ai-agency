@@ -55,7 +55,7 @@ class LoginChoicesOut(BaseModel):
 
 
 class ChangePasswordIn(BaseModel):
-    current_password: str
+    current_password: str = Field(max_length=200)
     new_password: Password
 
 
@@ -531,9 +531,20 @@ class ChatMessagesOut(BaseModel):
 # --- AI training and diagnostics ----------------------------------------------------------------
 
 
+# Control characters (keeping tab and line feed) and bidirectional overrides. A NUL byte can't be
+# stored in PostgreSQL (the save would fail), and invisible characters must not reach the AI's prompt.
+_AI_TEXT_CONTROL = re.compile("[\x00-\x08\x0b-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]")
+
+
+def _clean_ai_text(v):
+    return _AI_TEXT_CONTROL.sub("", v.replace("\r\n", "\n")) if isinstance(v, str) else v
+
+
 class TrainingIn(BaseModel):
     question: str = Field(min_length=2, max_length=1000)
     answer: str = Field(min_length=1, max_length=4000)
+
+    _clean = field_validator("question", "answer", mode="before")(_clean_ai_text)
 
 
 class TrainingOut(ORM):
@@ -604,6 +615,9 @@ class AnalyticsOut(BaseModel):
 class TrainingImportIn(BaseModel):
     text: str = Field(min_length=1, max_length=200_000)
     preview: bool = False
+
+    # Tabs stay: they separate the question from the answer when copied from a spreadsheet.
+    _clean = field_validator("text", mode="before")(_clean_ai_text)
 
 
 class TrainingImportRow(BaseModel):
@@ -679,6 +693,9 @@ class AIKnowledgeUpdate(BaseModel):
     ai_welcome_message_ar: str | None = Field(default=None, max_length=1000)
     ai_instructions: str | None = Field(default=None, max_length=8000)
     knowledge_base: str | None = Field(default=None, max_length=30000)
+
+    _clean = field_validator("ai_welcome_message", "ai_welcome_message_ar", "ai_instructions", "knowledge_base",
+                             mode="before")(_clean_ai_text)
 
 
 class WhatsAppStatusOut(BaseModel):

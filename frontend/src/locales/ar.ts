@@ -3,6 +3,7 @@ import { AR_AI } from "./ar-ai";
 import { AR_EDITOR } from "./ar-editor";
 import { AR_PLATFORM } from "./ar-platform";
 import { AR_PROCESS, AR_PROCESS_PATTERNS } from "./ar-process";
+import { AR_SECURITY2, AR_SECURITY2_PATTERNS } from "./ar-security2";
 import { AR_STAFF } from "./ar-staff";
 
 /** Arabic texts of the staff dashboard. The English text is the key. Placeholders like {name} must stay as they are. */
@@ -575,7 +576,7 @@ export const AR: Record<string, string> = {
  * status label, {1:adults} / {1:children} a counted text.
  */
 // Texts of the redesigned screens live in their own files (merged here).
-Object.assign(AR, AR_STAFF, AR_ADMIN, AR_PROCESS, AR_PLATFORM, AR_AI, AR_EDITOR);
+Object.assign(AR, AR_STAFF, AR_ADMIN, AR_PROCESS, AR_PLATFORM, AR_AI, AR_EDITOR, AR_SECURITY2);
 
 export const AR_PATTERNS: [RegExp, string][] = [
   [/^(.+) took over the conversation$/, "تولّى {1} المحادثة"],
@@ -601,6 +602,7 @@ export const AR_PATTERNS: [RegExp, string][] = [
   [/^Only (\d+) seats left on this package$/, "بقي {1} مقعد فقط في هذه الباقة"],
 ];
 AR_PATTERNS.push(...AR_PROCESS_PATTERNS);
+AR_PATTERNS.push(...AR_SECURITY2_PATTERNS);
 
 /** Arabic counted forms, keyed by the English plural text. */
 export const AR_PLURALS: Record<string, { zero?: string; one: string; two: string; few: string; many: string; other: string }> = {

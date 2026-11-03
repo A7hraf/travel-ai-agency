@@ -4,6 +4,7 @@ from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..ai.health import check_ai
@@ -19,6 +20,7 @@ from ..models import (
     TicketStatus,
     TravelPackage,
     User,
+    utcnow,
 )
 from ..permissions import effective_permissions
 from ..ratelimit import limiter
@@ -67,11 +69,16 @@ def update_company(body: CompanySettingsUpdate, me: User = Depends(require_permi
         if secret in data:
             value = (data.pop(secret) or "").strip()
             setattr(company, secret, value or None)
+            if secret == "instagram_access_token":
+                company.instagram_token_refreshed_at = utcnow() if value else None
     if "whatsapp_phone_number_id" in data:
         number_id = (data.pop("whatsapp_phone_number_id") or "").strip() or None
         if number_id and number_id != company.whatsapp_phone_number_id:
             _check_number_is_ours(db, company, number_id)
         company.whatsapp_phone_number_id = number_id
+    if "instagram_access_token" in body.model_fields_set and company.instagram_access_token \
+            and not company.instagram_account_id and not (data.get("instagram_account_id") or "").strip():
+        _detect_instagram_account(db, company)
     if "instagram_account_id" in data:
         account_id = (data.pop("instagram_account_id") or "").strip() or None
         if account_id and account_id != company.instagram_account_id:
@@ -85,7 +92,12 @@ def update_company(body: CompanySettingsUpdate, me: User = Depends(require_permi
         if key in ("ai_agent_name", "currency") and not value:
             continue  # required fields can't be blanked
         setattr(company, key, value)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:  # the same number or account saved by another company at the same moment
+        db.rollback()
+        raise HTTPException(409, "This WhatsApp number or Instagram account is already connected to another "
+                                 "company") from exc
     return company_settings_out(company, can_manage=True)
 
 
@@ -106,6 +118,20 @@ def _check_number_is_ours(db: Session, company: Company, number_id: str) -> None
     if not whatsapp_service.verify_phone_number(number_id, company.whatsapp_access_token):
         raise HTTPException(400, "WhatsApp did not confirm this phone number ID for your access token. "
                                  "Check both in your Meta app and try again.")
+
+
+def _detect_instagram_account(db: Session, company: Company) -> None:
+    """A new token and no account yet: connect the account the token belongs to, so the company does
+    not have to look up its account ID. Nothing happens when Instagram can't tell (Test connection
+    then explains why) or when that account is already another company's."""
+    found = instagram_service.check_account(None, company.instagram_access_token)
+    user_id = found.get("user_id")
+    if found["result"] != "account_missing" or not user_id:
+        return
+    if db.scalar(select(Company.id).where(Company.instagram_account_id == user_id, Company.id != company.id)):
+        return
+    company.instagram_account_id = user_id
+    company.instagram_username = str(found.get("username") or "")[:100] or None
 
 
 def _check_instagram_is_ours(db: Session, company: Company, account_id: str) -> str | None:

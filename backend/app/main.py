@@ -39,11 +39,22 @@ settings = get_settings()
 PRODUCTION = settings.environment == "production"
 
 
+# Example values from .env.example and the docs: public, so never good enough for a real server
+# (the example SECRET_KEY is 33 characters long and would pass the length check).
+PLACEHOLDER_SECRET_KEYS = {DEFAULT_SECRET_KEY, "replace-with-a-long-random-string"}
+PLACEHOLDER_VERIFY_TOKENS = {"travel-ai-verify", "choose-a-random-verify-token"}
+
+
 def check_production_settings() -> None:
-    if settings.secret_key == DEFAULT_SECRET_KEY or len(settings.secret_key) < 32:
+    if settings.secret_key.strip() in PLACEHOLDER_SECRET_KEYS or len(settings.secret_key.strip()) < 32:
         raise RuntimeError("Set SECRET_KEY to a long random string (32+ characters) before running in production")
     if settings.system_admin_password == DEFAULT_ADMIN_PASSWORD:
         raise RuntimeError("Set SYSTEM_ADMIN_PASSWORD to your own password before running in production")
+    if settings.whatsapp_allow_unsigned:
+        # Unsigned webhooks let anybody post fake WhatsApp messages into every company.
+        raise RuntimeError("WHATSAPP_ALLOW_UNSIGNED is for local development only; remove it in production")
+    if settings.whatsapp_verify_token in PLACEHOLDER_VERIFY_TOKENS:
+        log.warning("WHATSAPP_VERIFY_TOKEN is the example value: choose your own (or create one in Platform settings)")
     if not settings.whatsapp_app_secret:
         log.warning("WHATSAPP_APP_SECRET is empty: the shared WhatsApp webhook works only once the app secret is saved in Platform settings")
 

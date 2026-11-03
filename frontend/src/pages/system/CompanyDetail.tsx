@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { del, get, patch } from "../../api";
 import { ConfirmSheet, hueOf, initials } from "../../components/admin/AdminUI";
 import TrainingWorkspace, { type TrainingTab } from "../../components/ai/TrainingWorkspace";
+import InstagramConnect from "../../components/ai/InstagramConnect";
 import WhatsAppConnect from "../../components/ai/WhatsAppConnect";
 import BrandingEditor from "../../components/BrandingEditor";
 import { ArrowLeft, ArrowSquareOut, Pause, Play, Trash, WarningOctagon } from "../../components/Icon";
@@ -16,7 +17,7 @@ export default function CompanyDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { t } = useI18n();
-  const [tab, setTab] = useState<"plan" | "design" | "ai" | "whatsapp">("plan");
+  const [tab, setTab] = useState<"plan" | "design" | "ai" | "whatsapp" | "instagram">("plan");
   const [aiTab, setAiTab] = useState<TrainingTab>("answers");
   const [c, setC] = useState<CompanyAdmin | null>(null);
   const [name, setName] = useState("");
@@ -99,12 +100,15 @@ export default function CompanyDetail() {
         <button role="tab" aria-selected={tab === "design"} className={tab === "design" ? "active" : ""} onClick={() => setTab("design")}>{t("Design & colours")}</button>
         <button role="tab" aria-selected={tab === "ai"} className={tab === "ai" ? "active" : ""} onClick={() => setTab("ai")}>{t("AI training")}</button>
         <button role="tab" aria-selected={tab === "whatsapp"} className={tab === "whatsapp" ? "active" : ""} onClick={() => setTab("whatsapp")}>{t("WhatsApp")}</button>
+        <button role="tab" aria-selected={tab === "instagram"} className={tab === "instagram" ? "active" : ""} onClick={() => setTab("instagram")}>{t("Instagram")}</button>
       </div>
 
       {tab === "ai" ? (
         <TrainingWorkspace base={`/api/system/companies/${c.id}/training`} tab={aiTab} onTab={setAiTab} />
       ) : tab === "whatsapp" ? (
         <WhatsAppConnect variant="owner" base={`/api/system/companies/${c.id}/whatsapp`} companyPath={`/api/system/companies/${c.id}`} />
+      ) : tab === "instagram" ? (
+        <InstagramConnect variant="owner" base={`/api/system/companies/${c.id}/instagram`} />
       ) : tab === "design" ? (
         <BrandingEditor owner loadPath={`/api/system/companies/${c.id}/branding`} name={c.name}
           uploadPath={`/api/system/companies/${c.id}/media`} slug={c.slug} />

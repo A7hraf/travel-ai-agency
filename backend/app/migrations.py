@@ -33,6 +33,7 @@ NEW_COLUMNS = [
     ("companies", "instagram_webhook_key", "VARCHAR(64)"),
     ("companies", "instagram_verify_token", "VARCHAR(64)"),
     ("customers", "instagram_id", "VARCHAR(64)"),
+    ("companies", "instagram_token_refreshed_at", "TIMESTAMP WITH TIME ZONE"),
 ]
 
 # Unique indexes of the Instagram columns (same names create_all gives them on a new database).

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { get, patch } from "../api";
 import AICheckCard from "../components/AICheckCard";
 import { PageTitle } from "../components/admin/AdminUI";
+import InstagramConnect from "../components/ai/InstagramConnect";
 import WhatsAppConnect from "../components/ai/WhatsAppConnect";
 import { ArrowSquareOut, Buildings, GraduationCap, Robot, Sparkle } from "../components/Icon";
 import { ErrorBox, Field } from "../components/ui";
@@ -56,13 +57,13 @@ export default function Settings() {
 
   return (
     <div className="narrow ad-narrow">
-      <PageTitle kicker={t("Agency workspace")} title={t("AI & WhatsApp")} subtitle={t("One AI brain, your own persona, knowledge and WhatsApp channel.")} />
+      <PageTitle kicker={t("Agency workspace")} title={t("AI & channels")} subtitle={t("One AI brain, your own persona and knowledge, on your page, WhatsApp and Instagram.")} />
 
       <AICheckCard path="/api/company/ai-check" />
 
       <section className="ad-card">
         <h2 className="ad-card-title"><span className="ad-card-icon"><Robot /></span>{t("AI travel consultant")}</h2>
-        <p className="ad-card-note">{t("{name} answers your customers on your page and on WhatsApp. Its knowledge, personality, welcome messages and trained answers are now all in AI training, with a test chat to try it.", { name: s.ai_agent_name })}</p>
+        <p className="ad-card-note">{t("{name} answers your customers on your page, on WhatsApp and on Instagram. Its knowledge, personality, welcome messages and trained answers are all in AI training, with a test chat to try it.", { name: s.ai_agent_name })}</p>
         <div className="ad-grid-2">
           <Field label={t("Your customer page (share this link)")}>
             <a href={storefront} target="_blank" rel="noreferrer" className="link-box" dir="ltr">{storefront} <ArrowSquareOut /></a>
@@ -76,6 +77,8 @@ export default function Settings() {
       </section>
 
       <WhatsAppConnect variant="company" base="/api/company/whatsapp" />
+
+      <InstagramConnect variant="company" base="/api/company/instagram" />
 
       <form className="ad-card" onSubmit={(e: FormEvent) => { e.preventDefault(); save("company", {
         currency: s.currency, contact_email: s.contact_email || null, contact_phone: s.contact_phone ?? "" }); }}>

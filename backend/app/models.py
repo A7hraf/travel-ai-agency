@@ -139,6 +139,8 @@ class Company(Base):
         String(64), unique=True, index=True, default=lambda: random_token(18)
     )
     instagram_verify_token: Mapped[str | None] = mapped_column(String(64), default=lambda: random_token(18))
+    # Instagram tokens last 60 days: they are renewed automatically some weeks after this moment.
+    instagram_token_refreshed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
 
     # Logo, colours and customer-page content (see app/branding.py).
     branding: Mapped[dict | None] = mapped_column(JSON)

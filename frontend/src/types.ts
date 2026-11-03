@@ -90,7 +90,7 @@ export interface Branding extends PublicBranding {
 export interface Analytics {
   days: number;
   currency: string;
-  daily: { date: string; web: number; whatsapp: number; bookings: number; booked_value: number }[];
+  daily: { date: string; web: number; whatsapp: number; instagram?: number; bookings: number; booked_value: number }[];
   funnel: { conversations: number; with_booking: number; paid_or_confirmed: number };
   top_packages: { title: string; bookings: number; value: number }[];
   handled_by_ai: number;
@@ -172,6 +172,10 @@ export interface CompanySettings {
   whatsapp_app_secret_set: boolean;
   whatsapp_webhook_path: string | null;
   whatsapp_verify_token: string | null;
+  instagram_account_id?: string | null;
+  instagram_username?: string | null;
+  instagram_token_set?: boolean;
+  instagram_app_secret_set?: boolean;
 }
 
 export interface TrainingExample {
@@ -247,7 +251,7 @@ export interface Message {
 
 export interface ConversationSummary {
   id: number;
-  channel: "web" | "whatsapp";
+  channel: "web" | "whatsapp" | "instagram";
   status: ConversationStatus;
   handover_reason: string | null;
   customer: Customer;
@@ -437,4 +441,26 @@ export interface WhatsAppTestResult {
   display_number: string | null;
   verified_name: string | null;
   status: WhatsAppStatus;
+}
+
+// --- Instagram Direct connection --------------------------------------------------------------
+
+export type InstagramConnectionStatus = "connected" | "not_connected" | "needs_token" | "needs_app_secret";
+
+export interface InstagramStatus {
+  status: InstagramConnectionStatus;
+  account_id: string | null;
+  username: string | null;
+  token_set: boolean;
+  app_secret_set: boolean;
+  webhook_path: string | null;
+  verify_token: string | null;
+}
+
+export interface InstagramTestResult {
+  result: "connected" | "token_invalid" | "account_mismatch" | "account_missing" | "no_access" | "network" | "not_configured";
+  message: string;
+  user_id: string | null;
+  username: string | null;
+  status: InstagramStatus;
 }

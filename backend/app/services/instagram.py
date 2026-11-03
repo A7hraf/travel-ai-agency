@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Protocol
 
 import httpx
@@ -82,6 +83,10 @@ def _message_text(message: dict) -> str:
     return ""
 
 
+def _id(party) -> str:
+    return str(party.get("id") or "") if isinstance(party, dict) else ""
+
+
 def parse_webhook(payload: dict) -> tuple[list[IncomingDM], list[ReadReceipt]]:
     """Customer messages and read receipts. Echoes (our own replies), reactions, edits, deletions,
     messages sent by the business itself and anything malformed are left out."""
@@ -96,8 +101,7 @@ def parse_webhook(payload: dict) -> tuple[list[IncomingDM], list[ReadReceipt]]:
         for item in entry.get("messaging") or []:
             if not isinstance(item, dict):
                 continue
-            sender = str((item.get("sender") or {}).get("id") or "")
-            recipient = str((item.get("recipient") or {}).get("id") or "")
+            sender, recipient = _id(item.get("sender")), _id(item.get("recipient"))
             # Only messages a customer sent to this account: the recipient must be the account
             # of the entry, and the business never talks to itself.
             if not account_id or not sender or recipient != account_id or sender == account_id:
@@ -276,6 +280,40 @@ def profile_name(profile: dict | None) -> str | None:
     name = str(profile.get("name") or "").strip()
     username = str(profile.get("username") or "").strip()
     return (name or (f"@{username}" if username else ""))[:200] or None
+
+
+# --- Keeping the token alive -----------------------------------------------------------------------
+
+# Instagram's long-lived tokens stop working 60 days after they were made or last renewed.
+REFRESH_AFTER = timedelta(days=20)
+
+
+def refresh_token_if_due(company: Company) -> bool:
+    """Renews the company's token (GET /refresh_access_token) once it is 20+ days old. Best effort:
+    called after incoming messages, at most once an hour per company; the caller commits."""
+    from ..models import utcnow
+    from ..ratelimit import limiter
+
+    token = company.instagram_access_token
+    last = company.instagram_token_refreshed_at
+    if not token or (last is not None and utcnow() - last < REFRESH_AFTER):
+        return False
+    if not limiter.allow(f"ig-refresh:{company.id}", 1, window=3600):
+        return False
+    try:
+        resp = httpx.get(f"{graph_url()}/refresh_access_token",
+                         params={"grant_type": "ig_refresh_token", "access_token": token}, timeout=15)
+        data = resp.json() if resp.status_code == 200 else {}
+    except (httpx.HTTPError, ValueError) as exc:
+        log.info("Could not renew the Instagram token of company %s: %s", company.id, exc)
+        return False
+    new_token = data.get("access_token") if isinstance(data, dict) else None
+    if not isinstance(new_token, str) or not new_token:
+        log.info("Instagram did not renew the token of company %s (HTTP %s)", company.id, resp.status_code)
+        return False
+    company.instagram_access_token = new_token
+    company.instagram_token_refreshed_at = utcnow()
+    return True
 
 
 # --- "Test connection" (settings page and platform console) ---------------------------------------

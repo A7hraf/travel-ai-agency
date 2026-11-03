@@ -4,7 +4,9 @@ import { get } from "../api";
 import { useAuth } from "../auth";
 import { useCountUp } from "../components/admin/AdminUI";
 import { AreaChart, CHART, DayColumns, DayPoint, Meter, Ring } from "../components/Charts";
-import { ChatCircleDots, Globe, Storefront, Suitcase, TrendDown, TrendUp, WhatsappLogo } from "../components/Icon";
+import { ChatCircleDots, Globe, InstagramLogo, Storefront, Suitcase, TrendDown, TrendUp, WhatsappLogo } from "../components/Icon";
+import "../components/ai/instagram.css";
+import "../components/ai/instagram-i18n";
 import { Money, moneyText } from "../components/Money";
 import { currentLocale, useI18n } from "../lang";
 import type { Analytics, ConversationSummary, Dashboard as DashboardData } from "../types";
@@ -22,7 +24,7 @@ function dayPoints(a: Analytics): DayPoint[] {
   const short = (iso: string) => day(iso, { day: "numeric", month: "short" });
   const long = (iso: string) => day(iso, { weekday: "short", day: "numeric", month: "short" });
   if (a.daily.length <= 45) {
-    return a.daily.map((d) => ({ label: short(d.date), long: long(d.date), web: d.web, wa: d.whatsapp }));
+    return a.daily.map((d) => ({ label: short(d.date), long: long(d.date), web: d.web, wa: d.whatsapp, ig: d.instagram ?? 0 }));
   }
   const out: DayPoint[] = [];
   // Pairs counted from today backwards, so the last bar ends today.
@@ -35,6 +37,7 @@ function dayPoints(a: Analytics): DayPoint[] {
       long: pair.length > 1 ? `${short(first)} – ${short(last)}` : long(last),
       web: pair.reduce((s, d) => s + d.web, 0),
       wa: pair.reduce((s, d) => s + d.whatsapp, 0),
+      ig: pair.reduce((s, d) => s + (d.instagram ?? 0), 0),
     });
   }
   return out;
@@ -55,7 +58,7 @@ export default function Dashboard() {
   const [prevBooked, setPrevBooked] = useState<number | null>(null);
   const [queue, setQueue] = useState<ConversationSummary[] | null>(null);
   const [table, setTable] = useState(false);
-  const [flash, setFlash] = useState<{ wa: boolean; text: string; n: number } | null>(null);
+  const [flash, setFlash] = useState<{ channel: ConversationSummary["channel"]; text: string; n: number } | null>(null);
   const lastIds = useRef<Set<number> | null>(null);
   const canChats = can("conversations.view");
 
@@ -68,7 +71,7 @@ export default function Dashboard() {
         if (lastIds.current) {
           const fresh = waiting.filter((c) => !lastIds.current!.has(c.id));
           if (fresh.length) {
-            setFlash({ wa: fresh[0].channel === "whatsapp", n: Date.now(),
+            setFlash({ channel: fresh[0].channel, n: Date.now(),
               text: t("{name} is waiting for a human", { name: customerLabel(fresh[0].customer) }) });
           }
         }
@@ -116,6 +119,7 @@ export default function Dashboard() {
     + (data.tickets_by_status.paid ?? 0);
   const web = a ? a.daily.reduce((s, d) => s + d.web, 0) : 0;
   const wa = a ? a.daily.reduce((s, d) => s + d.whatsapp, 0) : 0;
+  const ig = a ? a.daily.reduce((s, d) => s + (d.instagram ?? 0), 0) : 0;
   const convs = a?.funnel.conversations ?? 0;
   const bookings = a ? a.daily.reduce((s, d) => s + d.bookings, 0) : 0;
   const conversion = convs ? (a?.funnel.with_booking ?? 0) / convs : 0;
@@ -144,7 +148,9 @@ export default function Dashboard() {
       <div className="dash-glow" aria-hidden="true" />
       {flash && (
         <div className="dash-flash" key={flash.n} role="status">
-          {flash.wa ? <WhatsappLogo weight="fill" style={{ color: CHART.wa }} /> : <Globe style={{ color: CHART.web }} />}
+          {flash.channel === "whatsapp" ? <WhatsappLogo weight="fill" style={{ color: CHART.wa }} />
+            : flash.channel === "instagram" ? <InstagramLogo weight="fill" className="queue-ch ig" />
+              : <Globe style={{ color: CHART.web }} />}
           {flash.text}
         </div>
       )}
@@ -186,7 +192,7 @@ export default function Dashboard() {
         <div className="kpi-card">
           <div className="kpi-kicker muted-k">{t("Conversations")}</div>
           <div className="kpi-num tnum">{count(convs)}</div>
-          <div className="kpi-note">{t("{web} website · {wa} WhatsApp", { web: count(web), wa: count(wa) })}</div>
+          <div className="kpi-note">{t("{web} website · {wa} WhatsApp · {ig} Instagram", { web: count(web), wa: count(wa), ig: count(ig) })}</div>
         </div>
         <div className="kpi-card kpi-ring">
           <Ring value={aiShare} a={k} empty={!a || handled === 0}
@@ -257,6 +263,7 @@ export default function Dashboard() {
             <h2>{t("Conversations per day")}</h2>
             <span className="legend"><i style={{ background: CHART.web }} />{t("Website")}</span>
             <span className="legend"><i style={{ background: CHART.wa }} />{t("WhatsApp")}</span>
+            <span className="legend"><i style={{ background: CHART.ig }} />{t("Instagram")}</span>
             <button type="button" className="dash-toggle" aria-pressed={table} onClick={() => setTable(!table)}>
               {table ? t("View as chart") : t("View as table")}
             </button>
@@ -264,18 +271,18 @@ export default function Dashboard() {
           {!a ? <div className="skeleton" style={{ height: 230, marginTop: 20 }} /> : table ? (
             <div className="dash-table" role="region" aria-label={t("Conversations per day")} tabIndex={0}>
               <table>
-                <thead><tr><th>{t("Day")}</th><th>{t("Website")}</th><th>{t("WhatsApp")}</th><th>{t("Bookings")}</th></tr></thead>
+                <thead><tr><th>{t("Day")}</th><th>{t("Website")}</th><th>{t("WhatsApp")}</th><th>{t("Instagram")}</th><th>{t("Bookings")}</th></tr></thead>
                 <tbody>
                   {[...a.daily].reverse().map((d) => (
-                    <tr key={d.date}><td>{day(d.date, { weekday: "short", day: "numeric", month: "short" })}</td><td>{d.web}</td><td>{d.whatsapp}</td><td>{d.bookings}</td></tr>
+                    <tr key={d.date}><td>{day(d.date, { weekday: "short", day: "numeric", month: "short" })}</td><td>{d.web}</td><td>{d.whatsapp}</td><td>{d.instagram ?? 0}</td><td>{d.bookings}</td></tr>
                   ))}
                 </tbody>
               </table>
             </div>
           ) : (
-            <DayColumns days={points} a={k} webLabel={t("Website")} waLabel={t("WhatsApp")} axisEnd={t("Today")}
-              ariaLabel={t("{web} website and {wa} WhatsApp conversations in the last {period}. Use the arrow keys for each day.",
-                { web, wa, period: periodText(days) })} />
+            <DayColumns days={points} a={k} webLabel={t("Website")} waLabel={t("WhatsApp")} igLabel={t("Instagram")} axisEnd={t("Today")}
+              ariaLabel={t("{web} website, {wa} WhatsApp and {ig} Instagram conversations in the last {period}. Use the arrow keys for each day.",
+                { web, wa, ig, period: periodText(days) })} />
           )}
         </section>
 
@@ -311,7 +318,9 @@ export default function Dashboard() {
                           {customerLabel(c.customer)}
                           {c.channel === "whatsapp"
                             ? <WhatsappLogo weight="fill" className="queue-ch wa" aria-label={t("WhatsApp")} />
-                            : <Globe className="queue-ch web" aria-label={t("Website")} />}
+                            : c.channel === "instagram"
+                              ? <InstagramLogo weight="fill" className="queue-ch ig" aria-label={t("Instagram")} />
+                              : <Globe className="queue-ch web" aria-label={t("Website")} />}
                         </div>
                         <div className="queue-preview" dir="auto">{c.last_message_preview || "…"}</div>
                       </div>

@@ -3,10 +3,12 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { ApiError, get, post } from "../api";
 import { useAuth } from "../auth";
 import {
-  ArrowLeft, Check, Checks, ClockCountdown, Coffee, Globe, HandGrabbing, Headset, MagnifyingGlass, PaperPlaneRight,
-  Phone, Robot, Sparkle, Ticket, User, WarningCircle, WhatsappLogo, Wrench,
+  ArrowLeft, Check, Checks, ClockCountdown, Coffee, Globe, HandGrabbing, Headset, InstagramLogo, MagnifyingGlass,
+  PaperPlaneRight, Phone, Robot, Sparkle, Ticket, User, WarningCircle, WhatsappLogo, Wrench,
 } from "../components/Icon";
 import { ChatText, ErrorBox } from "../components/ui";
+import "../components/ai/instagram.css";
+import "../components/ai/instagram-i18n";
 import { ConfirmRequest, ConfirmSheet } from "../components/staff/Sheet";
 import { initials, useStaff } from "../components/staff/StaffContext";
 import { currentLocale, trServer, tr, useI18n } from "../lang";
@@ -21,8 +23,9 @@ const FILTERS: { value: Filter; label: string; tone: string }[] = [
   { value: "all", label: "All", tone: "" },
 ];
 
-/** WhatsApp lets a business answer freely only within 24 hours of the customer's last message. */
+/** WhatsApp and Instagram let a business answer freely only within 24 hours of the customer's last message. */
 const WHATSAPP_WINDOW_MS = 24 * 60 * 60 * 1000;
+const WINDOW_CHANNELS: ConversationSummary["channel"][] = ["whatsapp", "instagram"];
 
 const draftKey = (id: number) => `travel_reply_draft_${id}`;
 
@@ -76,6 +79,9 @@ function usePill(myId: number | undefined) {
 
 function Channel({ channel }: { channel: ConversationSummary["channel"] }) {
   const { t } = useI18n();
+  if (channel === "instagram") {
+    return <span className="cv-channel ig"><InstagramLogo weight="fill" aria-hidden="true" />{t("Instagram")}</span>;
+  }
   return channel === "whatsapp" ? (
     <span className="cv-channel wa"><WhatsappLogo weight="fill" aria-hidden="true" />{t("WhatsApp")}</span>
   ) : (
@@ -234,7 +240,8 @@ function ConversationView({ id, backTo }: { id: number; backTo: string }) {
   const mine = conv.status === "human" && conv.assigned_to?.id === user?.id;
   const colleague = conv.status === "human" && conv.assigned_to && conv.assigned_to.id !== user?.id ? conv.assigned_to : null;
   const lastCustomer = [...conv.messages].reverse().find((m) => m.sender === "customer");
-  const expired = conv.channel === "whatsapp" && (
+  const instagram = conv.channel === "instagram";
+  const expired = WINDOW_CHANNELS.includes(conv.channel) && (
     !!windowClosed || !lastCustomer || Date.now() - new Date(lastCustomer.created_at).getTime() > WHATSAPP_WINDOW_MS
   );
   const p = pill(conv);
@@ -323,7 +330,9 @@ function ConversationView({ id, backTo }: { id: number; backTo: string }) {
     try {
       const msg = await post<Message>(`/api/conversations/${id}/messages`, { content: text });
       if (msg.delivery_status === "failed") {
-        setReplyError(t("Saved, but WhatsApp did not deliver it. If the customer's last message is older than 24 hours, WhatsApp only allows approved template messages."));
+        setReplyError(conv.channel === "instagram"
+          ? t("Saved, but Instagram did not deliver it. Check the Instagram connection in Settings, or try again.")
+          : t("Saved, but WhatsApp did not deliver it. If the customer's last message is older than 24 hours, WhatsApp only allows approved template messages."));
       }
       setText("");
       await load();
@@ -334,7 +343,7 @@ function ConversationView({ id, backTo }: { id: number; backTo: string }) {
       if (fresh && fresh.assigned_to && fresh.assigned_to.id !== user?.id) {
         setConv(fresh);
         setError((err as Error).message);
-      } else if (err instanceof ApiError && err.status === 409 && conv.channel === "whatsapp") setWindowClosed(err.message);
+      } else if (err instanceof ApiError && err.status === 409 && WINDOW_CHANNELS.includes(conv.channel)) setWindowClosed(err.message);
       else setReplyError((err as Error).message);
     } finally {
       setBusy(false);
@@ -389,9 +398,12 @@ function ConversationView({ id, backTo }: { id: number; backTo: string }) {
         <footer className="chat-foot">
           {expired && (
             <div className="window-box" role="note">
-              <div className="window-title"><ClockCountdown aria-hidden="true" />{t("WhatsApp's 24-hour window has ended")}</div>
+              <div className="window-title"><ClockCountdown aria-hidden="true" />
+                {instagram ? t("Instagram's 24-hour window has ended") : t("WhatsApp's 24-hour window has ended")}</div>
               <div className="window-text">
-                {t("WhatsApp only allows replies within 24 hours of the customer's last message. Call the customer, or wait for them to write again.")}
+                {instagram
+                  ? t("Instagram only allows replies within 24 hours of the customer's last message. Wait for them to write again, or call them if they gave a phone number.")
+                  : t("WhatsApp only allows replies within 24 hours of the customer's last message. Call the customer, or wait for them to write again.")}
               </div>
               {c.phone && (
                 <a className="window-call" href={`tel:${c.phone.replace(/\s+/g, "")}`}>

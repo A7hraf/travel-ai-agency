@@ -86,11 +86,27 @@ def me(user: User = Depends(get_current_user)):
     return me_out(user)
 
 
+# Wrong current passwords per account: someone using a stolen open session must not be able to
+# guess the password (and then take over the login) at full speed.
+PASSWORD_CHECK_LIMIT = 10
+PASSWORD_CHECK_WINDOW = 900
+
+
+def _check_current_password(user: User, password: str | None, wrong_message: str) -> None:
+    key = f"current-password:{user.id}"
+    if limiter.blocked(key, PASSWORD_CHECK_LIMIT, window=PASSWORD_CHECK_WINDOW):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS,
+                            "Too many wrong passwords, try again in 15 minutes")
+    if not password or not verify_password(password, user.password_hash):
+        if password:  # an empty field is not a guess
+            limiter.hit(key)
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, wrong_message)
+
+
 @router.post("/change-password", response_model=TokenOut)
 def change_password(body: ChangePasswordIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Changes the password and logs out every other session; returns a fresh token for this one."""
-    if not verify_password(body.current_password, user.password_hash):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Current password is wrong")
+    _check_current_password(user, body.current_password, "Current password is wrong")
     user.password_hash = hash_password(body.new_password)
     user.tokens_valid_after = revoke_sessions_now()
     db.commit()
@@ -116,9 +132,7 @@ def update_profile(body: ProfileUpdate, user: User = Depends(get_current_user), 
     if body.email is not None:
         email = str(body.email).strip().lower()
         if email != user.email:
-            if not body.current_password or not verify_password(body.current_password, user.password_hash):
-                raise HTTPException(status.HTTP_400_BAD_REQUEST,
-                                    "Enter your current password to change your email")
+            _check_current_password(user, body.current_password, "Enter your current password to change your email")
             # Unique within the same company (or among platform owner accounts).
             same_place = User.company_id.is_(None) if user.company_id is None else User.company_id == user.company_id
             taken = db.scalar(select(User.id).where(User.email == email, same_place, User.id != user.id))

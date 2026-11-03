@@ -33,6 +33,7 @@ from .instagram import (
     get_instagram_sender,
     profile_name as instagram_profile_name,
 )
+from .instagram import refresh_token_if_due as refresh_instagram_token
 from .instagram import parse_webhook as parse_instagram_webhook
 from .whatsapp import IncomingMessage, StatusUpdate, WhatsAppError, get_whatsapp_sender, parse_webhook
 
@@ -149,30 +150,27 @@ def _deliver_instagram(db: Session, conversation: Conversation, message: Message
         db.commit()
 
 
-def _channel_customer(db: Session, company: Company, column, external_id: str, **new_fields) -> tuple[Customer, bool]:
-    """The company's customer with this WhatsApp/Instagram id, created on their first message.
-    Returns (customer, created)."""
+def _channel_customer(db: Session, company: Company, column, external_id: str, **new_fields) -> Customer:
+    """The company's customer with this WhatsApp/Instagram id, created on their first message."""
     stmt = select(Customer).where(Customer.company_id == company.id, column == external_id)
     customer = db.scalar(stmt)
-    created = False
     if customer is None:
         try:
             with db.begin_nested():
                 customer = Customer(company_id=company.id, **new_fields)
                 db.add(customer)
-            created = True
         except IntegrityError:
             # A second message from this new customer arrived at the same moment and created
             # them first: use that record instead of losing this message.
             customer = db.scalar(stmt)
             if customer is None:
                 raise
-    return customer, created
+    return customer
 
 
 def _whatsapp_customer(db: Session, company: Company, wa_id: str, profile_name: str | None) -> Customer:
-    customer, _ = _channel_customer(db, company, Customer.whatsapp_id, wa_id,
-                                    whatsapp_id=wa_id, phone=f"+{wa_id}", name=profile_name)
+    customer = _channel_customer(db, company, Customer.whatsapp_id, wa_id,
+                                 whatsapp_id=wa_id, phone=f"+{wa_id}", name=profile_name)
     if profile_name and not customer.name:
         customer.name = profile_name
     return customer
@@ -195,20 +193,29 @@ def _open_whatsapp_conversation(db: Session, customer: Customer) -> Conversation
     return _open_channel_conversation(db, customer, Channel.WHATSAPP)
 
 
+def _open_instagram_conversation(db: Session, customer: Customer) -> Conversation | None:
+    return _open_channel_conversation(db, customer, Channel.INSTAGRAM)
+
+
+def _find_open(channel: str):
+    # Looked up at call time (tests replace these functions to simulate a second message racing in).
+    return _open_instagram_conversation if channel == Channel.INSTAGRAM else _open_whatsapp_conversation
+
+
 def _channel_conversation(db: Session, company: Company, customer: Customer, channel: str) -> Conversation:
     """The customer's open conversation on this channel (a new one when there is none)."""
     # Lock the customer so two messages arriving together pick the same open conversation
     # (PostgreSQL waits here; SQLite already allows one writer at a time and ignores it).
     db.execute(select(Customer.id).where(Customer.id == customer.id).with_for_update())
 
-    conversation = _open_channel_conversation(db, customer, channel)
+    conversation = _find_open(channel)(db, customer)
     if conversation is None:
         conversation = Conversation(company_id=company.id, customer_id=customer.id, channel=channel)
         db.add(conversation)
         db.flush()
         # Another message may have opened one in the meantime: keep the oldest, so the
         # customer has a single open conversation.
-        first = _open_channel_conversation(db, customer, channel)
+        first = _find_open(channel)(db, customer)
         if first is not None and first.id != conversation.id:
             db.delete(conversation)
             conversation = first
@@ -311,6 +318,12 @@ def process_instagram_payload(payload: dict, company_id: int) -> None:
             except Exception:
                 log.exception("Could not process Instagram message %s", item.message_id)
                 db.rollback()
+        try:
+            if incoming and refresh_instagram_token(company):
+                db.commit()
+        except Exception:
+            log.exception("Could not renew the Instagram token of company %s", company.id)
+            db.rollback()
     finally:
         db.close()
 
@@ -337,7 +350,7 @@ def _process_instagram_message(db: Session, company: Company, item: IncomingDM, 
         return
     if db.scalar(select(Message.id).where(Message.external_id == item.message_id)):
         return  # Meta retried a delivery we already handled
-    customer, _ = _channel_customer(db, company, Customer.instagram_id, item.igsid, instagram_id=item.igsid)
+    customer = _channel_customer(db, company, Customer.instagram_id, item.igsid, instagram_id=item.igsid)
     conversation = _channel_conversation(db, company, customer, Channel.INSTAGRAM)
     replies = handle_customer_message(db, conversation, item.text[:max_len], external_id=item.message_id)
     for reply in replies or []:
