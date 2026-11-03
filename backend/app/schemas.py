@@ -244,6 +244,12 @@ class CompanySettingsUpdate(BaseModel):
     instagram_access_token: str | None = Field(default=None, max_length=2000)  # write-only
     instagram_app_secret: str | None = Field(default=None, max_length=200)  # write-only
 
+    @field_validator("ai_agent_name", "ai_welcome_message", "ai_welcome_message_ar", "ai_instructions",
+                     "knowledge_base", mode="before")
+    @classmethod
+    def _clean_texts(cls, v):
+        return _clean_ai_text(v)  # defined further down, looked up when a request is checked
+
 
 # --- Packages -------------------------------------------------------------------------
 

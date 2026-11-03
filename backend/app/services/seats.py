@@ -144,6 +144,16 @@ def hold(db: Session, ticket: Ticket) -> None:
     ticket.seats_held_at = _now()
 
 
+def restart_hold(ticket: Ticket) -> None:
+    """A booking put back to "waiting for payment" by an employee gets a fresh SEAT_HOLD_HOURS from now.
+
+    Holds of bookings an employee is handling never expire, so without this a booking handled for more
+    than SEAT_HOLD_HOURS would lose its seats the moment it is put back to waiting.
+    """
+    if ticket.seats_held:
+        ticket.seats_held_at = _now()
+
+
 def release(db: Session, ticket: Ticket) -> None:
     """Give back exactly the seats this ticket holds."""
     ticket.seats_held = 0

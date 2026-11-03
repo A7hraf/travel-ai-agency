@@ -20,9 +20,18 @@ const PLACES: { words: string[]; hue: number; iata: string }[] = [
 
 export interface Place { hue: number; iata: string }
 
+const wordCache = new Map<string, RegExp>();
+function wholeWord(w: string): RegExp {
+  let re = wordCache.get(w);
+  if (!re) wordCache.set(w, (re = new RegExp(`(^|[^\\p{L}])${w}($|[^\\p{L}])`, "u")));
+  return re;
+}
+
 export function placeOf(...texts: (string | null | undefined)[]): Place {
   const hay = texts.filter(Boolean).join(" ").toLowerCase();
-  const known = PLACES.find((p) => p.words.some((w) => hay.includes(w)));
+  // Latin words must be whole words ("uk" is not "Phuket", "male" is not "female"); Arabic words keep
+  // matching inside a word, since Arabic attaches prefixes ("بالمالديف").
+  const known = PLACES.find((p) => p.words.some((w) => (/^[a-zé ]+$/.test(w) ? wholeWord(w).test(hay) : hay.includes(w))));
   if (known) return { hue: known.hue, iata: known.iata };
   let h = 0;
   for (const ch of hay) h = (h * 31 + ch.charCodeAt(0)) % 360;

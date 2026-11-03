@@ -691,3 +691,52 @@ def test_taught_answer_is_used_by_the_ai_and_try_your_ai_saves_nothing(client, a
     assert seats_left(client, admin, pkg["id"], future(20)) == 8
     # Only people who manage the AI can use it.
     assert client.post("/api/training/try", headers=agency["support"], json={"message": "hi"}).status_code == 403
+
+
+# --- 14. A booking put back to "waiting for payment" gets a fresh hold ------------------------------
+
+
+def test_booking_moved_back_to_waiting_gets_a_fresh_48_hour_hold(client, agency, scripted, monkeypatch):
+    admin, slug, agent = agency["admin"], agency["slug"], agency["agent"]
+    pkg = maldives(client, admin)
+    date = future(20)
+    scripted([LLMResponse(None, [quote_call(pkg, date, 2), book_call(pkg, date, 2)]), LLMResponse("Booked")])
+    say(client, slug, start_chat(client, slug), "Book 2")
+    ticket = client.get("/api/tickets", headers=admin).json()[0]
+    patch_ticket(client, agent, ticket["id"], status="in_progress")
+
+    # Three days later the employee is still on it (holds of handled bookings never expire)...
+    later = datetime.now(timezone.utc) + timedelta(days=3)
+    monkeypatch.setattr(seats, "_now", lambda: later)
+    assert client.get(f"/api/tickets/{ticket['id']}", headers=admin).json()["seats_held"] == 2
+    # ...then puts it back to "waiting for payment" (the customer will pay next week): the seats must not
+    # be released on the spot because the booking was created more than 48 hours ago.
+    t = patch_ticket(client, agent, ticket["id"], status="pending_payment")
+    assert t["seats_held"] == 2
+    assert client.get(f"/api/tickets/{ticket['id']}", headers=admin).json()["seats_held"] == 2
+    assert seats_left(client, admin, pkg["id"], date) == 6
+    # The new 48 hours run from that moment.
+    monkeypatch.setattr(seats, "_now", lambda: later + timedelta(hours=49))
+    assert client.get(f"/api/tickets/{ticket['id']}", headers=admin).json()["seats_held"] == 0
+
+
+# --- 15. Seats per date can't go below what is already booked ---------------------------------------
+
+
+def test_seats_per_date_cannot_be_lowered_below_the_bookings(client, agency, scripted):
+    admin, slug = agency["admin"], agency["slug"]
+    pkg = maldives(client, admin)
+    date = future(20)
+    scripted([LLMResponse(None, [quote_call(pkg, date, 6), book_call(pkg, date, 6)]), LLMResponse("Booked")])
+    say(client, slug, start_chat(client, slug), "Book 6")
+    body = {k: pkg[k] for k in ("title", "destination", "country", "description", "duration_days",
+                                 "price_per_person", "child_price", "departure_dates", "tags")}
+    r = client.put(f"/api/packages/{pkg['id']}", headers=admin, json={**body, "seats_available": 4})
+    assert r.status_code == 400 and r.json()["detail"] == (
+        f"6 seats are already booked on {date}. Set at least 6 seats per date, or cancel bookings first.")
+    assert client.get(f"/api/packages/{pkg['id']}", headers=admin).json()["seats_available"] == 8
+    r = client.put(f"/api/packages/{pkg['id']}", headers=admin, json={**body, "seats_available": 6})
+    assert r.status_code == 200 and r.json()["seats_left_by_date"][date] == 0
+    # Unlimited is always fine.
+    r = client.put(f"/api/packages/{pkg['id']}", headers=admin, json={**body, "seats_available": None})
+    assert r.status_code == 200 and r.json()["seats_left_by_date"] is None

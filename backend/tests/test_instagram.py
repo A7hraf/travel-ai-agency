@@ -619,3 +619,15 @@ def test_token_is_renewed_when_it_gets_old(client, two, fake_ig, scripted, monke
         company = db.query(Company).filter(Company.name == "Sunrise Travel").one()
         assert company.instagram_access_token == "tok-a-renewed"
         assert utcnow() - company.instagram_token_refreshed_at < timedelta(minutes=1)
+
+
+def test_company_ai_texts_are_cleaned_of_control_characters(client, owner):
+    _, admin = make_company(client, owner, name="Sunrise Travel", admin_email="a@sunrise.com")
+    r = client.patch("/api/company", headers=admin, json={
+        "ai_agent_name": "Sa‮ra", "knowledge_base": "Line 1\r\nLine\x00 2", "ai_instructions": "Be\x1b kind",
+        "ai_welcome_message": "Hi⁦!", "ai_welcome_message_ar": "أهلاً\x7f"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["ai_agent_name"] == "Sara" and body["knowledge_base"] == "Line 1\nLine 2"
+    assert body["ai_instructions"] == "Be kind" and body["ai_welcome_message"] == "Hi!"
+    assert body["ai_welcome_message_ar"] == "أهلاً"

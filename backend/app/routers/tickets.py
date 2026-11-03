@@ -159,6 +159,8 @@ def update_ticket(ticket_id: int, body: TicketUpdate,
             # Also re-takes seats released after an unpaid hold expired, and covers bookings made
             # before seats were held at booking time.
             seats.hold_or_409(db, ticket)
+            if new == TicketStatus.PENDING_PAYMENT:
+                seats.restart_hold(ticket)
         if (new == TicketStatus.CANCELLED or old == TicketStatus.CANCELLED) and ticket.payment_reference \
                 and ticket.payment_reference == reference_before:
             # A cancelled or reopened booking must be paid again with a new receipt; the old one stays

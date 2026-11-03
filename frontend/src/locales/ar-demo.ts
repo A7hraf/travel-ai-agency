@@ -28,3 +28,9 @@ export const AR_DEMO: Record<string, string> = {
     "يمكنك إنشاء 3 شركات تجريبية في الساعة. حاول مرة أخرى لاحقاً.",
   "Enter the company name": "أدخل اسم الشركة",
 };
+
+/** Server texts with numbers or dates in them (lead merges into AR_PATTERNS). */
+export const AR_DEMO_PATTERNS: [RegExp, string][] = [
+  [/^(\d+) seats are already booked on (\S+)\. Set at least (\d+) seats per date, or cancel bookings first\.$/,
+    "تم حجز {1} مقعد بتاريخ {2}. اجعل المقاعد لكل تاريخ {3} على الأقل، أو ألغِ بعض الحجوزات أولاً."],
+];

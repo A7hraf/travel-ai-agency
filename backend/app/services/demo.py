@@ -151,6 +151,20 @@ def branding_for(company_name: str) -> dict:
         "about_ar": ABOUT_AR.format(company=company_name),
         "cards": {"style": "poster", "columns": 3, "show_price": True, "show_duration": True,
                   "show_next_date": True, "show_seats": True, "per_person": True},
+        # The AI's name is "Sara" in one field: the Arabic page writes it in Arabic.
+        "texts": {"ar": {
+            "online": "سارة متصلة الآن",
+            "chatWith": "تحدّث مع سارة",
+            "askCustom": "اسأل سارة عن رحلة مخصّصة",
+            "askNow": "اسأل سارة عن رحلتك",
+            "bookWith": "احجز مع سارة",
+            "howTitle": "سارة ترد خلال ثوانٍ.",
+            "askAnything": "اسأل سارة أي شيء…",
+            "how1Title": "تحدّث مع سارة",
+            "how1Text": "على هذه الصفحة، بالعربي أو الإنجليزي، في أي ساعة. سارة تعرف كل باقة وموعد وسعر.",
+            "how2Text": "سارة تجمع مواعيدك وعدد المسافرين، ثم تعرض الإجمالي من نظام الحجز لدينا وتعطيك رقماً مرجعياً.",
+            "welcome": WELCOME_AR.format(company=company_name),
+        }},
     }).model_dump()
 
 

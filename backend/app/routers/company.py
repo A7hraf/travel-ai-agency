@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..ai.health import check_ai
+from ..ai.health import check_ai, for_company
 from ..branding import Branding, BrandingUpdate, apply_update, get_branding
 from ..database import get_db
 from ..deps import get_company_user, require_permission
@@ -184,7 +184,7 @@ def whatsapp_test_message(body: WhatsAppTestMessageIn, me: User = Depends(requir
 @router.post("/company/ai-check", response_model=AICheckOut)
 def company_ai_check(me: User = Depends(require_permission("settings.manage"))):
     limiter.check(f"ai-check:{me.id}", 6, "Please wait a minute before testing again")
-    return check_ai()
+    return for_company(check_ai())
 
 
 @router.get("/dashboard", response_model=DashboardOut)

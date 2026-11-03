@@ -66,7 +66,7 @@ def company_admin_out(db: Session, company: Company) -> CompanyAdminOut:
         slug=company.slug,
         status=company.status,
         max_users=company.max_users,
-        user_count=count(select(func.count(User.id)).where(User.company_id == company.id)),
+        user_count=count(select(func.count(User.id)).where(User.company_id == company.id, User.is_active.is_(True))),
         currency=company.currency,
         contact_email=company.contact_email,
         contact_phone=company.contact_phone,
