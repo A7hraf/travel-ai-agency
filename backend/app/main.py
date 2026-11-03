@@ -14,6 +14,7 @@ from .routers import (
     auth,
     company,
     conversations,
+    instagram,
     media,
     packages,
     platform,
@@ -122,6 +123,7 @@ app.add_middleware(SecurityHeaders, hsts=PRODUCTION)
 for r in (auth, system_admin, users, company, packages, conversations, tickets, training, media, public, whatsapp):
     app.include_router(r.router)
 app.include_router(platform.router)
+app.include_router(instagram.router)
 
 
 @app.get("/api/health", tags=["health"])

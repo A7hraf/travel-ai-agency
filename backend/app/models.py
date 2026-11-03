@@ -68,6 +68,7 @@ class CompanyStatus(StrEnum):
 class Channel(StrEnum):
     WEB = "web"
     WHATSAPP = "whatsapp"
+    INSTAGRAM = "instagram"
 
 
 class ConversationStatus(StrEnum):
@@ -127,6 +128,17 @@ class Company(Base):
         String(64), unique=True, index=True, default=lambda: random_token(18)
     )
     whatsapp_verify_token: Mapped[str | None] = mapped_column(String(64), default=lambda: random_token(18))
+
+    # Instagram Direct (Instagram API with Instagram Login): the company's professional account and
+    # its own Meta app. Messages arrive at /api/webhooks/instagram/c/<key>, signed with its app secret.
+    instagram_account_id: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
+    instagram_username: Mapped[str | None] = mapped_column(String(100))
+    instagram_access_token: Mapped[str | None] = mapped_column(EncryptedText())
+    instagram_app_secret: Mapped[str | None] = mapped_column(EncryptedText())
+    instagram_webhook_key: Mapped[str | None] = mapped_column(
+        String(64), unique=True, index=True, default=lambda: random_token(18)
+    )
+    instagram_verify_token: Mapped[str | None] = mapped_column(String(64), default=lambda: random_token(18))
 
     # Logo, colours and customer-page content (see app/branding.py).
     branding: Mapped[dict | None] = mapped_column(JSON)
@@ -203,7 +215,10 @@ class TravelPackage(Base):
 
 class Customer(Base):
     __tablename__ = "customers"
-    __table_args__ = (UniqueConstraint("company_id", "whatsapp_id"),)
+    __table_args__ = (
+        UniqueConstraint("company_id", "whatsapp_id"),
+        Index("uq_customers_company_instagram", "company_id", "instagram_id", unique=True),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
@@ -211,6 +226,8 @@ class Customer(Base):
     phone: Mapped[str | None] = mapped_column(String(50))
     email: Mapped[str | None] = mapped_column(String(200))
     whatsapp_id: Mapped[str | None] = mapped_column(String(50))
+    # Instagram-scoped user id (IGSID) of a customer who wrote to the company's Instagram account.
+    instagram_id: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
@@ -253,7 +270,7 @@ class Message(Base):
     # tool_call: {"tool_calls": [...]}, tool_result: {"tool_call_id": ..., "name": ...}
     meta: Mapped[dict | None] = mapped_column(JSON)
     author_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
-    # WhatsApp message id, used to ignore duplicate webhook deliveries.
+    # WhatsApp message id or Instagram message id (mid), used to ignore duplicate webhook deliveries.
     external_id: Mapped[str | None] = mapped_column(String(128), unique=True)
     delivery_status: Mapped[str | None] = mapped_column(String(20))
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)

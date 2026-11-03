@@ -28,8 +28,16 @@ from ..schemas import (
 from ..serializers import conversation_detail, conversation_summary, message_out
 from ..services.conversations import deliver
 
-# Meta lets a business answer freely only within 24 hours of the customer's last message.
+# Meta lets a business answer freely only within 24 hours of the customer's last message
+# (WhatsApp and Instagram Direct alike).
 WHATSAPP_WINDOW = timedelta(hours=24)
+MESSAGING_WINDOW = WHATSAPP_WINDOW
+WINDOW_CLOSED = {
+    Channel.WHATSAPP: "WhatsApp only allows free replies within 24 hours of the customer's last "
+                      "message. Call the customer or wait until they write again.",
+    Channel.INSTAGRAM: "Instagram only allows replies within 24 hours of the customer's last message. "
+                       "Wait until they write again, or contact them another way.",
+}
 
 router = APIRouter(prefix="/api/conversations", tags=["conversations"])
 
@@ -97,11 +105,10 @@ def reply(conversation_id: int, body: AgentMessageIn, me: User = Depends(can_rep
     conv = _get(db, me, conversation_id)
     # Two people answering one customer at once confuses them: take it over first (with force).
     _check_colleague(conv, me, force=False)
-    if conv.channel == Channel.WHATSAPP and (
-        conv.last_customer_message_at is None or utcnow() - conv.last_customer_message_at > WHATSAPP_WINDOW
+    if conv.channel in WINDOW_CLOSED and (
+        conv.last_customer_message_at is None or utcnow() - conv.last_customer_message_at > MESSAGING_WINDOW
     ):
-        raise HTTPException(409, "WhatsApp only allows free replies within 24 hours of the customer's last "
-                                 "message. Call the customer or wait until they write again.")
+        raise HTTPException(409, WINDOW_CLOSED[conv.channel])
     if conv.status == ConversationStatus.CLOSED:
         _event(db, conv, f"{me.full_name} reopened the conversation")
     if conv.status != ConversationStatus.HUMAN:

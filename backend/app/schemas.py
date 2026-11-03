@@ -219,6 +219,10 @@ class CompanySettingsOut(ORM):
     # Only shown to employees allowed to manage settings.
     whatsapp_webhook_path: str | None = None
     whatsapp_verify_token: str | None = None
+    instagram_account_id: str | None = None
+    instagram_username: str | None = None
+    instagram_token_set: bool = False
+    instagram_app_secret_set: bool = False
 
 
 class CompanySettingsUpdate(BaseModel):
@@ -235,6 +239,10 @@ class CompanySettingsUpdate(BaseModel):
     # Write-only; send "" to remove the stored value.
     whatsapp_access_token: str | None = Field(default=None, max_length=2000)
     whatsapp_app_secret: str | None = Field(default=None, max_length=200)
+    # Instagram Direct: the account ID is checked with Instagram using the access token.
+    instagram_account_id: str | None = Field(default=None, max_length=64, pattern=r"^\s*\d*\s*$")
+    instagram_access_token: str | None = Field(default=None, max_length=2000)  # write-only
+    instagram_app_secret: str | None = Field(default=None, max_length=200)  # write-only
 
 
 # --- Packages -------------------------------------------------------------------------
@@ -559,6 +567,7 @@ class DailyPoint(BaseModel):
     date: str
     web: int
     whatsapp: int
+    instagram: int = 0
     bookings: int
     booked_value: float
 
@@ -700,3 +709,34 @@ class WhatsAppTestMessageOut(BaseModel):
     sent: bool
     to: str
     message: str
+
+
+# --- Instagram Direct connection --------------------------------------------------------------
+
+
+class InstagramStatusOut(BaseModel):
+    status: Literal["connected", "not_connected", "needs_token", "needs_app_secret"]
+    account_id: str | None
+    username: str | None
+    token_set: bool
+    app_secret_set: bool
+    webhook_path: str | None = None
+    verify_token: str | None = None
+
+
+class InstagramTestOut(BaseModel):
+    result: Literal["connected", "token_invalid", "account_mismatch", "account_missing", "no_access", "network",
+                    "not_configured"]
+    message: str
+    user_id: str | None = None
+    username: str | None = None
+    status: InstagramStatusOut
+
+
+class InstagramOwnerUpdate(BaseModel):
+    """The platform owner sets up a company's Instagram (no ownership check; "" clears a value)."""
+
+    instagram_account_id: str | None = Field(default=None, max_length=64, pattern=r"^\s*\d*\s*$")
+    instagram_username: str | None = Field(default=None, max_length=100)
+    instagram_access_token: str | None = Field(default=None, max_length=2000)
+    instagram_app_secret: str | None = Field(default=None, max_length=200)
