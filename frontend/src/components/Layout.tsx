@@ -31,7 +31,7 @@ const COMPANY_NAV: NavItem[] = [
   { to: "/app/users", label: "Team & accounts", icon: UsersThree, permission: "users.manage" },
   { to: "/app/branding", label: "Customer page design", icon: PaintBrush, permission: "settings.manage" },
   { to: "/app/training", label: "AI training", icon: GraduationCap, permission: "settings.manage" },
-  { to: "/app/settings", label: "AI & WhatsApp", icon: WhatsappLogo, permission: "settings.manage" },
+  { to: "/app/settings", label: "AI & channels", icon: WhatsappLogo, permission: "settings.manage" },
   { to: "/app/account", label: "My account", icon: UserCircle },
 ];
 
