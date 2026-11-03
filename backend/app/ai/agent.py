@@ -256,8 +256,9 @@ def run_sandbox(db: Session, company: Company, message: str, history: list[dict]
         try:
             resp = llm.chat(messages, TOOL_DEFINITIONS)
         except LLMError as exc:
+            # The provider's error text is for the platform logs, not for the company.
             log.warning("LLM failed in the test chat of company %s: %s", company.id, exc)
-            error = str(exc) or "The AI is not available right now."
+            error = "The AI is not available right now."
             break
         if resp.tool_calls:
             calls = [tc.to_openai() for tc in resp.tool_calls]

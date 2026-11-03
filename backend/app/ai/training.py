@@ -66,9 +66,14 @@ def parse_import(text: str) -> tuple[list[tuple[int, str, str]], list[dict]]:
                 rows.append((n, _split_line(line) or [line]))
     else:
         reader = csv.reader(io.StringIO(text))
-        for record in reader:
-            if any(c.strip() for c in record):
-                rows.append((reader.line_num, record))
+        try:
+            for record in reader:
+                if any(c.strip() for c in record):
+                    rows.append((reader.line_num, record))
+        except csv.Error as exc:  # e.g. a field longer than the csv module allows
+            from fastapi import HTTPException
+
+            raise HTTPException(400, "The text could not be read. Put one answer on each line: question | answer") from exc
 
     out: list[tuple[int, str, str]] = []
     problems: list[dict] = []
@@ -214,6 +219,7 @@ def update_knowledge(db: Session, company, data: dict) -> dict:
 
 
 TRY_LIMIT_PER_MINUTE = 20
+TRY_LIMIT_PER_COMPANY_PER_HOUR = 120
 
 
 def try_ai(db: Session, company, user_id: int, message: str, history: list[dict]) -> dict:
@@ -222,6 +228,9 @@ def try_ai(db: Session, company, user_id: int, message: str, history: list[dict]
     from .agent import run_sandbox
 
     limiter.check(f"try-ai:{user_id}", TRY_LIMIT_PER_MINUTE, "Please wait a minute before testing again")
+    # The test chat uses the platform's AI quota like customers' chats do: limit it per company too.
+    limiter.check(f"try-ai-company:{company.id}", TRY_LIMIT_PER_COMPANY_PER_HOUR,
+                  "The test chat was used a lot this hour. Please try again later.", window=3600)
     try:
         return run_sandbox(db, company, message.strip(), history)
     finally:

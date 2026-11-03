@@ -1,9 +1,12 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { get, post } from "../../api";
-import { hueOf, initials, PageTitle } from "../../components/admin/AdminUI";
+import { hueOf, initials, PageTitle, Switch } from "../../components/admin/AdminUI";
 import AICheckCard from "../../components/AICheckCard";
-import { ArrowRight, Buildings, ChatsCircle, Globe, Plus, Suitcase, Ticket, UsersThree, WhatsappLogo } from "../../components/Icon";
+import {
+  ArrowRight, ArrowSquareOut, Buildings, ChatsCircle, Check, Copy, Globe, Plus, Sparkle, Suitcase, Ticket, UsersThree,
+  WarningCircle, WhatsappLogo,
+} from "../../components/Icon";
 import { ErrorBox, Field, Modal } from "../../components/ui";
 import { useI18n } from "../../lang";
 import type { CompanyAdmin, PlatformStats } from "../../types";
@@ -17,6 +20,8 @@ export default function Companies() {
   const [companies, setCompanies] = useState<CompanyAdmin[] | null>(null);
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [creating, setCreating] = useState(false);
+  const [demoOpen, setDemoOpen] = useState(false);
+  const [demo, setDemo] = useState<DemoCompany | null>(null);
 
   const load = () => {
     get<CompanyAdmin[]>("/api/system/companies").then(setCompanies).catch(() => {});
@@ -35,7 +40,10 @@ export default function Companies() {
     <div className="co-page">
       <PageTitle kicker={t("Platform console")} title={t("Travel companies")}
         subtitle={t("Every company has its own accounts, packages and customers, served by the same AI brain.")}
-        actions={<button className="btn btn-primary" onClick={() => setCreating(true)}><Plus weight="bold" />{t("New company")}</button>} />
+        actions={<>
+          <button className="btn btn-soft" onClick={() => setDemoOpen(true)}><Sparkle />{t("Create demo company")}</button>
+          <button className="btn btn-primary" onClick={() => setCreating(true)}><Plus weight="bold" />{t("New company")}</button>
+        </>} />
 
       <div className="co-stats">
         {stats ? statCards.map((s) => (
@@ -91,6 +99,8 @@ export default function Companies() {
         </div>
       )}
       {creating && <CreateCompany onClose={() => setCreating(false)} onCreated={() => { setCreating(false); load(); }} />}
+      {demoOpen && <CreateDemo onClose={() => setDemoOpen(false)} onCreated={(d) => { setDemoOpen(false); setDemo(d); load(); }} />}
+      {demo && <DemoLogins demo={demo} onClose={() => setDemo(null)} />}
     </div>
   );
 }
@@ -169,6 +179,147 @@ function CreateCompany({ onClose, onCreated }: { onClose: () => void; onCreated:
           <button className="btn btn-primary" disabled={busy} aria-busy={busy}>{busy ? t("Creating…") : t("Create company")}</button>
         </div>
       </form>
+    </Modal>
+  );
+}
+
+interface DemoLogin { role: string; label: string; full_name: string; email: string; password: string }
+interface DemoCompany { company: CompanyAdmin; logins: DemoLogin[]; customer_page: string; counts: Record<string, number> }
+
+/** A ready-made Omani travel agency with packages, staff, trained answers and sample activity, to present the system. */
+function CreateDemo({ onClose, onCreated }: { onClose: () => void; onCreated: (d: DemoCompany) => void }) {
+  const { t } = useI18n();
+  const [f, setF] = useState({ name: "Muscat Horizons Travel", slug: "", admin_email: "", language: "both", include_activity: true });
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const preview = slugify(f.name);
+  const slug = f.slug.trim();
+  const reserved = !!slug && RESERVED_SLUGS.includes(slug);
+  const address = slug || preview || "demo-travel";
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (busy) return;
+    if (reserved) {
+      setError(t("This web address is reserved, choose another one"));
+      return;
+    }
+    setError(null);
+    setBusy(true);
+    try {
+      onCreated(await post<DemoCompany>("/api/system/demo-company", {
+        name: f.name, slug: slug || null, admin_email: f.admin_email.trim() || null,
+        language: f.language, include_activity: f.include_activity,
+      }));
+    } catch (err) {
+      setError((err as Error).message);
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title={t("Create demo company")} onClose={busy ? () => {} : onClose} wide>
+      <form onSubmit={submit} className="co-form">
+        <p className="muted" style={{ marginTop: 0 }}>
+          {t("A ready-made travel agency in Muscat to present the system: 12 packages, 4 staff logins, trained answers, a designed customer page and, if you like, a month of sample chats and bookings. Sample customers are fictional and no WhatsApp message is sent.")}
+        </p>
+        <div className={`co-address ${reserved ? "bad" : ""}`} aria-live="polite">
+          <Globe aria-hidden="true" />
+          <bdi dir="ltr">{window.location.host}/c/<b>{address}</b></bdi>
+        </div>
+        <div className="ad-grid-2">
+          <Field label={t("Company name")}>
+            <input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} required minLength={2} maxLength={200} dir="auto" />
+          </Field>
+          <Field label={t("Web address")} hint={reserved ? <span className="error-text">{t("This web address is reserved, choose another one")}</span> : t("Letters, numbers and dashes")}>
+            <input value={f.slug} placeholder={preview || "demo-travel"} dir="ltr" maxLength={80}
+              className={reserved ? "invalid-soft" : ""}
+              pattern="[a-z0-9]+(-[a-z0-9]+)*" title={t("English lowercase letters, digits and dashes, for example sunrise-travel.")}
+              onChange={(e) => setF({ ...f, slug: e.target.value.toLowerCase().replace(/\s+/g, "-") })} />
+          </Field>
+          <Field label={t("Package texts")}>
+            <select value={f.language} onChange={(e) => setF({ ...f, language: e.target.value })}>
+              <option value="both">{t("English and Arabic")}</option>
+              <option value="en">{t("English")}</option>
+              <option value="ar">{t("Arabic")}</option>
+            </select>
+          </Field>
+          <Field label={t("Admin login email (optional)")} hint={t("Empty: admin@{address}.example", { address })}>
+            <input type="email" dir="ltr" autoComplete="off" value={f.admin_email} onChange={(e) => setF({ ...f, admin_email: e.target.value })} />
+          </Field>
+        </div>
+        <Switch checked={f.include_activity} onChange={(v) => setF({ ...f, include_activity: v })}
+          label={t("Include sample activity")}
+          hint={t("30 days of web and WhatsApp chats and bookings in every status, so the dashboard, inbox and tickets look alive.")} />
+        <ErrorBox error={error} />
+        <div className="modal-actions"><span className="spacer" />
+          <button type="button" className="btn btn-ghost" onClick={onClose} disabled={busy}>{t("Cancel")}</button>
+          <button className="btn btn-primary" disabled={busy} aria-busy={busy}><Sparkle />{busy ? t("Creating…") : t("Create demo company")}</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function CopyButton({ value, label }: { value: string; label: string }) {
+  const { t } = useI18n();
+  const [copied, setCopied] = useState(false);
+  return (
+    <button type="button" className="btn btn-sm btn-soft" aria-label={`${t("Copy")}: ${label}`} onClick={() => {
+      navigator.clipboard?.writeText(value).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {});
+    }}>{copied ? <><Check />{t("Copied")}</> : <><Copy />{t("Copy")}</>}</button>
+  );
+}
+
+/** The demo logins, shown once: the passwords are not stored anywhere in plain text. */
+function DemoLogins({ demo, onClose }: { demo: DemoCompany; onClose: () => void }) {
+  const { t } = useI18n();
+  const [saved, setSaved] = useState(false);
+  const page = `${window.location.origin}${demo.customer_page}`;
+  const all = [`${demo.company.name}`, `${t("Customer page")}: ${page}`, `${t("Login page")}: ${window.location.origin}/login`, "",
+    ...demo.logins.map((l) => `${t(l.label)} (${l.full_name})\n${l.email}\n${l.password}`)].join("\n");
+  const close = () => {
+    if (!saved && !window.confirm(t("Close? The passwords will not be shown again."))) return;
+    onClose();
+  };
+
+  return (
+    <Modal title={t("Demo company ready")} onClose={close} wide>
+      <div className="warn-box" role="alert" style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+        <WarningCircle weight="fill" style={{ flexShrink: 0, fontSize: 20, marginTop: 2 }} aria-hidden="true" />
+        <span>{t("Save these logins now. The passwords are shown only once and can't be shown again (you can set new ones on the company page).")}</span>
+      </div>
+      <p className="muted">
+        <bdi dir="auto"><b>{demo.company.name}</b></bdi>{" · "}
+        {t("{n} packages", { n: demo.counts.packages ?? 0 })}{" · "}
+        {t("{n} conversations", { n: demo.counts.conversations ?? 0 })}{" · "}
+        {t("{n} tickets", { n: demo.counts.tickets ?? 0 })}
+      </p>
+      <div style={{ display: "grid", gap: 12 }}>
+        {demo.logins.map((l) => (
+          <div key={l.email} className="card" style={{ padding: 14, margin: 0 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+              <strong>{t(l.label)}</strong><span className="muted" dir="auto">{l.full_name}</span>
+            </div>
+            <div className="copy-row" style={{ marginBottom: 6 }}>
+              <code dir="ltr" aria-label={t("Email")}>{l.email}</code><CopyButton value={l.email} label={t("Email")} />
+            </div>
+            <div className="copy-row">
+              <code dir="ltr" aria-label={t("Password")}>{l.password}</code><CopyButton value={l.password} label={t("Password")} />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="modal-actions" style={{ flexWrap: "wrap" }}>
+        <CopyButton value={all} label={t("All logins")} />
+        <a className="btn btn-sm btn-soft" href={demo.customer_page} target="_blank" rel="noopener noreferrer">
+          <ArrowSquareOut />{t("Open customer page")}
+        </a>
+        <Link className="btn btn-sm btn-soft" to={`/system/companies/${demo.company.id}`}>{t("Manage")}<ArrowRight className="flip" /></Link>
+        <span className="spacer" />
+        <label className="check"><input type="checkbox" checked={saved} onChange={(e) => setSaved(e.target.checked)} />{t("I saved the logins")}</label>
+        <button type="button" className="btn btn-primary" onClick={close}>{t("Done")}</button>
+      </div>
     </Modal>
   );
 }

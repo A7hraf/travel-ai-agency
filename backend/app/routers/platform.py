@@ -8,8 +8,9 @@ import os
 import re
 from datetime import datetime
 from typing import Literal
+from urllib.parse import urlparse
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -20,6 +21,7 @@ from ..config import get_settings
 from ..database import engine, get_db
 from ..deps import require_system_admin
 from ..models import Company, PlatformSetting, User
+from ..netutil import is_metadata_url
 from ..ratelimit import limiter
 from ..schemas import AICheckOut
 from ..security import random_token
@@ -76,6 +78,8 @@ def _clean_url(v: str | None) -> str | None:
     v = v.strip().rstrip("/")
     if not _URL_RE.match(v):
         raise ValueError("The server address must start with http:// or https://")
+    if is_metadata_url(v):
+        raise ValueError("This server address is not allowed")
     return v
 
 
@@ -171,6 +175,42 @@ def _setting_out(d: ps.SettingDef, rows: dict[str, PlatformSetting]) -> SettingO
     )
 
 
+KEY_NEEDED = "Enter the API key for this AI server: a key is only sent to the server it was set up with"
+
+
+def _server(url: str | None) -> tuple[str, int | None]:
+    try:
+        p = urlparse((url or "").strip())
+        return (p.hostname or "").lower(), p.port
+    except ValueError:
+        return "", None
+
+
+def _key_follows_server(changes: dict) -> None:
+    """The API key is write-only, so it must not be readable by pointing the AI at another server
+    (a stolen owner session would find the key in its own server's log). A key is only sent to the
+    server it was set up with: the saved key to the server in effect when it was saved, the
+    LLM_API_KEY variable to LLM_BASE_URL. Any other server needs the key typed again."""
+    typed = changes.get("llm_api_key")
+    if isinstance(typed, str) and typed.strip():
+        return
+    url_before = ps.get_effective("llm_base_url")
+    url_after = (changes["llm_base_url"] or ps.env_value("llm_base_url")) if "llm_base_url" in changes else url_before
+    saved_before = "llm_api_key" in ps.overrides()
+    saved_after = saved_before and "llm_api_key" not in changes  # None or "" removes the saved key
+    key_after = ps.get_effective("llm_api_key") if saved_after else ps.env_value("llm_api_key")
+    if not (key_after or "").strip():
+        return
+    if saved_after:
+        ok = _server(url_after) == _server(url_before)
+    elif saved_before or _server(url_after) != _server(url_before):  # the variable's key, newly used here
+        ok = _server(url_after) == _server(ps.env_value("llm_base_url"))
+    else:
+        ok = True  # nothing changes for the key
+    if not ok:
+        raise HTTPException(400, KEY_NEEDED)
+
+
 def _settings_out(request: Request, db: Session) -> PlatformSettingsOut:
     rows = {r.key: r for r in db.scalars(select(PlatformSetting)).all()}
     s = get_settings()
@@ -206,6 +246,7 @@ def update_settings(body: PlatformSettingsUpdate, request: Request, db: Session 
     for group in (body.ai, body.whatsapp):
         if group is not None:
             changes.update(group.model_dump(exclude_unset=True))
+    _key_follows_server(changes)
     ps.save(db, changes, me.email)
     return _settings_out(request, db)
 
@@ -234,4 +275,7 @@ def test_ai(body: AIFields | None = None, me: User = Depends(require_system_admi
             if value is None or (isinstance(value, str) and not value.strip()):
                 continue
             changes[name] = value
+    if "base_url" in changes:
+        _key_follows_server({"llm_base_url": changes["base_url"],
+                             **({"llm_api_key": changes["api_key"]} if "api_key" in changes else {})})
     return check_ai(ps.llm_config(**changes))

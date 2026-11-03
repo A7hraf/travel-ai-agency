@@ -103,9 +103,17 @@ def test_db_value_overrides_env_and_is_used_by_the_llm_client(client, owner, mon
 
     # Unsaved values from the form can be tested before saving; blank ones use the saved values.
     r = client.post(f"{URL}/ai-check", headers=owner,
-                    json={"llm_base_url": "http://other-server/v1", "llm_model": "", "llm_api_key": ""}).json()
+                    json={"llm_base_url": "https://api.groq.com/openai/v1", "llm_model": "other-model",
+                          "llm_api_key": ""}).json()
+    assert r["ok"] is True and r["model"] == "other-model" and seen["auth"] == "Bearer db-key"
+    # The saved key is never sent to another server (see test_security_review2.py): type a key for it.
+    r = client.post(f"{URL}/ai-check", headers=owner,
+                    json={"llm_base_url": "http://other-server/v1", "llm_model": "", "llm_api_key": ""})
+    assert r.status_code == 400
+    r = client.post(f"{URL}/ai-check", headers=owner,
+                    json={"llm_base_url": "http://other-server/v1", "llm_model": "", "llm_api_key": "other-key"}).json()
     assert r["ok"] is True and r["server"] == "other-server" and r["model"] == "db-model"
-    assert seen["auth"] == "Bearer db-key"
+    assert seen["auth"] == "Bearer other-key"
     assert get_llm_client().base_url == "https://api.groq.com/openai/v1"  # nothing saved by the test
 
 

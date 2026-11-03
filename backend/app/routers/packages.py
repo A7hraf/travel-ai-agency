@@ -36,6 +36,20 @@ def _apply(pkg: TravelPackage, body: PackageIn, default_currency: str, db: Sessi
         setattr(pkg, key, value)
 
 
+def _check_not_below_bookings(db: Session, pkg: TravelPackage) -> None:
+    """Fewer seats per date than are already booked on a date would oversell it (and the extra customers
+    would only find out at the airport): refuse, and say how many seats are taken."""
+    if pkg.seats_available is None:
+        return
+    held = seats.held_by_date(db, pkg.id)
+    over = sorted((d, n) for d, n in held.items() if n > pkg.seats_available and d >= local_today().isoformat())
+    if over:
+        day, booked = max(over, key=lambda dn: dn[1])
+        db.rollback()
+        raise HTTPException(400, f"{booked} seats are already booked on {day}. Set at least {booked} seats per "
+                                 "date, or cancel bookings first.")
+
+
 def _with_seats(db: Session, pkg: TravelPackage) -> TravelPackage:
     """Adds the seats left on each upcoming departure date (seats_left_by_date) for the response."""
     today = local_today().isoformat()
@@ -80,6 +94,7 @@ def update_package(package_id: int, body: PackageIn, me: User = Depends(require_
                    db: Session = Depends(get_db)):
     pkg = _get(db, me, package_id)
     _apply(pkg, body, me.company.currency, db)
+    _check_not_below_bookings(db, pkg)
     db.commit()
     db.refresh(pkg)
     return _with_seats(db, pkg)

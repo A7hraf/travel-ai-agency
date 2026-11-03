@@ -18,6 +18,7 @@ from typing import Protocol
 import httpx
 
 from ..config import get_settings
+from ..netutil import is_metadata_url
 from ..platform_settings import LLMConfig, llm_config
 
 log = logging.getLogger(__name__)
@@ -173,6 +174,9 @@ class OpenAICompatibleClient:
         return self.models[0]
 
     def chat(self, messages: list[dict], tools: list[dict]) -> LLMResponse:
+        if is_metadata_url(self.base_url):
+            # Also when the address comes from LLM_BASE_URL: never send anything to a metadata service.
+            raise LLMError("This AI server address is not allowed (cloud metadata address)")
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
         last_error = "no model configured"
         for model in self.models:
@@ -191,7 +195,9 @@ class OpenAICompatibleClient:
                     )
                 except httpx.HTTPError as exc:
                     resp = None
-                    last_error = f"{model} -> cannot reach the AI server at {self.base_url}: {exc}"
+                    # No address in the text: it is also shown to companies ("Try your AI"); the
+                    # platform owner sees the server next to it on the Test AI result.
+                    last_error = f"{model} -> cannot reach the AI server: {exc}"
                     break
                 if resp.is_success:
                     try:

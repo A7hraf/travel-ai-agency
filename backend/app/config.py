@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_SECRET_KEY = "dev-only-secret-change-me-in-production-0000"
@@ -86,6 +87,13 @@ class Settings(BaseSettings):
     public_chat_max_message_length: int = 2000
     # Bookings not paid within this many hours give their seats back (see services/seats.py).
     seat_hold_hours: int = 48
+
+    @field_validator("environment")
+    @classmethod
+    def _environment(cls, v: str) -> str:
+        # "Production" or " production" must not quietly run with the development defaults
+        # (API docs, demo logins on the login page, no secret checks).
+        return (v or "").strip().lower()
 
     @property
     def cors_origin_list(self) -> list[str]:

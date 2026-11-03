@@ -1,0 +1,8 @@
+/* Instagram Direct: icon and label colours (magenta-purple; #e05aa8 keeps text at 5:1 on the dark
+   surfaces, the chart series uses the darker #c13584, see components/Charts.tsx). */
+.ad-card-icon.ig { background: rgba(193, 53, 132, .16); color: #e05aa8; }
+.cv-channel.ig { color: #e05aa8; }
+.queue-ch.ig { color: #e05aa8; }
+.ig-account { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ig-window { margin-top: 6px; }
+.ig-window ul { margin: 6px 0 0; padding-inline-start: 20px; line-height: 1.6; }

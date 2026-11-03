@@ -66,7 +66,7 @@ def company_admin_out(db: Session, company: Company) -> CompanyAdminOut:
         slug=company.slug,
         status=company.status,
         max_users=company.max_users,
-        user_count=count(select(func.count(User.id)).where(User.company_id == company.id)),
+        user_count=count(select(func.count(User.id)).where(User.company_id == company.id, User.is_active.is_(True))),
         currency=company.currency,
         contact_email=company.contact_email,
         contact_phone=company.contact_phone,
@@ -103,6 +103,10 @@ def company_settings_out(company: Company, can_manage: bool = False) -> CompanyS
         whatsapp_app_secret_set=bool(company.whatsapp_app_secret),
         whatsapp_webhook_path=f"/api/webhooks/whatsapp/c/{company.whatsapp_webhook_key}" if can_manage else None,
         whatsapp_verify_token=company.whatsapp_verify_token if can_manage else None,
+        instagram_account_id=company.instagram_account_id,
+        instagram_username=company.instagram_username,
+        instagram_token_set=bool(company.instagram_access_token),
+        instagram_app_secret_set=bool(company.instagram_app_secret),
     )
 
 

@@ -1,9 +1,12 @@
 import { KeyboardEvent, ReactNode, useState } from "react";
 
-/** Dashboard chart colours (design handoff): website, WhatsApp, AI ring; ordinal funnel blues; booked-value line. */
+/** Dashboard chart colours (design handoff): website, WhatsApp, AI ring; ordinal funnel blues; booked-value line.
+ *  Instagram (magenta-purple) was checked against the other two series on the dark surface: CVD ΔE ≥ 11,
+ *  contrast 3.5:1. */
 export const CHART = {
   web: "#2a78d6",
   wa: "#eb6834",
+  ig: "#c13584",
   ai: "#1baf7a",
   line: "#4fb6dc",
   funnel: ["#2a78d6", "#5b9be6", "#9cc3f0"],
@@ -16,6 +19,7 @@ export interface DayPoint {
   long: string;
   web: number;
   wa: number;
+  ig: number;
 }
 
 /** Paper tooltip positioned over a chart (percent from the inline start of an LTR chart box). */
@@ -37,19 +41,20 @@ function useKeyHover(n: number): [number, (i: number) => void, (e: KeyboardEvent
   return [hover, setHover, onKey];
 }
 
-/** Stacked columns per day: website at the bottom, WhatsApp on top. Hovering a day dims the others
- *  and shows a paper tooltip. `a` (0..1) animates the heights. */
-export function DayColumns({ days, a, webLabel, waLabel, axisEnd, ariaLabel }: {
+/** Stacked columns per day: website at the bottom, WhatsApp, then Instagram on top. Hovering a day dims
+ *  the others and shows a paper tooltip. `a` (0..1) animates the heights. */
+export function DayColumns({ days, a, webLabel, waLabel, igLabel, axisEnd, ariaLabel }: {
   days: DayPoint[];
   a: number;
   webLabel: string;
   waLabel: string;
+  igLabel: string;
   axisEnd: string;
   ariaLabel: string;
 }) {
   const n = days.length;
   const [hover, setHover, onKey] = useKeyHover(n);
-  const max = Math.max(1, ...days.map((d) => d.web + d.wa));
+  const max = Math.max(1, ...days.map((d) => d.web + d.wa + d.ig));
   const gap = n > 30 ? 4 : n > 7 ? 7 : 18;
   const h = days[hover];
   return (
@@ -58,13 +63,14 @@ export function DayColumns({ days, a, webLabel, waLabel, axisEnd, ariaLabel }: {
         onMouseLeave={() => setHover(-1)} onBlur={() => setHover(-1)} onKeyDown={onKey}>
         {days.map((d, i) => (
           <div key={i} className="dc-col" style={{ opacity: hover >= 0 && hover !== i ? 0.4 : 1 }} onMouseEnter={() => setHover(i)}>
+            {d.ig > 0 && <div style={{ height: `${(d.ig / max) * 92 * a}%`, background: CHART.ig }} />}
             {d.wa > 0 && <div style={{ height: `${(d.wa / max) * 92 * a}%`, background: CHART.wa }} />}
             {d.web > 0 && <div style={{ height: `${(d.web / max) * 92 * a}%`, background: CHART.web }} />}
           </div>
         ))}
         {h && (
           <Tip at={((hover + 0.5) / n) * 100}>
-            <b>{h.long}</b><br />{webLabel} {h.web} · {waLabel} {h.wa}
+            <b>{h.long}</b><br />{webLabel} {h.web} · {waLabel} {h.wa} · {igLabel} {h.ig}
           </Tip>
         )}
       </div>

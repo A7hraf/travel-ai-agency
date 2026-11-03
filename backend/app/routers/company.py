@@ -4,9 +4,10 @@ from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..ai.health import check_ai
+from ..ai.health import check_ai, for_company
 from ..branding import Branding, BrandingUpdate, apply_update, get_branding
 from ..database import get_db
 from ..deps import get_company_user, require_permission
@@ -19,6 +20,7 @@ from ..models import (
     TicketStatus,
     TravelPackage,
     User,
+    utcnow,
 )
 from ..permissions import effective_permissions
 from ..ratelimit import limiter
@@ -30,6 +32,8 @@ from ..schemas import (
     DailyPoint,
     DashboardOut,
     FunnelOut,
+    InstagramStatusOut,
+    InstagramTestOut,
     TopPackage,
     WhatsAppStatusOut,
     WhatsAppTestMessageIn,
@@ -37,6 +41,7 @@ from ..schemas import (
     WhatsAppTestOut,
 )
 from ..serializers import OPEN_TICKET_STATUSES, company_settings_out
+from ..services import instagram as instagram_service
 from ..services import whatsapp as whatsapp_service
 from ..services.users import seats_used
 from ..timeutil import days_back, local_date
@@ -60,22 +65,39 @@ def update_company(body: CompanySettingsUpdate, me: User = Depends(require_permi
         if key in data and data[key] is None:
             del data[key]
 
-    for secret in ("whatsapp_access_token", "whatsapp_app_secret"):
+    for secret in ("whatsapp_access_token", "whatsapp_app_secret", "instagram_access_token", "instagram_app_secret"):
         if secret in data:
             value = (data.pop(secret) or "").strip()
             setattr(company, secret, value or None)
+            if secret == "instagram_access_token":
+                company.instagram_token_refreshed_at = utcnow() if value else None
     if "whatsapp_phone_number_id" in data:
         number_id = (data.pop("whatsapp_phone_number_id") or "").strip() or None
         if number_id and number_id != company.whatsapp_phone_number_id:
             _check_number_is_ours(db, company, number_id)
         company.whatsapp_phone_number_id = number_id
+    if "instagram_access_token" in body.model_fields_set and company.instagram_access_token \
+            and not company.instagram_account_id and not (data.get("instagram_account_id") or "").strip():
+        _detect_instagram_account(db, company)
+    if "instagram_account_id" in data:
+        account_id = (data.pop("instagram_account_id") or "").strip() or None
+        if account_id and account_id != company.instagram_account_id:
+            company.instagram_username = _check_instagram_is_ours(db, company, account_id)
+        elif not account_id:
+            company.instagram_username = None
+        company.instagram_account_id = account_id
     if data.get("currency"):
         data["currency"] = data["currency"].upper()
     for key, value in data.items():
         if key in ("ai_agent_name", "currency") and not value:
             continue  # required fields can't be blanked
         setattr(company, key, value)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:  # the same number or account saved by another company at the same moment
+        db.rollback()
+        raise HTTPException(409, "This WhatsApp number or Instagram account is already connected to another "
+                                 "company") from exc
     return company_settings_out(company, can_manage=True)
 
 
@@ -98,6 +120,50 @@ def _check_number_is_ours(db: Session, company: Company, number_id: str) -> None
                                  "Check both in your Meta app and try again.")
 
 
+def _detect_instagram_account(db: Session, company: Company) -> None:
+    """A new token and no account yet: connect the account the token belongs to, so the company does
+    not have to look up its account ID. Nothing happens when Instagram can't tell (Test connection
+    then explains why) or when that account is already another company's."""
+    found = instagram_service.check_account(None, company.instagram_access_token)
+    user_id = found.get("user_id")
+    if found["result"] != "account_missing" or not user_id:
+        return
+    if db.scalar(select(Company.id).where(Company.instagram_account_id == user_id, Company.id != company.id)):
+        return
+    company.instagram_account_id = user_id
+    company.instagram_username = str(found.get("username") or "")[:100] or None
+
+
+def _check_instagram_is_ours(db: Session, company: Company, account_id: str) -> str | None:
+    """A company may only connect an Instagram account its own access token belongs to (same rule as
+    WhatsApp numbers), so nobody can receive another company's Instagram messages. Returns the username."""
+    taken = db.scalar(select(Company.id).where(Company.instagram_account_id == account_id, Company.id != company.id))
+    if taken:
+        raise HTTPException(409, "This Instagram account is already connected to another company")
+    if not company.instagram_access_token:
+        raise HTTPException(400, "Add your Instagram access token to connect an Instagram account")
+    confirmed = instagram_service.verify_account(account_id, company.instagram_access_token)
+    if confirmed is None:
+        raise HTTPException(400, "Instagram did not confirm this account ID for your access token. "
+                                 "Use Test connection to see the exact problem.")
+    username = confirmed.get("username")
+    return str(username)[:100] if username else None
+
+
+@router.get("/company/instagram", response_model=InstagramStatusOut)
+def instagram_status(me: User = Depends(require_permission("settings.manage"))):
+    """Connection status for the "Connect Instagram" steps (webhook address and verify token included)."""
+    return instagram_service.connection_status(me.company)
+
+
+@router.post("/company/instagram/test", response_model=InstagramTestOut)
+def instagram_test(me: User = Depends(require_permission("settings.manage")), db: Session = Depends(get_db)):
+    """Asks Instagram which account the saved access token belongs to, and whether it is the saved one."""
+    result = instagram_service.run_connection_test(me.company, me.id)
+    db.commit()
+    return result
+
+
 @router.get("/company/whatsapp", response_model=WhatsAppStatusOut)
 def whatsapp_status(me: User = Depends(require_permission("settings.manage"))):
     """Connection status for the "Connect WhatsApp" steps (webhook address and verify token included)."""
@@ -118,7 +184,7 @@ def whatsapp_test_message(body: WhatsAppTestMessageIn, me: User = Depends(requir
 @router.post("/company/ai-check", response_model=AICheckOut)
 def company_ai_check(me: User = Depends(require_permission("settings.manage"))):
     limiter.check(f"ai-check:{me.id}", 6, "Please wait a minute before testing again")
-    return check_ai()
+    return for_company(check_ai())
 
 
 @router.get("/dashboard", response_model=DashboardOut)
@@ -191,6 +257,8 @@ def update_branding(body: BrandingUpdate, me: User = Depends(require_permission(
 
 
 PAID = (TicketStatus.PAID, TicketStatus.CONFIRMED)
+# The dashboard's conversations-per-day series of each channel.
+CHANNEL_SERIES = {Channel.WHATSAPP: "whatsapp", Channel.INSTAGRAM: "instagram"}
 
 
 @router.get("/dashboard/analytics", response_model=AnalyticsOut)
@@ -212,13 +280,13 @@ def analytics(days: int = 30, me: User = Depends(require_permission("reports.vie
     ).all()
 
     daily: dict[date, dict] = {
-        first_day + timedelta(days=i): {"web": 0, "whatsapp": 0, "bookings": 0, "booked_value": 0.0}
+        first_day + timedelta(days=i): {"web": 0, "whatsapp": 0, "instagram": 0, "bookings": 0, "booked_value": 0.0}
         for i in range(days)
     }
     for _, channel, created, _ in convs:
         day = daily.get(local_date(created))
         if day is not None:
-            day["whatsapp" if channel == Channel.WHATSAPP else "web"] += 1
+            day[CHANNEL_SERIES.get(channel, "web")] += 1
     packages: dict[str, dict] = {}
     booked_conversations = set()
     paid_conversations = set()

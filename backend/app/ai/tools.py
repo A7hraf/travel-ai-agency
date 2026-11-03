@@ -118,7 +118,11 @@ TOOL_DEFINITIONS: list[dict] = [
                     "adults": {"type": "integer", "minimum": 1},
                     "children": {"type": "integer", "minimum": 0},
                     "lead_traveler_name": {"type": "string"},
-                    "contact_phone": {"type": "string"},
+                    "contact_phone": {
+                        "type": "string",
+                        "description": "A phone number the consultant can call, as the customer gave it. "
+                                       "Ask the customer for it when you don't know it.",
+                    },
                     "contact_email": {"type": "string"},
                     "special_requests": {"type": "string"},
                 },

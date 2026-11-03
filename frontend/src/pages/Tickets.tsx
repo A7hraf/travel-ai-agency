@@ -133,7 +133,10 @@ export default function Tickets() {
       ) : (
         <div className="tk-grid">
           {shown.map((tk) => (
-            <Link key={tk.id} to={`/app/tickets?open=${tk.id}`} className={`tk-card ${isNew(tk, seen) ? "new" : ""}`}>
+            <Link key={tk.id} to={`/app/tickets?open=${tk.id}`} className={`tk-card ${isNew(tk, seen) ? "new" : ""}`}
+              // A grid item is as wide as its longest line by default: a long package title (e.g. English · Arabic)
+              // pushed the card past the phone screen instead of being cut with "…".
+              style={{ minWidth: 0 }}>
               <span className="tk-card-top">
                 <bdi dir="ltr" className="tk-ref">{tk.reference}</bdi>
                 <span className={`pill st-${tk.status}`}>{t(TICKET_STATUS_LABELS[tk.status])}</span>

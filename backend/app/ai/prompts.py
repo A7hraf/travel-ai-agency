@@ -105,7 +105,7 @@ _UNSAFE = re.compile(r"[^\w\s.@+\-'’]", re.UNICODE)
 
 
 def _safe_detail(value: str | None, limit: int) -> str:
-    """Customer-provided details (name typed in the chat form, WhatsApp profile name) go into the
+    """Customer-provided details (name typed in the chat form, WhatsApp or Instagram profile name) go into the
     prompt only as short plain words, so they cannot carry instructions."""
     text = _UNSAFE.sub(" ", value or "")
     return re.sub(r"\s+", " ", text).strip()[:limit]
@@ -141,6 +141,10 @@ def build_system_prompt(company: Company, customer: Customer, channel: str, toda
     if channel == Channel.WHATSAPP:
         channel_label = "WhatsApp"
         formatting_note = " WhatsApp formatting only: *bold* for emphasis, no markdown links."
+    elif channel == Channel.INSTAGRAM:
+        channel_label = "Instagram Direct Messages"
+        formatting_note = (" Instagram shows plain text only: no *bold*, no markdown, no links in brackets."
+                           " Keep each reply short.")
     else:
         channel_label = "the website chat"
         formatting_note = ""
@@ -160,6 +164,9 @@ def build_system_prompt(company: Company, customer: Customer, channel: str, toda
         )
     else:
         customer_note = "We don't know the customer's details yet."
+    if channel == Channel.INSTAGRAM and not _safe_detail(customer.phone, 30):
+        # Instagram never shares the customer's phone number, and the consultant must call to take the payment.
+        customer_note += " Instagram does not give us the customer's phone number: ask for it before booking."
 
     prompt = BASE_PROMPT.format(
         agent_name=company.ai_agent_name or "Sara",

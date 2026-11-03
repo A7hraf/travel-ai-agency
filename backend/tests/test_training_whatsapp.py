@@ -1,5 +1,7 @@
 """AI training page (answers, import, knowledge, "Try your AI") and the WhatsApp connection steps."""
 
+import json
+
 import pytest
 from sqlalchemy import func, select
 
@@ -75,7 +77,9 @@ def test_try_ai_when_the_ai_is_down(client, company_a, scripted):
     scripted([LLMError("Provider down")])
     before = counts()
     data = client.post(TRY, headers=admin, json={"message": "hello"}).json()
-    assert data["ok"] is False and data["error"] == "Provider down" and data["reply"] is None
+    assert data["ok"] is False and data["reply"] is None
+    # The provider's own error text stays in the server log, never shown to the company.
+    assert data["error"] == "The AI is not available right now." and "Provider down" not in json.dumps(data)
     assert counts() == before
 
 

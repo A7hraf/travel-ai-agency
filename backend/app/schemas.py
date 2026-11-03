@@ -55,7 +55,7 @@ class LoginChoicesOut(BaseModel):
 
 
 class ChangePasswordIn(BaseModel):
-    current_password: str
+    current_password: str = Field(max_length=200)
     new_password: Password
 
 
@@ -219,6 +219,10 @@ class CompanySettingsOut(ORM):
     # Only shown to employees allowed to manage settings.
     whatsapp_webhook_path: str | None = None
     whatsapp_verify_token: str | None = None
+    instagram_account_id: str | None = None
+    instagram_username: str | None = None
+    instagram_token_set: bool = False
+    instagram_app_secret_set: bool = False
 
 
 class CompanySettingsUpdate(BaseModel):
@@ -235,6 +239,16 @@ class CompanySettingsUpdate(BaseModel):
     # Write-only; send "" to remove the stored value.
     whatsapp_access_token: str | None = Field(default=None, max_length=2000)
     whatsapp_app_secret: str | None = Field(default=None, max_length=200)
+    # Instagram Direct: the account ID is checked with Instagram using the access token.
+    instagram_account_id: str | None = Field(default=None, max_length=64, pattern=r"^\s*\d*\s*$")
+    instagram_access_token: str | None = Field(default=None, max_length=2000)  # write-only
+    instagram_app_secret: str | None = Field(default=None, max_length=200)  # write-only
+
+    @field_validator("ai_agent_name", "ai_welcome_message", "ai_welcome_message_ar", "ai_instructions",
+                     "knowledge_base", mode="before")
+    @classmethod
+    def _clean_texts(cls, v):
+        return _clean_ai_text(v)  # defined further down, looked up when a request is checked
 
 
 # --- Packages -------------------------------------------------------------------------
@@ -523,9 +537,20 @@ class ChatMessagesOut(BaseModel):
 # --- AI training and diagnostics ----------------------------------------------------------------
 
 
+# Control characters (keeping tab and line feed) and bidirectional overrides. A NUL byte can't be
+# stored in PostgreSQL (the save would fail), and invisible characters must not reach the AI's prompt.
+_AI_TEXT_CONTROL = re.compile("[\x00-\x08\x0b-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]")
+
+
+def _clean_ai_text(v):
+    return _AI_TEXT_CONTROL.sub("", v.replace("\r\n", "\n")) if isinstance(v, str) else v
+
+
 class TrainingIn(BaseModel):
     question: str = Field(min_length=2, max_length=1000)
     answer: str = Field(min_length=1, max_length=4000)
+
+    _clean = field_validator("question", "answer", mode="before")(_clean_ai_text)
 
 
 class TrainingOut(ORM):
@@ -559,6 +584,7 @@ class DailyPoint(BaseModel):
     date: str
     web: int
     whatsapp: int
+    instagram: int = 0
     bookings: int
     booked_value: float
 
@@ -595,6 +621,9 @@ class AnalyticsOut(BaseModel):
 class TrainingImportIn(BaseModel):
     text: str = Field(min_length=1, max_length=200_000)
     preview: bool = False
+
+    # Tabs stay: they separate the question from the answer when copied from a spreadsheet.
+    _clean = field_validator("text", mode="before")(_clean_ai_text)
 
 
 class TrainingImportRow(BaseModel):
@@ -671,6 +700,9 @@ class AIKnowledgeUpdate(BaseModel):
     ai_instructions: str | None = Field(default=None, max_length=8000)
     knowledge_base: str | None = Field(default=None, max_length=30000)
 
+    _clean = field_validator("ai_welcome_message", "ai_welcome_message_ar", "ai_instructions", "knowledge_base",
+                             mode="before")(_clean_ai_text)
+
 
 class WhatsAppStatusOut(BaseModel):
     status: Literal["connected", "not_connected", "needs_app_secret", "needs_token"]
@@ -700,3 +732,34 @@ class WhatsAppTestMessageOut(BaseModel):
     sent: bool
     to: str
     message: str
+
+
+# --- Instagram Direct connection --------------------------------------------------------------
+
+
+class InstagramStatusOut(BaseModel):
+    status: Literal["connected", "not_connected", "needs_token", "needs_app_secret"]
+    account_id: str | None
+    username: str | None
+    token_set: bool
+    app_secret_set: bool
+    webhook_path: str | None = None
+    verify_token: str | None = None
+
+
+class InstagramTestOut(BaseModel):
+    result: Literal["connected", "token_invalid", "account_mismatch", "account_missing", "no_access", "network",
+                    "not_configured"]
+    message: str
+    user_id: str | None = None
+    username: str | None = None
+    status: InstagramStatusOut
+
+
+class InstagramOwnerUpdate(BaseModel):
+    """The platform owner sets up a company's Instagram (no ownership check; "" clears a value)."""
+
+    instagram_account_id: str | None = Field(default=None, max_length=64, pattern=r"^\s*\d*\s*$")
+    instagram_username: str | None = Field(default=None, max_length=100)
+    instagram_access_token: str | None = Field(default=None, max_length=2000)
+    instagram_app_secret: str | None = Field(default=None, max_length=200)

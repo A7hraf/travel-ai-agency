@@ -44,3 +44,12 @@ def check_ai(config: LLMConfig | None = None) -> dict:
         result.update(ok=False, uses_tools=False,
                       message="Demo mode (LLM_PROVIDER=mock): no real AI is connected.")
     return result
+
+
+def for_company(result: dict) -> dict:
+    """The Test AI result for a travel company: whether its AI works, without the platform's
+    AI server, model or provider error (those are for the platform owner only)."""
+    out = {**result, "server": "", "model": "", "fallback_models": [], "answered_by": None}
+    if not result.get("ok") and result.get("provider") != "mock":
+        out["message"] = "The AI is not working right now. Please tell the platform owner: the details are on the platform console."
+    return out

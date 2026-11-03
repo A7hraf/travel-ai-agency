@@ -25,6 +25,22 @@ NEW_COLUMNS = [
     ("conversations", "was_handed_over", "BOOLEAN NOT NULL DEFAULT FALSE"),
     ("conversations", "booking_quote", "JSON"),
     ("tickets", "seats_held_at", "TIMESTAMP WITH TIME ZONE"),
+    # Instagram Direct channel
+    ("companies", "instagram_account_id", "VARCHAR(64)"),
+    ("companies", "instagram_username", "VARCHAR(100)"),
+    ("companies", "instagram_access_token", "TEXT"),
+    ("companies", "instagram_app_secret", "TEXT"),
+    ("companies", "instagram_webhook_key", "VARCHAR(64)"),
+    ("companies", "instagram_verify_token", "VARCHAR(64)"),
+    ("customers", "instagram_id", "VARCHAR(64)"),
+    ("companies", "instagram_token_refreshed_at", "TIMESTAMP WITH TIME ZONE"),
+]
+
+# Unique indexes of the Instagram columns (same names create_all gives them on a new database).
+INSTAGRAM_INDEXES = [
+    "CREATE UNIQUE INDEX IF NOT EXISTS ix_companies_instagram_account_id ON companies (instagram_account_id)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS ix_companies_instagram_webhook_key ON companies (instagram_webhook_key)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_customers_company_instagram ON customers (company_id, instagram_id)",
 ]
 
 # Filled once, right after the column is added.
@@ -93,6 +109,9 @@ def upgrade(engine: Engine) -> None:
             conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_users_company_email ON users (company_id, email)"))
             conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_users_platform_email ON users (email) "
                               "WHERE company_id IS NULL"))
+        if {"companies", "customers"} <= tables:
+            for ddl in INSTAGRAM_INDEXES:
+                conn.execute(text(ddl))
         # WhatsApp tokens saved before encryption existed are encrypted now.
         rows = conn.execute(
             text("SELECT id, whatsapp_access_token FROM companies WHERE whatsapp_access_token IS NOT NULL")
@@ -113,4 +132,16 @@ def upgrade(engine: Engine) -> None:
         for company in missing:
             company.whatsapp_webhook_key = company.whatsapp_webhook_key or random_token(18)
             company.whatsapp_verify_token = company.whatsapp_verify_token or random_token(18)
+        db.commit()
+
+    # Every company gets its own Instagram webhook address and verify token.
+    with Session(engine) as db:
+        missing = db.scalars(
+            select(Company).where(
+                or_(Company.instagram_webhook_key.is_(None), Company.instagram_verify_token.is_(None))
+            )
+        ).all()
+        for company in missing:
+            company.instagram_webhook_key = company.instagram_webhook_key or random_token(18)
+            company.instagram_verify_token = company.instagram_verify_token or random_token(18)
         db.commit()

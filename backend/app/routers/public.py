@@ -58,8 +58,20 @@ def _conversation(db: Session, company: Company, token: str) -> Conversation:
     return conv
 
 
+# Generous limits for the page itself and the chat polling (every 5 s), so one sender can't keep
+# the server and the database busy; a page view needs two reads.
+PUBLIC_READS_PER_IP_PER_MINUTE = 240
+POLLS_PER_CHAT_PER_MINUTE = 30
+POLLS_PER_IP_PER_MINUTE = 600
+
+
+def _limit_reads(request: Request) -> None:
+    limiter.check(f"public-read:{client_ip(request)}", PUBLIC_READS_PER_IP_PER_MINUTE)
+
+
 @router.get("", response_model=PublicCompanyOut)
-def company_info(slug: str, db: Session = Depends(get_db)):
+def company_info(slug: str, request: Request, db: Session = Depends(get_db)):
+    _limit_reads(request)
     c = _company(db, slug)
     return PublicCompanyOut(
         name=c.name,
@@ -75,7 +87,8 @@ def company_info(slug: str, db: Session = Depends(get_db)):
 
 
 @router.get("/packages", response_model=list[PublicPackageOut])
-def packages(slug: str, db: Session = Depends(get_db)):
+def packages(slug: str, request: Request, db: Session = Depends(get_db)):
+    _limit_reads(request)
     company = _company(db, slug)
     rows = db.scalars(select(TravelPackage).where(TravelPackage.company_id == company.id)).all()
     today = local_today()
@@ -137,9 +150,12 @@ def send_message(slug: str, token: str, body: CustomerMessageIn, request: Reques
 
 
 @router.get("/chats/{token}/messages", response_model=ChatMessagesOut)
-def poll_messages(slug: str, token: str, after_id: int = 0, db: Session = Depends(get_db)):
+def poll_messages(slug: str, token: str, request: Request, after_id: int = 0, db: Session = Depends(get_db)):
+    limiter.check(f"poll-ip:{client_ip(request)}", POLLS_PER_IP_PER_MINUTE)
     company = _company(db, slug)
-    return _messages_after(db, _conversation(db, company, token), after_id)
+    conv = _conversation(db, company, token)
+    limiter.check(f"poll:{conv.id}", POLLS_PER_CHAT_PER_MINUTE)  # after the check: unknown links add no counters
+    return _messages_after(db, conv, after_id)
 
 
 def _messages_after(db: Session, conv: Conversation, after_id: int) -> ChatMessagesOut:

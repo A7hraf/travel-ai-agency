@@ -300,3 +300,146 @@ def test_company_whatsapp(company_id: int, me: User = Depends(require_system_adm
 def company_whatsapp_test_message(company_id: int, body: WhatsAppTestMessageIn,
                                   me: User = Depends(require_system_admin), db: Session = Depends(get_db)):
     return whatsapp_service.send_test_whatsapp(_get_company(db, company_id), me.id, body.phone)
+
+
+# --- Instagram Direct of any company ------------------------------------------------------------
+
+from ..models import utcnow  # noqa: E402
+from ..schemas import InstagramOwnerUpdate, InstagramStatusOut, InstagramTestOut  # noqa: E402
+from ..services import instagram as instagram_service  # noqa: E402
+
+
+@router.get("/companies/{company_id}/instagram", response_model=InstagramStatusOut)
+def company_instagram(company_id: int, _: User = Depends(require_system_admin), db: Session = Depends(get_db)):
+    return instagram_service.connection_status(_get_company(db, company_id))
+
+
+@router.patch("/companies/{company_id}/instagram", response_model=InstagramStatusOut)
+def update_company_instagram(company_id: int, body: InstagramOwnerUpdate, _: User = Depends(require_system_admin),
+                             db: Session = Depends(get_db)):
+    """The platform owner sets up a company's Instagram for it. Unlike the company itself, the owner may
+    assign an account ID without Instagram's ownership check (only never one used by another company)."""
+    company = _get_company(db, company_id)
+    data = body.model_dump(exclude_unset=True)
+    for secret in ("instagram_access_token", "instagram_app_secret"):
+        if secret in data:
+            setattr(company, secret, (data[secret] or "").strip() or None)
+    if "instagram_access_token" in data:
+        company.instagram_token_refreshed_at = utcnow() if company.instagram_access_token else None
+    if "instagram_account_id" in data:
+        account_id = (data["instagram_account_id"] or "").strip() or None
+        if account_id and db.scalar(select(Company.id).where(Company.instagram_account_id == account_id,
+                                                             Company.id != company.id)):
+            raise HTTPException(409, "This Instagram account is already connected to another company")
+        if account_id != company.instagram_account_id:
+            company.instagram_username = None
+        company.instagram_account_id = account_id
+    if "instagram_username" in data:
+        company.instagram_username = (data["instagram_username"] or "").strip().lstrip("@")[:100] or None
+    try:
+        db.commit()
+    except IntegrityError as exc:  # the same account saved for another company at the same moment
+        db.rollback()
+        raise HTTPException(409, "This Instagram account is already connected to another company") from exc
+    return instagram_service.connection_status(company)
+
+
+@router.post("/companies/{company_id}/instagram/test", response_model=InstagramTestOut)
+def test_company_instagram(company_id: int, me: User = Depends(require_system_admin), db: Session = Depends(get_db)):
+    result = instagram_service.run_connection_test(_get_company(db, company_id), me.id)
+    db.commit()
+    return result
+
+
+# --- Demo company: a ready-made Omani agency with sample activity, for presentations ---------------
+
+from typing import Literal  # noqa: E402
+
+from pydantic import BaseModel as _DemoBase, EmailStr as _DemoEmail, Field as _DemoField  # noqa: E402
+from pydantic import field_validator as _demo_validator  # noqa: E402
+
+from ..schemas import RESERVED_SLUGS as _DEMO_RESERVED, SLUG_RE as _DEMO_SLUG_RE  # noqa: E402
+from ..services import demo as demo_service  # noqa: E402
+
+DEMO_LIMIT_PER_HOUR = 3
+
+
+class DemoCompanyIn(_DemoBase):
+    name: str = _DemoField(min_length=2, max_length=200)
+    slug: str | None = _DemoField(default=None, max_length=80)
+    include_activity: bool = True
+    # Language of the package texts: both (English · Arabic), en or ar.
+    language: Literal["both", "en", "ar"] = "both"
+    # Optional: the admin login uses this email instead of admin@<web address>.example.
+    admin_email: _DemoEmail | None = None
+
+    @_demo_validator("name")
+    @classmethod
+    def _name(cls, v: str) -> str:
+        v = " ".join(v.split())
+        if len(v) < 2:
+            raise ValueError("Enter the company name")
+        return v
+
+    @_demo_validator("slug")
+    @classmethod
+    def _slug(cls, v: str | None) -> str | None:
+        # Same rules as a normal company (CompanyCreate).
+        v = (v or "").strip() or None
+        if v is not None and not _DEMO_SLUG_RE.match(v):
+            raise ValueError("The web address may only contain English lowercase letters, digits and dashes")
+        if v in _DEMO_RESERVED:
+            raise ValueError("This web address is reserved, choose another one")
+        return v
+
+
+class DemoLoginOut(_DemoBase):
+    role: str
+    label: str
+    full_name: str
+    email: str
+    password: str
+
+
+class DemoCompanyOut(_DemoBase):
+    company: CompanyAdminOut
+    logins: list[DemoLoginOut]
+    customer_page: str
+    counts: dict[str, int]
+
+
+@router.post("/demo-company", response_model=DemoCompanyOut, status_code=201)
+def create_demo_company(body: DemoCompanyIn, me: User = Depends(require_system_admin),
+                        db: Session = Depends(get_db)):
+    """Create a demo travel agency (packages, staff, trained answers and, optionally, 30 days of sample
+    chats and bookings). The staff passwords are random and returned only in this response."""
+    # Only demo companies really created count (a taken web address does not use up the limit).
+    limit_key = f"demo-company:{me.id}"
+    if limiter.blocked(limit_key, DEMO_LIMIT_PER_HOUR, window=3600):
+        raise HTTPException(429, "You can create 3 demo companies per hour. Please try again later.")
+    if body.slug:
+        if db.scalar(select(Company.id).where(Company.slug == body.slug)):
+            raise HTTPException(409, "This web address is already used by another company")
+        slug = body.slug
+    else:
+        base = _slugify(body.name)
+        slug = _unique_slug(db, "demo-travel" if base == "company" else base)
+    try:
+        result = demo_service.create_demo_company(
+            db, body.name, slug, admin_email=str(body.admin_email) if body.admin_email else None,
+            language=body.language, include_activity=body.include_activity)
+        db.commit()
+        limiter.hit(limit_key)
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(409, "This web address is already used by another company") from exc
+    except Exception:
+        db.rollback()
+        raise
+    db.refresh(result.company)
+    return DemoCompanyOut(
+        company=company_admin_out(db, result.company),
+        logins=[DemoLoginOut(**vars(login)) for login in result.logins],
+        customer_page=f"/c/{result.company.slug}",
+        counts=result.counts,
+    )
