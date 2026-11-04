@@ -570,6 +570,7 @@ export const AR: Record<string, string> = {
   "This page could not be shown.": "تعذّر عرض هذه الصفحة.",
   "Reload to get the latest version of the app. If it happens again, tell us what you clicked.": "أعد التحميل للحصول على أحدث نسخة من التطبيق. إذا تكرر ذلك أخبرنا بما ضغطت عليه.",
   "Reload": "إعادة التحميل",
+  "Version of {date}": "نسخة {date}",
 };
 
 /**

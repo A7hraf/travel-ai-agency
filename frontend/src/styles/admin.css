@@ -732,3 +732,6 @@ a.now-waiting:hover { background: rgba(242, 179, 61, .18); }
 }
 .pe-frame-box { width: 100%; }
 .pe-frame { margin: 0 auto; }
+
+/* Login: which version of the app this is (helps check that an update is live) */
+.login-version { position: relative; text-align: center; font-size: 12px; color: var(--text-muted); margin: 8px 0 20px; }

@@ -15,7 +15,7 @@ interface DemoAccount {
 
 export default function Login() {
   const { user, login } = useAuth();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
   const state = location.state as { from?: string; expired?: boolean } | null;
@@ -138,6 +138,7 @@ export default function Login() {
           )}
         </form>
       </div>
+      <p className="login-version">{t("Version of {date}", { date: new Date(__BUILD_TIME__).toLocaleString(lang === "ar" ? "ar-OM" : "en-GB", { dateStyle: "medium", timeStyle: "short" }) })}</p>
     </div>
   );
 }
