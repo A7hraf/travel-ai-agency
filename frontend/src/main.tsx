@@ -1,3 +1,5 @@
+// First: set <html data-theme> (Light / Dark / Auto) before anything renders.
+import "./themeMode";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";

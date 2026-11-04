@@ -1,7 +1,8 @@
 import { CSSProperties, FormEvent, MouseEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { get, patch } from "../api";
 import { useI18n } from "../lang";
-import { dashboardVars, isDark } from "../theme";
+import { dashboardVars, sidebarIsDark } from "../theme";
+import { useTheme } from "../themeMode";
 import { GhanjahMark } from "./Brand";
 import type { Branding, CardDesign, PageElements, PublicCompany, Section, TravelPackage } from "../types";
 import type { Lang } from "./Money";
@@ -14,7 +15,7 @@ import {
 import { StorefrontPage } from "../pages/Storefront";
 import { DEFAULT_CARDS, DEFAULT_ELEMENTS, contrastRatio, pageVars } from "./storefront/style";
 import { TEXT_GROUPS, defaultText, type TextField } from "./storefront/texts";
-import { ErrorBox, Field } from "./ui";
+import { ErrorBox, Field, Loading } from "./ui";
 
 const ALL_SECTIONS: Section[] = ["search", "featured", "offers", "how", "about", "contact"];
 
@@ -202,7 +203,7 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
 
-  if (!b) return error ? <ErrorBox error={t("The page design could not be loaded: {error}", { error })} onRetry={fetchBranding} /> : <div className="skeleton" style={{ height: 420, borderRadius: 24 }} />;
+  if (!b) return error ? <ErrorBox error={t("The page design could not be loaded: {error}", { error })} onRetry={fetchBranding} /> : <Loading height={420} />;
 
   const agent = info?.ai_agent_name ?? "Sara";
   const companyName = name ?? info?.name ?? "";
@@ -645,13 +646,14 @@ function PreviewFrame({ width, height, children }: { width: number; height: numb
   );
 }
 
-/** Staff dashboard in miniature, in the dark shell style with the chosen sidebar and main colour. */
+/** Staff dashboard in miniature, in the theme this browser shows (light or dark) with the chosen sidebar and main colour. */
 function DashboardPreview({ b, name }: { b: Branding; name: string }) {
+  const { theme } = useTheme();
   return (
-    <div className="dash-mini" style={dashboardVars(b.dashboard_color, b.dashboard_sidebar) as CSSProperties} aria-hidden="true">
+    <div className="dash-mini" style={dashboardVars(b.dashboard_color, b.dashboard_sidebar, theme) as CSSProperties} aria-hidden="true">
       <div className="dash-mini-side">
         <div className="dash-mini-brand">
-          {b.logo ? <img src={b.logo} alt="" /> : <GhanjahMark dark={isDark(b.dashboard_sidebar)} />}
+          {b.logo ? <img src={b.logo} alt="" /> : <GhanjahMark dark={sidebarIsDark(b.dashboard_sidebar, theme)} />}
           <span>{name}</span>
         </div>
         <i className="on" /><i /><i /><i /><i />

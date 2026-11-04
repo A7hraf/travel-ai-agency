@@ -6,7 +6,7 @@ import { Binoculars, CalendarBlank, CalendarPlus, MagnifyingGlass, PencilSimple,
 import ImageUpload from "../components/ImageUpload";
 import { Money } from "../components/Money";
 import { Poster } from "../components/Poster";
-import { ErrorBox, Field, Modal } from "../components/ui";
+import { ErrorBox, Field, Loading, Modal } from "../components/ui";
 import { useI18n } from "../lang";
 import type { TravelPackage } from "../types";
 import { daysText, shortDate, todayIso } from "../util";
@@ -79,7 +79,7 @@ export default function Packages() {
       {items === null && loadError ? (
         <ErrorBox error={loadError} onRetry={load} />
       ) : items === null ? (
-        <div className="pk-grid">{[0, 1, 2].map((i) => <div key={i} className="skeleton" style={{ height: 420, borderRadius: 24 }} />)}</div>
+        <><Loading height={0} /><div className="pk-grid" style={{ marginTop: 14 }}>{[0, 1, 2].map((i) => <div key={i} className="skeleton" style={{ height: 420, borderRadius: 24 }} />)}</div></>
       ) : shown.length === 0 ? (
         <div className="empty">
           <Binoculars className="empty-icon" />

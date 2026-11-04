@@ -3,8 +3,8 @@
 .ai-tabs { overflow-x: auto; scrollbar-width: none; flex-wrap: nowrap; }
 .ai-tabs::-webkit-scrollbar { display: none; }
 .ai-tabs button { display: inline-flex; align-items: center; gap: 8px; }
-.ai-tabs .ai-tab-count { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: rgba(243, 242, 242, .1); }
-.ai-tabs button.active .ai-tab-count { background: rgba(32, 30, 29, .12); }
+.ai-tabs .ai-tab-count { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: rgba(var(--fg-rgb), .1); }
+.ai-tabs button.active .ai-tab-count { background: color-mix(in srgb, currentColor 14%, transparent); }
 @media (max-width: 560px) { .ai-tabs button { padding: 0 14px; font-size: 14px; } }
 
 /* How training works */
@@ -24,7 +24,7 @@
 .ai-import-sum { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
 .ai-import-list { list-style: none; margin: 8px 0; padding: 0; max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
 .ai-import-list li { padding: 8px 12px; border-radius: 12px; background: var(--surface-2); font-size: 13.5px; line-height: 1.45; overflow-wrap: anywhere; }
-.ai-import-list li.bad { color: #f6cd7b; background: rgba(242, 179, 61, .08); }
+.ai-import-list li.bad { color: var(--warn-text); background: color-mix(in srgb, var(--st-waiting) 8%, transparent); }
 .ai-import-list .ln { color: var(--text-faint); font-size: 12px; margin-inline-end: 8px; }
 
 /* Test chat */
@@ -43,9 +43,9 @@
 .ai-turn.ai .ai-who { color: var(--brand); }
 .ai-meta { display: flex; flex-direction: column; gap: 6px; max-width: min(88%, 620px); font-size: 13px; color: var(--text-muted); }
 .ai-meta-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.ai-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; background: rgba(243, 242, 242, .07); color: var(--text); font-size: 12.5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ai-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; background: rgba(var(--fg-rgb), .07); color: var(--text); font-size: 12.5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ai-chip.brand { background: var(--brand-soft); color: var(--brand); }
-.ai-sim { padding: 8px 12px; border-radius: 12px; background: rgba(242, 179, 61, .1); color: #f6cd7b; font-size: 13px; }
+.ai-sim { padding: 8px 12px; border-radius: 12px; background: color-mix(in srgb, var(--st-waiting) 10%, transparent); color: var(--warn-text); font-size: 13px; }
 .ai-teach { width: min(100%, 620px); padding: 14px; border-radius: 16px; background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--brand-line); }
 .ai-try-form { display: flex; gap: 8px; align-items: flex-end; padding-top: 12px; box-shadow: inset 0 1px 0 var(--line); }
 .ai-try-form textarea { flex: 1; min-height: 48px; max-height: 160px; resize: vertical; }
@@ -66,7 +66,7 @@
 .wa-step { display: flex; gap: 14px; padding: 18px 0; box-shadow: inset 0 1px 0 var(--line); }
 .wa-step:first-of-type { box-shadow: none; }
 .wa-step-num { flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; background: var(--surface-2); color: var(--text); }
-.wa-step.done .wa-step-num { background: rgba(92, 201, 138, .18); color: var(--ok); }
+.wa-step.done .wa-step-num { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
 .wa-step-body { flex: 1; min-width: 0; }
 .wa-step-body h3 { margin: 4px 0 8px; font-size: 16.5px; }
 .wa-step-body ol, .wa-step-body ul { margin: 6px 0; padding-inline-start: 20px; line-height: 1.6; color: var(--text-muted); font-size: 14px; }
@@ -78,7 +78,7 @@
 .wa-test-row .field { flex: 1; min-width: 200px; margin: 0; }
 .wa-result { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 14px; margin: 10px 0; font-size: 14px; line-height: 1.5; }
 .wa-result svg { flex-shrink: 0; font-size: 20px; margin-top: 1px; }
-.wa-result.ok { background: rgba(92, 201, 138, .12); color: var(--ok); }
+.wa-result.ok { background: color-mix(in srgb, var(--ok) 12%, transparent); color: var(--ok); }
 .wa-result.bad { background: var(--accent-soft); color: var(--accent); }
 .wa-result span { color: var(--text); }
 @media (max-width: 560px) {

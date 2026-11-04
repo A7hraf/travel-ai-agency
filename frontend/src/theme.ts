@@ -55,7 +55,7 @@ function contrast(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-/** The interface is dark: an agency colour is lightened until it reads well on the dark surfaces
+/** Dark theme: an agency colour is lightened until it reads well on the dark surfaces
  *  (contrast of at least 6:1 with Ink). Ghanjah's own colours use their official "on dark" versions. */
 export function forDark(hex: string, min = 6): string {
   const lower = hex.toLowerCase();
@@ -66,30 +66,64 @@ export function forDark(hex: string, min = 6): string {
   return out;
 }
 
-function actionVars(name: "brand" | "agency-accent", base: string): Record<string, string> {
+/** Light theme: an agency colour is darkened until text in it reads on the paper page and white cards
+ *  (contrast of at least 4.5:1 with Paper #f3f2f2, so also with white). Ghanjah cyan #0088b0 is 3.7:1 on
+ *  Paper and becomes #007496 (4.8:1); Ghanjah magenta #d6006c already passes (4.6:1). */
+export function forLight(hex: string, min = 4.5): string {
+  let out = hex;
+  for (let step = 1; contrast(out, GHANJAH.paper) < min && step <= 16; step++) out = shade(hex, -step * 0.05);
+  return out;
+}
+
+export type Theme = "light" | "dark";
+
+/** The colour for one theme: lightened for dark surfaces, darkened for light ones. */
+export function forTheme(hex: string, theme: Theme): string {
+  return theme === "light" ? forLight(hex) : forDark(hex);
+}
+
+function actionVars(name: "brand" | "agency-accent", base: string, theme: Theme = "dark"): Record<string, string> {
+  const light = theme === "light";
   return {
     [`--${name}`]: base,
-    [`--${name}-hover`]: shade(base, 0.45),
-    [`--${name}-soft`]: rgba(base, 0.14),
-    [`--${name}-glow`]: rgba(base, 0.42),
+    [`--${name}-hover`]: light ? shade(base, -0.18) : shade(base, 0.45),
+    [`--${name}-soft`]: rgba(base, light ? 0.1 : 0.14),
+    [`--${name}-glow`]: rgba(base, light ? 0.2 : 0.42),
     [`--${name}-line`]: rgba(base, 0.3),
     [`--on-${name}`]: textOn(base),
   };
 }
 
-/** Staff app: the platform owner picks the main colour and the sidebar colour per agency. */
-export function dashboardVars(primary?: string, sidebar?: string): Record<string, string> {
-  const p = forDark(primary && VALID.test(primary) ? primary : GHANJAH.cyan);
-  const s = sidebar && VALID.test(sidebar) ? sidebar : "#0f0e0d";
+/** The sidebar colour every agency starts with (the platform default). */
+export const DEFAULT_SIDEBAR = "#0f0e0d";
+
+/** Staff app: the platform owner picks the main colour and the sidebar colour per agency.
+ *  In the light theme an agency that kept the default (near-black) sidebar gets a white sidebar; a sidebar
+ *  colour the agency chose is kept in both themes, with its text and active-link colours computed for it. */
+export function dashboardVars(primary?: string, sidebar?: string, theme: Theme = "dark"): Record<string, string> {
+  const raw = primary && VALID.test(primary) ? primary : GHANJAH.cyan;
+  const p = forTheme(raw, theme);
+  const chosen = sidebar && VALID.test(sidebar) ? sidebar : DEFAULT_SIDEBAR;
+  const s = theme === "light" && chosen.toLowerCase() === DEFAULT_SIDEBAR ? "#ffffff" : chosen;
+  const sideBrand = isDark(s) ? forDark(raw) : forLight(raw);
   return {
-    ...actionVars("brand", p),
+    ...actionVars("brand", p, theme),
     "--sidebar": s,
     "--bg-sidebar": s,
     "--sidebar-text": textOn(s),
+    "--side-brand": sideBrand,
+    "--side-brand-soft": rgba(sideBrand, isDark(s) ? 0.14 : 0.1),
+    "--side-on-brand": textOn(sideBrand),
   };
 }
 
-/** Customer page: the agency's main and accent colours (Oman magenta stays for the human team). */
+/** Whether the sidebar of dashboardVars() is dark (the logo uses its version for dark backgrounds). */
+export function sidebarIsDark(sidebar: string | undefined, theme: Theme): boolean {
+  return isDark(dashboardVars(undefined, sidebar, theme)["--sidebar"]);
+}
+
+/** Customer page: the agency's main and accent colours (Oman magenta stays for the human team).
+ *  The customer page follows the agency's own design, not the staff light/dark theme. */
 export function storefrontVars(primary?: string, accent?: string): Record<string, string> {
   const raw = primary && VALID.test(primary) ? primary : GHANJAH.cyan;
   const p = forDark(raw);

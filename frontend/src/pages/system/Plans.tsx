@@ -4,7 +4,7 @@ import { PageTitle, Switch } from "../../components/admin/AdminUI";
 import { Archive, ArrowCounterClockwise, Crown, PencilSimple, Plus, Star } from "../../components/Icon";
 import { Money } from "../../components/Money";
 import { PlanIncludes } from "../../components/plans/PlanUI";
-import { ErrorBox, Field, Modal } from "../../components/ui";
+import { ErrorBox, Field, Loading, Modal } from "../../components/ui";
 import { plural, useI18n } from "../../lang";
 import { BillingOverview, Plan, planDescription, planFeatures, planName } from "../../plans";
 
@@ -19,7 +19,8 @@ export default function Plans() {
   const [graceSaved, setGraceSaved] = useState(false);
   const [graceError, setGraceError] = useState<string | null>(null);
 
-  const load = () => get<Plan[]>("/api/system/plans").then(setPlans).catch((e) => setError(e.message));
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const load = () => { setLoadError(null); return get<Plan[]>("/api/system/plans").then(setPlans).catch((e) => setLoadError(e.message)); };
   useEffect(() => {
     load();
     get<BillingOverview>("/api/system/billing").then((o) => { setOverview(o); setGrace(String(o.grace_days)); }).catch(() => {});
@@ -95,7 +96,7 @@ export default function Plans() {
       <ErrorBox error={error} />
       <div className="warn-box pl-hint">{t("The first prices are placeholders: edit each plan to set your real prices and limits.")}</div>
 
-      {plans === null ? <div className="skeleton" style={{ height: 320, borderRadius: 24 }} /> : (
+      {plans === null ? (loadError ? <ErrorBox error={loadError} onRetry={load} /> : <Loading height={320} />) : (
         <div className="pl-grid">{active.map(card)}</div>
       )}
 

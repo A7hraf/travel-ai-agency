@@ -4,7 +4,7 @@ import { ConfirmSheet, PageTitle, Switch } from "../../components/admin/AdminUI"
 import {
   ArrowsClockwise, Brain, Check, CheckCircle, Copy, Info, Key, Lightning, WarningCircle, WhatsappLogo, XCircle,
 } from "../../components/Icon";
-import { ErrorBox, Field } from "../../components/ui";
+import { ErrorBox, Field, Loading } from "../../components/ui";
 import { trServer, useI18n } from "../../lang";
 import type { AICheck, PlatformSettings as Settings, PlatformSettingValue } from "../../types";
 import { dateTime } from "../../util";
@@ -108,8 +108,10 @@ export default function PlatformSettings() {
   };
   useEffect(loadSettings, []);
 
-  if (loadError) return <div className="narrow ad-narrow"><PageTitle kicker={t("Platform console")} title={t("Platform settings")} /><ErrorBox error={t("The platform settings could not be loaded: {error}", { error: loadError })} onRetry={loadSettings} /></div>;
-  if (!data) return <div className="narrow ad-narrow"><PageTitle kicker={t("Platform console")} title={t("Platform settings")} /><div className="skeleton" style={{ height: 320, borderRadius: 24 }} /></div>;
+  const pageTitle = <PageTitle kicker={t("Platform console")} title={t("Platform settings")}
+    subtitle={t("The AI brain and the shared WhatsApp connection used by every company.")} />;
+  if (loadError) return <div className="narrow ad-narrow">{pageTitle}<ErrorBox error={t("The platform settings could not be loaded: {error}", { error: loadError })} onRetry={loadSettings} /></div>;
+  if (!data) return <div className="narrow ad-narrow">{pageTitle}<Loading height={320} /></div>;
 
   const A = data.ai;
   const W = data.whatsapp;
@@ -220,8 +222,7 @@ export default function PlatformSettings() {
 
   return (
     <div className="narrow ad-narrow">
-      <PageTitle kicker={t("Platform console")} title={t("Platform settings")}
-        subtitle={t("The AI brain and the shared WhatsApp connection used by every company.")} />
+      {pageTitle}
 
       <div className="info-box small" style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
         <Info size={20} style={{ flexShrink: 0, marginTop: 2 }} aria-hidden="true" />

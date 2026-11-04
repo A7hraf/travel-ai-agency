@@ -3,7 +3,7 @@ import { get, patch, post } from "../../api";
 import { trServer, useI18n } from "../../lang";
 import type { WhatsAppStatus, WhatsAppTestResult } from "../../types";
 import { ArrowSquareOut, Check, CheckCircle, Copy, PaperPlaneRight, Plugs, WhatsappLogo, XCircle } from "../Icon";
-import { ErrorBox, Field } from "../ui";
+import { ErrorBox, Field, Loading } from "../ui";
 import "./ai.css";
 import "./i18n";
 
@@ -48,12 +48,14 @@ export default function WhatsAppConnect({ variant, base, companyPath }: {
   const load = () => get<WhatsAppStatus>(base).then((s) => { setSt(s); setLoadError(null); setChoice(s.mode === "platform" ? "platform" : "own"); })
     .catch((e) => setLoadError(e.message));
   useEffect(() => { load(); }, [base]);
-  if (!st) return loadError ? (
+  if (!st) return (
     <section className="ad-card wa-connect">
       <h2 className="ad-card-title"><span className="ad-card-icon wa"><WhatsappLogo weight="fill" /></span>{t("Connect WhatsApp")}</h2>
-      <ErrorBox error={t("The WhatsApp connection could not be loaded: {error}", { error: loadError })} onRetry={load} />
+      {loadError
+        ? <ErrorBox error={t("The WhatsApp connection could not be loaded: {error}", { error: loadError })} onRetry={load} />
+        : <Loading height={160} />}
     </section>
-  ) : <div className="skeleton" style={{ height: 260, borderRadius: 24 }} />;
+  );
 
   const webhook = st.webhook_path ? `${window.location.origin}${st.webhook_path}` : "";
 

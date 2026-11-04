@@ -17,11 +17,11 @@
 .bt-who small { color: var(--text-muted); font-size: 12.5px; }
 .bt-chans { display: inline-flex; gap: 4px; flex-wrap: wrap; }
 .bt-chan { font-size: 11.5px; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--text-muted); white-space: nowrap; }
-.bt-chan.whatsapp { color: var(--whatsapp); background: rgba(92, 201, 138, .12); }
-.bt-chan.instagram { color: #f08bd0; background: rgba(240, 139, 208, .12); }
+.bt-chan.whatsapp { color: var(--whatsapp); background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.bt-chan.instagram { color: var(--ig); background: color-mix(in srgb, var(--ig) 12%, transparent); }
 .bt-chan.web { color: var(--brand); background: var(--brand-soft); }
 .bt-tags { display: inline-flex; gap: 4px; flex-wrap: wrap; }
-.bt-tag { font-size: 11.5px; padding: 2px 8px; border-radius: 999px; background: rgba(242, 179, 61, .12); color: var(--st-waiting); }
+.bt-tag { font-size: 11.5px; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--st-waiting) 12%, transparent); color: var(--st-waiting); }
 
 .bt-back { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); margin-bottom: 12px; font-size: 14px; }
 .bt-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
@@ -55,7 +55,7 @@
 .bt-err-path { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; color: var(--text); overflow-wrap: anywhere; }
 .bt-err-msg { font-size: 14px; overflow-wrap: anywhere; }
 .bt-src { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; }
-.bt-src.server { background: var(--accent-soft); color: #ffb3c9; }
+.bt-src.server { background: var(--accent-soft); color: var(--danger-text); }
 .bt-src.client { background: var(--brand-soft); color: var(--brand); }
 .bt-times { font-weight: 600; color: var(--st-waiting); }
 .bt-channels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
@@ -74,3 +74,21 @@
   .bt-toolbar .ad-search { max-width: none; min-width: 100%; }
   .table.cards td.bt-first { justify-content: flex-start; text-align: start; }
 }
+
+/* ===== Loading state (pages and cards waiting for the server) ============================ */
+.load-state { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.load-state.compact { gap: 8px; }
+.load-line { display: flex; align-items: center; gap: 10px; font-size: 15px; color: var(--text-muted); }
+.load-spinner { width: 18px; height: 18px; flex-shrink: 0; border-radius: 50%; border: 2px solid currentColor; border-inline-end-color: transparent;
+  opacity: .8; animation: gjSpin .8s linear infinite; }
+.load-slow { margin: 0; font-size: 14px; line-height: 1.5; color: var(--text-muted); max-width: 46rem; }
+.load-skel { border-radius: 24px; width: 100%; }
+@media (prefers-reduced-motion: reduce) { .load-spinner { animation-duration: 2.4s; } }
+
+/* ===== Page width on wide screens =========================================================
+   The content column clips the dashboard glow at the window edge (not at the dashboard's own edge,
+   which left a visible seam over the right padding). Very wide screens: the dashboard and the form
+   pages sit centred with equal margins instead of leaving one side empty. */
+.app-shell > .content { overflow-x: clip; }
+.dash { overflow-x: visible; width: 100%; max-width: 1880px; margin-inline: auto; }
+.ad-narrow { margin-inline: auto; }

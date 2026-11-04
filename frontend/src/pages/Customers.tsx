@@ -5,7 +5,7 @@ import { useAuth } from "../auth";
 import { PageTitle } from "../components/admin/AdminUI";
 import { AddressBook, ArrowLeft, ChatsCircle, DownloadSimple, MagnifyingGlass, Ticket } from "../components/Icon";
 import { Money } from "../components/Money";
-import { ErrorBox, Field } from "../components/ui";
+import { ErrorBox, Field, Loading } from "../components/ui";
 import { useI18n } from "../lang";
 import type { CustomerDetail, CustomerList, CustomerRow } from "../types";
 import { CONVERSATION_STATUS_LABELS, customerLabel, shortDate, TICKET_STATUS_LABELS, timeAgo } from "../util";
@@ -110,7 +110,7 @@ function CustomerListPage() {
       </div>
 
       <ErrorBox error={error} onRetry={load} />
-      {rows === null && !error && <div className="skeleton" style={{ height: 320, borderRadius: 24 }} />}
+      {rows === null && !error && <Loading height={320} />}
       {rows && rows.length === 0 && (
         <div className="empty">
           <AddressBook className="empty-icon" aria-hidden="true" />
@@ -185,7 +185,13 @@ function CustomerPage({ id }: { id: number }) {
 
   const back = <Link to="/app/customers" className="bt-back"><ArrowLeft className="flip" />{t("All customers")}</Link>;
   if (!c || !form) {
-    return <div className="narrow ad-narrow">{back}{loadError ? <ErrorBox error={loadError} onRetry={load} /> : <div className="skeleton" style={{ height: 320, borderRadius: 24 }} />}</div>;
+    return (
+      <div className="narrow ad-narrow">
+        {back}
+        <PageTitle kicker={t("Customer")} title={t("Customer details")} />
+        {loadError ? <ErrorBox error={loadError} onRetry={load} /> : <Loading height={320} />}
+      </div>
+    );
   }
   const dirty = JSON.stringify(form) !== JSON.stringify(formOf(c));
   const set = (k: keyof FormState, v: string) => { setSaved(false); setForm({ ...form, [k]: v }); };

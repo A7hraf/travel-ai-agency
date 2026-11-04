@@ -4,9 +4,10 @@ import { get, patch, post, setToken } from "../api";
 import { useAuth } from "../auth";
 import { ConfirmSheet, initials, PageTitle } from "../components/admin/AdminUI";
 import {
-  ArrowRight, Buildings, Check, DeviceMobile, GearSix, IdentificationCard, Key, ShieldCheck, Translate,
+  ArrowRight, Buildings, Check, CircleHalf, DeviceMobile, GearSix, IdentificationCard, Key, ShieldCheck, Translate,
 } from "../components/Icon";
-import { ErrorBox, Field } from "../components/ui";
+import { ThemeSwitch } from "../components/ThemeSwitch";
+import { ErrorBox, Field, Loading } from "../components/ui";
 import { useI18n } from "../lang";
 import type { Me, PlatformStats } from "../types";
 import { dateTime, PERMISSION_LABELS, ROLE_LABELS } from "../util";
@@ -56,7 +57,7 @@ export default function Account() {
     if (isOwner) get<PlatformStats>("/api/system/stats").then(setStats).catch(() => setStats(null));
   }, [isOwner]);
 
-  if (!user) return null;
+  if (!user) return <div className="narrow ad-narrow"><PageTitle title={t("My account")} /><Loading height={240} /></div>;
   const emailChanged = email.trim().toLowerCase() !== user.email.toLowerCase();
   const profileChanged = name.trim() !== user.full_name || emailChanged;
 
@@ -212,6 +213,13 @@ export default function Account() {
           <button type="button" lang="en" className={lang === "en" ? "active" : ""} aria-pressed={lang === "en"} onClick={() => setLang("en")}>English</button>
           <button type="button" lang="ar" className={lang === "ar" ? "active" : ""} aria-pressed={lang === "ar"} onClick={() => setLang("ar")}>العربية</button>
         </div>
+      </section>
+
+      {/* Appearance */}
+      <section className="ad-card">
+        <h2 className="ad-card-title"><span className="ad-card-icon"><CircleHalf /></span>{t("Appearance")}</h2>
+        <p className="ad-card-note">{t("Light, dark, or Auto to follow this device. Saved in this browser only.")}</p>
+        <ThemeSwitch variant="segmented" />
       </section>
 
       {/* Other devices */}

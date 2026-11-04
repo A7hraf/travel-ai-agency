@@ -1,17 +1,20 @@
-import { ComponentType, lazy as reactLazy, ReactNode, Suspense } from "react";
+import { ComponentType, lazy as reactLazy, ReactNode, Suspense, useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { homePath, useAuth } from "./auth";
 import { useI18n } from "./lang";
+/** The staff pages' code, fetched in the background once someone is signed in, so moving between pages
+ *  never waits for a slow (sleeping) server to send a page's script. */
+const PRELOAD: (() => Promise<unknown>)[] = [];
 const Layout = lazy(() => import("./components/Layout"));
 const Account = lazy(() => import("./pages/Account"));
 const Branding = lazy(() => import("./pages/Branding"));
 const Conversations = lazy(() => import("./pages/Conversations"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
-const Login = lazy(() => import("./pages/Login"));
+const Login = lazy(() => import("./pages/Login"), false);
 const Packages = lazy(() => import("./pages/Packages"));
 const Settings = lazy(() => import("./pages/Settings"));
-const Storefront = lazy(() => import("./pages/Storefront"));
+const Storefront = lazy(() => import("./pages/Storefront"), false);
 const Tickets = lazy(() => import("./pages/Tickets"));
 const Training = lazy(() => import("./pages/Training"));
 const Users = lazy(() => import("./pages/Users"));
@@ -27,9 +30,14 @@ const Plans = lazy(() => import("./pages/system/Plans"));
 const MyPlan = lazy(() => import("./pages/MyPlan"));
 const Invoice = lazy(() => import("./pages/Invoice"));
 
+function preloadPages() {
+  for (const load of PRELOAD) load().catch(() => { /* loaded again (with the reload fallback) when the page is opened */ });
+}
+
 /** After a new release the old script files are gone: a tab opened before it reloads once to get the
  *  new version instead of showing a broken page. */
-function lazy<T extends ComponentType<any>>(load: () => Promise<{ default: T }>) { // eslint-disable-line @typescript-eslint/no-explicit-any
+function lazy<T extends ComponentType<any>>(load: () => Promise<{ default: T }>, preload = true) { // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (preload) PRELOAD.push(load);
   return reactLazy(() => load().then((m) => {
     try { sessionStorage.removeItem("gj_reloaded"); } catch { /* storage blocked */ }
     return m;
@@ -72,6 +80,13 @@ function Loading() {
 
 export default function App() {
   const location = useLocation();
+  const { user } = useAuth();
+  const signedIn = !!user;
+  useEffect(() => {
+    if (!signedIn) return;
+    const id = window.setTimeout(preloadPages, 1200);
+    return () => window.clearTimeout(id);
+  }, [signedIn]);
   return (
     <ErrorBoundary resetKey={location.pathname}>
     <Suspense fallback={<Loading />}>

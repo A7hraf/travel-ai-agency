@@ -8,7 +8,7 @@ import { shortDate, todayIso } from "../../util";
 import { ConfirmSheet } from "../admin/AdminUI";
 import { CalendarPlus, Crown, Hourglass, Prohibit, Receipt } from "../Icon";
 import { Money } from "../Money";
-import { ErrorBox, Field, Modal } from "../ui";
+import { ErrorBox, Field, Loading, Modal } from "../ui";
 import { endText, PaymentTable, PlanIncludes, StateBadge, UsageMeters } from "./PlanUI";
 
 /** The platform owner's view of one company's plan: status, usage, actions, payments. */
@@ -26,8 +26,10 @@ export default function SubscriptionPanel({ companyId, onChanged }: { companyId:
 
   const base = `/api/system/companies/${companyId}`;
   const loadPayments = () => get<{ payments: Payment[] }>(`${base}/payments`).then((r) => setPayments(r.payments)).catch(() => {});
+  const loadSub = () => { setError(null); get<Subscription>(`${base}/subscription`).then(setSub).catch((e) => setError(e.message)); };
   useEffect(() => {
-    get<Subscription>(`${base}/subscription`).then(setSub).catch((e) => setError(e.message));
+    setSub(null);
+    loadSub();
     get<Plan[]>("/api/system/plans").then(setPlans).catch(() => {});
     loadPayments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -50,7 +52,7 @@ export default function SubscriptionPanel({ companyId, onChanged }: { companyId:
     }
   };
 
-  if (!sub) return error ? <div className="error-box">{error}</div> : <div className="skeleton" style={{ height: 260, borderRadius: 24 }} />;
+  if (!sub) return error ? <ErrorBox error={error} onRetry={loadSub} /> : <Loading height={260} />;
   const p = sub.plan;
   const custom = sub.custom_price !== null;
 

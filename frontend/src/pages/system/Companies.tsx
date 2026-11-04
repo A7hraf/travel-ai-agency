@@ -7,7 +7,7 @@ import {
   ArrowRight, ArrowSquareOut, Buildings, ChatsCircle, Check, Copy, Globe, Plus, Sparkle, Suitcase, Ticket, UsersThree,
   WarningCircle, WhatsappLogo,
 } from "../../components/Icon";
-import { ErrorBox, Field, Modal } from "../../components/ui";
+import { ErrorBox, Field, Loading, Modal } from "../../components/ui";
 import { useI18n } from "../../lang";
 import type { CompanyAdmin, PlatformStats } from "../../types";
 import { shortDate, slugify } from "../../util";
@@ -117,7 +117,7 @@ export default function Companies() {
         </div>
       )}
       <ErrorBox error={loadError} onRetry={load} />
-      {companies === null ? (loadError ? null : <div className="skeleton" style={{ height: 220, borderRadius: 24 }} />) : companies.length === 0 ? (
+      {companies === null ? (loadError ? null : <Loading height={220} />) : companies.length === 0 ? (
         <div className="empty"><Buildings className="empty-icon" /><strong>{t("No companies yet.")}</strong></div>
       ) : (
         <div className="co-grid">

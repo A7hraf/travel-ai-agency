@@ -6,7 +6,7 @@ import { PageTitle } from "../components/admin/AdminUI";
 import InstagramConnect from "../components/ai/InstagramConnect";
 import WhatsAppConnect from "../components/ai/WhatsAppConnect";
 import { ArrowSquareOut, Buildings, GraduationCap, Robot, Sparkle } from "../components/Icon";
-import { ErrorBox, Field } from "../components/ui";
+import { ErrorBox, Field, Loading } from "../components/ui";
 import { useI18n } from "../lang";
 import type { CompanySettings } from "../types";
 
@@ -27,7 +27,20 @@ export default function Settings() {
 
   const load = () => { setLoadError(null); get<CompanySettings>("/api/company").then(setS).catch((e) => setLoadError(e.message)); };
   useEffect(load, []);
-  if (!s) return loadError ? <ErrorBox error={loadError} onRetry={load} /> : <div className="skeleton" style={{ height: 320, borderRadius: 24 }} />;
+  const title = <PageTitle kicker={t("Agency workspace")} title={t("AI & channels")} subtitle={t("One AI brain, your own persona and knowledge, on your page, WhatsApp and Instagram.")} />;
+  // The AI check and the channel cards load on their own: they never wait for the company settings.
+  if (!s) return (
+    <div className="narrow ad-narrow">
+      {title}
+      <AICheckCard path="/api/company/ai-check" />
+      <section className="ad-card">
+        <h2 className="ad-card-title"><span className="ad-card-icon"><Robot /></span>{t("AI travel consultant")}</h2>
+        {loadError ? <ErrorBox error={loadError} onRetry={load} /> : <Loading height={120} />}
+      </section>
+      <WhatsAppConnect variant="company" base="/api/company/whatsapp" />
+      <InstagramConnect variant="company" base="/api/company/instagram" />
+    </div>
+  );
 
   const set = <K extends keyof CompanySettings>(k: K, v: CompanySettings[K]) => {
     const section = (Object.keys(SECTION_FIELDS) as Section[]).find((x) => SECTION_FIELDS[x].includes(k));
@@ -58,7 +71,7 @@ export default function Settings() {
 
   return (
     <div className="narrow ad-narrow">
-      <PageTitle kicker={t("Agency workspace")} title={t("AI & channels")} subtitle={t("One AI brain, your own persona and knowledge, on your page, WhatsApp and Instagram.")} />
+      {title}
 
       <AICheckCard path="/api/company/ai-check" />
 

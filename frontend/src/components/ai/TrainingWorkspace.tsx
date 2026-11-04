@@ -8,7 +8,7 @@ import {
   Plus, Robot, ShieldCheck, Sparkle, Trash, UploadSimple, User as UserIcon,
 } from "../Icon";
 import { moneyText } from "../Money";
-import { ChatText, ErrorBox, Field } from "../ui";
+import { ChatText, ErrorBox, Field, Loading } from "../ui";
 import "./ai.css";
 import "./i18n";
 
@@ -179,7 +179,7 @@ function AnswersTab({ base, items, listError, reload }: {
         </div>
       </div>
       <ErrorBox error={listError ?? rowError} onRetry={listError ? reload : undefined} />
-      {items === null ? (listError ? null : <div className="skeleton" style={{ height: 120, borderRadius: 20 }} />) : shown.length === 0 ? (
+      {items === null ? (listError ? null : <Loading height={120} />) : shown.length === 0 ? (
         <div className="empty">
           <ChatsCircle className="empty-icon" />
           <strong>{needle && items.length > 0 ? t("No results for this filter.") : t("No answers yet. Add the questions customers ask you most.")}</strong>
@@ -282,7 +282,12 @@ function KnowledgeTab({ base, knowledge, onSaved, extra, loadError, onRetry }: {
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   useEffect(() => { if (knowledge && !k) setK(knowledge); }, [knowledge]);
-  if (!k) return loadError ? <ErrorBox error={loadError} onRetry={onRetry} /> : <div className="skeleton" style={{ height: 320, borderRadius: 24 }} />;
+  if (!k) return (
+    <section className="ad-card">
+      <h2 className="ad-card-title"><span className="ad-card-icon"><Books /></span>{t("Company knowledge")}</h2>
+      {loadError ? <ErrorBox error={loadError} onRetry={onRetry} /> : <Loading height={260} />}
+    </section>
+  );
 
   const set = <K extends keyof AIKnowledge>(key: K, v: AIKnowledge[K]) => { setSaved(false); setK({ ...k, [key]: v }); };
   const save = async (e: FormEvent) => {

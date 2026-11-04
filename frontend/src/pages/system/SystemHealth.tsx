@@ -5,7 +5,7 @@ import { PageTitle } from "../../components/admin/AdminUI";
 import {
   ArrowClockwise, Bug, CheckCircle, Copy, Database, Heartbeat, InstagramLogo, WarningCircle, WhatsappLogo,
 } from "../../components/Icon";
-import { ErrorBox } from "../../components/ui";
+import { ErrorBox, Loading } from "../../components/ui";
 import { useI18n } from "../../lang";
 import type { CompanyAdmin, ErrorEventRow, SystemHealth as Health } from "../../types";
 import { dateTime, timeAgo } from "../../util";
@@ -129,7 +129,7 @@ export default function SystemHealth() {
         actions={<button type="button" className="btn btn-ghost" onClick={refresh}><ArrowClockwise aria-hidden="true" />{t("Refresh")}</button>} />
 
       <ErrorBox error={healthError} onRetry={loadHealth} />
-      {!health && !healthError && <div className="skeleton" style={{ height: 140, borderRadius: 24, marginBottom: 20 }} />}
+      {!health && !healthError && <div style={{ marginBottom: 20 }}><Loading height={140} /></div>}
       {health && db && (
         <div className="bt-facts">
           <div className="bt-fact">
@@ -167,7 +167,7 @@ export default function SystemHealth() {
           <div className="bt-channels">
             {health.channels.map((c) => (
               <div key={c.channel} className="bt-channel">
-                <h3>{c.channel === "whatsapp" ? <WhatsappLogo weight="fill" color="var(--whatsapp)" /> : <InstagramLogo weight="fill" color="#f08bd0" />}
+                <h3>{c.channel === "whatsapp" ? <WhatsappLogo weight="fill" color="var(--whatsapp)" /> : <InstagramLogo weight="fill" color="var(--ig)" />}
                   {c.channel === "whatsapp" ? t("WhatsApp") : t("Instagram")}</h3>
                 <dl>
                   <dt>{t("Messages from customers")}</dt><dd>{c.incoming_24h}</dd>
@@ -207,7 +207,7 @@ export default function SystemHealth() {
           </select>
         </div>
         <ErrorBox error={listError} onRetry={loadErrors} />
-        {errors === null && !listError && <div className="skeleton" style={{ height: 160, borderRadius: 18 }} />}
+        {errors === null && !listError && <Loading height={160} />}
         {errors && errors.length === 0 && (
           <div className="empty"><CheckCircle className="empty-icon" aria-hidden="true" />{t("No errors in this period.")}</div>
         )}

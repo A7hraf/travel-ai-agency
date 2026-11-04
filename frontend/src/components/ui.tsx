@@ -1,4 +1,4 @@
-import { MouseEvent, ReactNode, useEffect, useId, useRef } from "react";
+import { MouseEvent, ReactNode, useEffect, useId, useRef, useState } from "react";
 import { tr } from "../lang";
 import { X } from "./Icon";
 
@@ -115,6 +115,37 @@ export function ErrorBox({ error, onRetry }: { error: string | null; onRetry?: (
       <button type="button" className="btn btn-sm" onClick={onRetry}>{tr("Retry")}</button>
     </div>
   );
+}
+
+/** Shown while a page or a card waits for the server: a spinner with "Loading…", a skeleton, and after
+ *  8 seconds a note that a sleeping server can take up to a minute to wake up. */
+export function Loading({ height = 220, label, compact }: { height?: number; label?: string; compact?: boolean }) {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const id = window.setTimeout(() => setSlow(true), 8000);
+    return () => window.clearTimeout(id);
+  }, []);
+  return (
+    <div className={`load-state ${compact ? "compact" : ""}`} role="status" aria-live="polite">
+      <div className="load-line"><span className="load-spinner" aria-hidden="true" />{label ?? tr("Loading…")}</div>
+      {slow && <p className="load-slow">{tr("Still loading — the server may be waking up. This can take up to a minute.")}</p>}
+      {height > 0 && <div className="skeleton load-skel" style={{ height }} aria-hidden="true" />}
+    </div>
+  );
+}
+
+/** Loading, then the data, or the error with a Retry button. */
+export function LoadGate<T>({ data, error, onRetry, height, label, children }: {
+  data: T | null | undefined;
+  error: string | null | undefined;
+  onRetry?: () => void;
+  height?: number;
+  label?: string;
+  children: (data: T) => ReactNode;
+}) {
+  if (data !== null && data !== undefined) return <>{children(data)}</>;
+  if (error) return <ErrorBox error={error} onRetry={onRetry} />;
+  return <Loading height={height} label={label} />;
 }
 
 export function Empty({ children }: { children: ReactNode }) {

@@ -1,10 +1,12 @@
-import { CSSProperties, ComponentType, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, ComponentType, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { get } from "../api";
 import { pollWatcher } from "../errorReporter";
 import { useAuth } from "../auth";
 import { LangSwitch, trServer, useI18n } from "../lang";
-import { dashboardVars, GHANJAH, isDark } from "../theme";
+import { dashboardVars, sidebarIsDark } from "../theme";
+import { useTheme } from "../themeMode";
+import { ThemeSwitch } from "./ThemeSwitch";
 import type { ConversationSummary, Ticket as TicketT } from "../types";
 import { customerLabel, ROLE_LABELS, usePolling } from "../util";
 import { GhanjahMark, usePlatformName } from "./Brand";
@@ -16,6 +18,7 @@ import { moneyText } from "./Money";
 import { Sheet } from "./staff/Sheet";
 import { StaffContext, StaffToast } from "./staff/StaffContext";
 import PlanBanner from "./plans/PlanBanner";
+import { Loading } from "./ui";
 
 interface NavItem {
   to: string;
@@ -61,6 +64,7 @@ const TOAST_MS = 4200;
 export default function Layout() {
   const { user, logout, can } = useAuth();
   const { t, lang, setLang } = useI18n();
+  const { theme } = useTheme();
   const platformName = usePlatformName();
   const location = useLocation();
   const navigate = useNavigate();
@@ -156,12 +160,12 @@ export default function Layout() {
   const tabs = isSystem ? [] : TAB_PATHS.map((p) => nav.find((n) => n.to === p)).filter((n): n is NavItem => !!n);
   const menuItems = nav.filter((n) => !tabs.includes(n));
   const branding = user.company?.branding;
-  const style = dashboardVars(branding?.dashboard_color, branding?.dashboard_sidebar) as CSSProperties;
+  const style = dashboardVars(branding?.dashboard_color, branding?.dashboard_sidebar, theme) as CSSProperties;
   const brandName = user.company?.name ?? platformName;
-  const darkSidebar = isDark(branding?.dashboard_sidebar ?? GHANJAH.ink);
-  const logo = (cls: string) => branding?.logo
+  const darkSidebar = sidebarIsDark(branding?.dashboard_sidebar, theme);
+  const logo = (cls: string, dark = darkSidebar) => branding?.logo
     ? <img className={`brand-logo ${cls}`} src={branding.logo} alt="" />
-    : <GhanjahMark dark={darkSidebar} className={`brand-ghanjah ${cls}`} />;
+    : <GhanjahMark dark={dark} className={`brand-ghanjah ${cls}`} />;
   const sub = isSystem ? t("Platform console") : t("Agency workspace");
   const initial = (user.full_name.trim()[0] ?? "?").toUpperCase();
   const role = t(ROLE_LABELS[user.role]);
@@ -176,7 +180,7 @@ export default function Layout() {
 
         {/* Phones: compact header */}
         <header className="app-top">
-          {logo("top-logo")}
+          {logo("top-logo", theme === "dark")}
           <div className="app-top-name">
             <div className="app-top-agency">{brandName}</div>
             <div className="app-top-sub">{sub}</div>
@@ -226,6 +230,7 @@ export default function Layout() {
             </div>
             <div className="side-actions">
               <LangSwitch className="side-act" />
+              <ThemeSwitch className="side-act side-theme" />
               <button type="button" className="side-act" onClick={logout}>
                 <SignOut size={16} className="flip" aria-hidden="true" />{t("Log out")}
               </button>
@@ -235,7 +240,8 @@ export default function Layout() {
 
         <main className="content" id="main">
           {!isSystem && <PlanBanner />}
-          <Outlet />
+          {/* A page whose script is still on its way shows a loading line here, next to the menu. */}
+          <Suspense fallback={<Loading height={240} />}><Outlet /></Suspense>
         </main>
 
         {/* Phones: bottom tab bar */}
@@ -285,6 +291,7 @@ export default function Layout() {
                 </a>
               )}
             </nav>
+            <ThemeSwitch variant="segmented" className="menu-theme" />
             <div className="menu-foot">
               <button type="button" className="btn menu-foot-btn" lang={lang === "ar" ? "en" : "ar"}
                 onClick={() => setLang(lang === "ar" ? "en" : "ar")}>

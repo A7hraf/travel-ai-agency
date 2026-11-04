@@ -7,7 +7,7 @@ import {
   ArrowLeft, Check, Checks, ClockCountdown, Coffee, Globe, HandGrabbing, Headset, InstagramLogo, MagnifyingGlass,
   PaperPlaneRight, Phone, Robot, Sparkle, Ticket, User, WarningCircle, WhatsappLogo, Wrench,
 } from "../components/Icon";
-import { ChatText, ErrorBox } from "../components/ui";
+import { ChatText, ErrorBox, Loading } from "../components/ui";
 import "../components/ai/instagram.css";
 import "../components/ai/instagram-i18n";
 import { ConfirmRequest, ConfirmSheet } from "../components/staff/Sheet";
@@ -143,7 +143,7 @@ export default function Conversations() {
         </label>
         <div className="cv-rows">
           {list === null && listError && <ErrorBox error={listError} onRetry={loadList} />}
-          {list === null && !listError && [0, 1, 2].map((i) => <div key={i} className="skeleton cv-skel" />)}
+          {list === null && !listError && <><Loading height={0} compact />{[0, 1, 2].map((i) => <div key={i} className="skeleton cv-skel" />)}</>}
           {list?.length === 0 && (
             <div className="empty">
               <Coffee className="empty-icon" aria-hidden="true" />
@@ -245,7 +245,7 @@ function ConversationView({ id, backTo }: { id: number; backTo: string }) {
     return (
       <div className="chat-screen">
         <div className="chat-loading">{loadError ? <ErrorBox error={loadError} onRetry={load} />
-          : [0, 1, 2].map((i) => <div key={i} className="skeleton cv-skel" />)}</div>
+          : <><Loading height={0} compact />{[0, 1, 2].map((i) => <div key={i} className="skeleton cv-skel" />)}</>}</div>
       </div>
     );
   }

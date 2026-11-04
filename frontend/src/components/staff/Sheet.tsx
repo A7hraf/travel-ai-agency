@@ -59,7 +59,7 @@ export function useLayerFocus(box: RefObject<HTMLElement>, onEscape: () => void,
   }, []);
 }
 
-/** Bottom sheet on #2a2726 with a grip and a blurred backdrop (a centred card on wide screens). */
+/** Bottom sheet on --bg-raised with a grip and a blurred backdrop (a centred card on wide screens). */
 export function Sheet({ label, onClose, children, className = "" }: {
   label: string;
   onClose: () => void;

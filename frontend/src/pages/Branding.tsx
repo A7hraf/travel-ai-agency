@@ -13,7 +13,7 @@ export default function Branding() {
   // The plan decides whether the page editor is included and whether "Powered by" can be hidden.
   const [notice, setNotice] = useState<PlanNotice | null>(null);
   useEffect(() => { get<PlanNotice>("/api/company/plan/notice").then(setNotice).catch(() => {}); }, []);
-  if (!user?.company) return null;
+  if (!user?.company) return <PageTitle kicker={t("Agency workspace")} title={t("Customer page design")} />;
   const locked = notice !== null && !notice.page_editor;
   return (
     <div>

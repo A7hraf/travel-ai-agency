@@ -3,7 +3,7 @@ import { get, patch, post } from "../../api";
 import { trServer, useI18n } from "../../lang";
 import type { InstagramStatus, InstagramTestResult } from "../../types";
 import { ArrowSquareOut, Check, CheckCircle, ClockCountdown, InstagramLogo, Plugs, XCircle } from "../Icon";
-import { ErrorBox, Field } from "../ui";
+import { ErrorBox, Field, Loading } from "../ui";
 import { CopyValue } from "./WhatsAppConnect";
 import "./ai.css";
 import "./instagram.css";
@@ -34,12 +34,14 @@ export default function InstagramConnect({ variant, base }: {
 
   const load = () => get<InstagramStatus>(base).then((s) => { setSt(s); setLoadError(null); }).catch((e) => setLoadError(e.message));
   useEffect(() => { load(); }, [base]);
-  if (!st) return loadError ? (
-    <section className="ad-card">
-      <h2 className="ad-card-title">{t("Connect Instagram")}</h2>
-      <ErrorBox error={t("The Instagram connection could not be loaded: {error}", { error: loadError })} onRetry={load} />
+  if (!st) return (
+    <section className="ad-card wa-connect">
+      <h2 className="ad-card-title"><span className="ad-card-icon ig"><InstagramLogo weight="fill" /></span>{t("Connect Instagram")}</h2>
+      {loadError
+        ? <ErrorBox error={t("The Instagram connection could not be loaded: {error}", { error: loadError })} onRetry={load} />
+        : <Loading height={160} />}
     </section>
-  ) : <div className="skeleton" style={{ height: 260, borderRadius: 24 }} />;
+  );
 
   const webhook = st.webhook_path ? `${window.location.origin}${st.webhook_path}` : "";
   // Where account fixes are saved: the company's own settings, or the owner's endpoint.

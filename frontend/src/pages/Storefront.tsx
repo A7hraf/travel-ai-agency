@@ -1,4 +1,5 @@
 import { CSSProperties, useCallback, useEffect, useMemo, useState } from "react";
+import { pinTheme } from "../themeMode";
 import { useParams } from "react-router-dom";
 import { ApiError, get } from "../api";
 import { tr } from "../lang";
@@ -63,7 +64,12 @@ export default function Storefront() {
   // The customer page has its own dark background (the staff app's is a little darker).
   useEffect(() => {
     document.body.classList.add("sf-body");
-    return () => document.body.classList.remove("sf-body");
+    // The customer page has the agency's own design: it does not follow the team's light/dark choice.
+    const unpin = pinTheme("dark");
+    return () => {
+      document.body.classList.remove("sf-body");
+      unpin();
+    };
   }, []);
 
   const dir = lang === "ar" ? "rtl" : "ltr";

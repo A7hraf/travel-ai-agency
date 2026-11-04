@@ -3,7 +3,7 @@ import { del, get, patch, post } from "../api";
 import { useAuth } from "../auth";
 import { ConfirmSheet, initials, PageTitle, Switch } from "../components/admin/AdminUI";
 import { LockSimple, PencilSimple, Plus, Trash } from "../components/Icon";
-import { ErrorBox, Field, Modal } from "../components/ui";
+import { ErrorBox, Field, Loading, Modal } from "../components/ui";
 import { useI18n } from "../lang";
 import type { PermissionCatalog, Role, User, UserList } from "../types";
 import { dateTime, ROLE_LABELS } from "../util";
@@ -33,7 +33,7 @@ export function UserManager({ basePath, listPath, createPath, onChanged }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listPath]);
 
-  if (!data) return loadError ? <ErrorBox error={loadError} onRetry={load} /> : <div className="skeleton" style={{ height: 240, borderRadius: 24 }} />;
+  if (!data) return loadError ? <ErrorBox error={loadError} onRetry={load} /> : <Loading height={240} />;
   const full = data.used >= data.max_users;
   // An employee with users.manage who is not a company admin cannot manage admin accounts.
   const delegate = !!me && me.role !== "company_admin" && me.role !== "system_admin";

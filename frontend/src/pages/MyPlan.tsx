@@ -5,6 +5,7 @@ import { PageTitle } from "../components/admin/AdminUI";
 import { Crown, Headset } from "../components/Icon";
 import { Money } from "../components/Money";
 import { endText, PaymentTable, PlanIncludes, StateBadge, UsageMeters } from "../components/plans/PlanUI";
+import { ErrorBox, Loading } from "../components/ui";
 import { useI18n } from "../lang";
 import { CompanyPlan, CYCLE_LABELS, planDescription, planFeatures, planName } from "../plans";
 import { shortDate } from "../util";
@@ -15,17 +16,21 @@ export default function MyPlan() {
   const { user } = useAuth();
   const [data, setData] = useState<CompanyPlan | null>(null);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => { get<CompanyPlan>("/api/company/plan").then(setData).catch((e) => setError(e.message)); }, []);
+  const load = () => { setError(null); get<CompanyPlan>("/api/company/plan").then(setData).catch((e) => setError(e.message)); };
+  useEffect(load, []);
 
-  if (user?.role !== "company_admin") return <div className="error-box">{t("Only a company admin can see the plan and payments")}</div>;
-  if (!data) return error ? <div className="error-box">{error}</div> : <div className="skeleton" style={{ height: 320, borderRadius: 24 }} />;
+  const title = (
+    <PageTitle kicker={t("Agency workspace")} title={t("My plan")}
+      subtitle={t("Your plan, what it includes and what you use, your renewal date and payments.")} />
+  );
+  if (user?.role !== "company_admin") return <div className="pl-page">{title}<div className="error-box">{t("Only a company admin can see the plan and payments")}</div></div>;
+  if (!data) return <div className="pl-page">{title}{error ? <ErrorBox error={error} onRetry={load} /> : <Loading height={320} />}</div>;
   const p = data.plan;
   const features = planFeatures(p, lang);
 
   return (
     <div className="pl-page">
-      <PageTitle kicker={t("Agency workspace")} title={t("My plan")}
-        subtitle={t("Your plan, what it includes and what you use, your renewal date and payments.")} />
+      {title}
 
       <section className="ad-card pl-current">
         <div className="pl-current-head">

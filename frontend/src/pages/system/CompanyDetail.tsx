@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { del, get, patch } from "../../api";
-import { ConfirmSheet, hueOf, initials } from "../../components/admin/AdminUI";
+import { ConfirmSheet, hueOf, initials, PageTitle } from "../../components/admin/AdminUI";
 import TrainingWorkspace, { type TrainingTab } from "../../components/ai/TrainingWorkspace";
 import InstagramConnect from "../../components/ai/InstagramConnect";
 import WhatsAppConnect from "../../components/ai/WhatsAppConnect";
@@ -9,7 +9,7 @@ import BrandingEditor from "../../components/BrandingEditor";
 import ActivityLog from "../../components/ActivityLog";
 import SubscriptionPanel from "../../components/plans/SubscriptionPanel";
 import { ArrowLeft, ArrowSquareOut, Pause, Play, Trash, WarningOctagon } from "../../components/Icon";
-import { ErrorBox, Field } from "../../components/ui";
+import { ErrorBox, Field, Loading } from "../../components/ui";
 import { useI18n } from "../../lang";
 import type { CompanyAdmin } from "../../types";
 import { shortDate } from "../../util";
@@ -32,8 +32,17 @@ export default function CompanyDetail() {
   const [typed, setTyped] = useState("");
 
   const apply = (x: CompanyAdmin) => { setC(x); setName(x.name); };
-  useEffect(() => { get<CompanyAdmin>(`/api/system/companies/${id}`).then(apply).catch((e) => setError(e.message)); }, [id]);
-  if (!c) return error ? <div className="error-box">{error}</div> : <div className="skeleton" style={{ height: 300, borderRadius: 24 }} />;
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const load = () => { setLoadError(null); get<CompanyAdmin>(`/api/system/companies/${id}`).then(apply).catch((e) => setLoadError(e.message)); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(load, [id]);
+  if (!c) return (
+    <div className="cd">
+      <Link to="/system" className="cd-back"><ArrowLeft className="flip" />{t("All companies")}</Link>
+      <PageTitle kicker={t("Platform console")} title={t("Company")} />
+      {loadError ? <ErrorBox error={loadError} onRetry={load} /> : <Loading height={300} />}
+    </div>
+  );
 
   const update = async (what: string, body: Record<string, unknown>) => {
     if (busy) return;

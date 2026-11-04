@@ -6,7 +6,7 @@ import { Binoculars, ChatsCircle, Check, CheckCircle, MagnifyingGlass, WarningCi
 import { Money, moneyText } from "../components/Money";
 import { ConfirmRequest, ConfirmSheet, PushPanel } from "../components/staff/Sheet";
 import { useStaff } from "../components/staff/StaffContext";
-import { ErrorBox, Field } from "../components/ui";
+import { ErrorBox, Field, Loading } from "../components/ui";
 import ExportCsv from "../components/ExportCsv";
 import { pollWatcher } from "../errorReporter";
 import { trServer, useI18n } from "../lang";
@@ -129,7 +129,7 @@ export default function Tickets() {
       {shown === null && listError ? (
         <ErrorBox error={listError} onRetry={load} />
       ) : shown === null ? (
-        <div className="tk-grid">{[0, 1, 2].map((i) => <div key={i} className="skeleton tk-skel" />)}</div>
+        <><Loading height={0} /><div className="tk-grid" style={{ marginTop: 14 }}>{[0, 1, 2].map((i) => <div key={i} className="skeleton tk-skel" />)}</div></>
       ) : shown.length === 0 ? (
         <div className="empty">
           <Binoculars className="empty-icon" aria-hidden="true" />
@@ -154,7 +154,7 @@ export default function Tickets() {
                 <span className={`pill st-${tk.status}`}>{t(TICKET_STATUS_LABELS[tk.status])}</span>
               </span>
               {seatsReleased(tk) && (
-                <span className="pill" style={{ alignSelf: "flex-start", background: "rgba(143, 139, 138, .18)" }}>{t("Seats released")}</span>
+                <span className="pill" style={{ alignSelf: "flex-start", background: "color-mix(in srgb, var(--st-cancelled) 18%, transparent)" }}>{t("Seats released")}</span>
               )}
               <span className="tk-who"><bdi>{tk.lead_traveler_name || customerLabel(tk.customer)}</bdi> · {tk.package_title}</span>
               <span className="tk-card-foot">
@@ -362,7 +362,7 @@ function TicketPanel({ id, onClose, onSaved }: { id: number; onClose: () => void
 
   return (
     <PushPanel backLabel={t("Tickets")} onClose={requestClose} labelledBy={titleId}>
-      {!ticket ? (error ? <ErrorBox error={error} /> : <div className="tk-detail">{[0, 1, 2].map((i) => <div key={i} className="skeleton tk-skel" />)}</div>) : (
+      {!ticket ? (error ? <ErrorBox error={error} /> : <div className="tk-detail"><Loading height={0} />{[0, 1, 2].map((i) => <div key={i} className="skeleton tk-skel" />)}</div>) : (
         <div className="tk-detail">
           <h2 className="tk-detail-ref" id={titleId}><bdi dir="ltr">{ticket.reference}</bdi></h2>
           <div className="tk-detail-who">
