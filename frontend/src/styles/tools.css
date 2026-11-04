@@ -72,4 +72,5 @@
   .bt-toolbar select { flex: 1 1 150px; min-width: 0; }
   .bt-toolbar .chips { flex: 1 1 100%; }
   .bt-toolbar .ad-search { max-width: none; min-width: 100%; }
+  .table.cards td.bt-first { justify-content: flex-start; text-align: start; }
 }

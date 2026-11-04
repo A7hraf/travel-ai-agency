@@ -34,6 +34,8 @@ NEW_COLUMNS = [
     ("companies", "instagram_verify_token", "VARCHAR(64)"),
     ("customers", "instagram_id", "VARCHAR(64)"),
     ("companies", "instagram_token_refreshed_at", "TIMESTAMP WITH TIME ZONE"),
+    # Plans: when the AI first answered the chat (monthly AI conversation limit)
+    ("conversations", "ai_started_at", "TIMESTAMP WITH TIME ZONE"),
     # Business tools: staff notes and labels on customers
     ("customers", "notes", "TEXT"),
     ("customers", "tags", "JSON"),
@@ -78,6 +80,25 @@ THREE_DECIMALS = [
 ]
 
 
+def _add_missing_columns(conn, engine: Engine) -> None:
+    """Safety net: a column the code knows but the database lacks (an entry forgotten in NEW_COLUMNS)
+    is added as an empty, nullable column, so a release never breaks pages on an older database."""
+    from .database import Base  # noqa: PLC0415
+
+    insp = inspect(conn)
+    tables = set(insp.get_table_names())
+    for table in Base.metadata.sorted_tables:
+        if table.name not in tables:
+            continue  # create_all makes whole new tables
+        have = {c["name"] for c in insp.get_columns(table.name)}
+        for column in table.columns:
+            if column.name in have:
+                continue
+            ddl = column.type.compile(dialect=engine.dialect)
+            log.warning("Database upgrade: adding missing column %s.%s (%s)", table.name, column.name, ddl)
+            conn.execute(text(f'ALTER TABLE {table.name} ADD COLUMN "{column.name}" {ddl}'))
+
+
 def upgrade(engine: Engine) -> None:
     from .models import Company  # noqa: PLC0415 (models import the database module)
 
@@ -94,6 +115,7 @@ def upgrade(engine: Engine) -> None:
                 conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
                 if (table, column) in BACKFILL:
                     conn.execute(text(BACKFILL[(table, column)]))
+        _add_missing_columns(conn, engine)
         if engine.dialect.name == "postgresql":
             for table, column in THREE_DECIMALS:
                 col = next((c for c in insp.get_columns(table) if c["name"] == column), None)

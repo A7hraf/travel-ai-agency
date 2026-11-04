@@ -134,7 +134,7 @@ function CustomerListPage() {
                 {rows.map((c: CustomerRow) => (
                   <tr key={c.id} className="clickable" tabIndex={0} onClick={() => navigate(`/app/customers/${c.id}`)}
                     onKeyDown={(e) => { if (e.key === "Enter") navigate(`/app/customers/${c.id}`); }}>
-                    <td data-label="">
+                    <td data-label="" className="bt-first">
                       <span className="bt-who">
                         <Link to={`/app/customers/${c.id}`} onClick={(e) => e.stopPropagation()}><strong><bdi>{customerLabel(c)}</bdi></strong></Link>
                         {(c.phone || c.email) && <small><bdi dir="ltr">{[c.phone, c.email].filter(Boolean).join(" · ")}</bdi></small>}

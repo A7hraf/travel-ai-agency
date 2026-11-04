@@ -25,12 +25,22 @@ function shouldReport(method: string, status: number): boolean {
   return method === "GET" && status >= 400 && status !== 401;
 }
 
-function report(err: ApiError, method: string, path: string, opts?: ApiOptions): ApiError {
+/** The server's own (English) text, so the same error reads the same in every language. */
+function rawDetail(data: unknown): string | undefined {
+  if (data && typeof data === "object" && "detail" in data) {
+    const detail = (data as { detail: unknown }).detail;
+    if (typeof detail === "string") return detail;
+    try { return JSON.stringify(detail).slice(0, 400); } catch { return undefined; }
+  }
+  return undefined;
+}
+
+function report(err: ApiError, method: string, path: string, opts?: ApiOptions, raw?: string): ApiError {
   if (!opts?.quiet && shouldReport(method, err.status)) {
-    reportClientError({
-      kind: err.status === 0 ? "network" : err.status === 200 ? "bad_response" : "api",
-      message: err.message, apiPath: path, method, status: err.status,
-    });
+    const kind = err.status === 0 ? "network" : err.status === 200 ? "bad_response" : "api";
+    const fallback = kind === "network" ? "No answer from the server (network error)"
+      : kind === "bad_response" ? "Answer was not JSON (an HTML page or an old version?)" : `HTTP ${err.status}`;
+    reportClientError({ kind, message: raw ?? fallback, apiPath: path, method, status: err.status });
     err.reported = true;
   }
   return err;
@@ -190,7 +200,7 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
   }
   if (!res.ok) {
     if (res.status === 401 && token) onUnauthorized();
-    throw report(new ApiError(res.status, errorMessage(res.status, data)), method, path, opts);
+    throw report(new ApiError(res.status, errorMessage(res.status, data)), method, path, opts, rawDetail(data));
   }
   if (!parsed) {
     // A web page instead of data (for example a proxy or an old version answering): never show it as
@@ -214,7 +224,7 @@ export async function download(path: string, filename: string): Promise<void> {
   if (!res.ok) {
     if (res.status === 401 && token) onUnauthorized();
     const data = await res.json().catch(() => null);
-    throw report(new ApiError(res.status, errorMessage(res.status, data)), "GET", path);
+    throw report(new ApiError(res.status, errorMessage(res.status, data)), "GET", path, undefined, rawDetail(data));
   }
   const blob = await res.blob();
   const match = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "");
