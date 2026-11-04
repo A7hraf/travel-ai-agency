@@ -623,8 +623,12 @@ def test_same_admin_email_in_two_companies_gets_the_login_chooser(client, owner)
 # --- 12. Page editor ----------------------------------------------------------------------------------
 
 
-def test_page_editor_changes_show_on_the_customer_page(client, agency):
+def test_page_editor_changes_show_on_the_customer_page(client, owner, agency):
     admin, slug = agency["admin"], agency["slug"]
+    # On the Business plan the company can't hide "Powered by" (on Pro it can: see test_plans.py).
+    business = next(p for p in client.get("/api/system/plans", headers=owner).json() if p["name"] == "Business")
+    client.patch(f"/api/system/companies/{agency['company']['id']}/subscription", headers=owner,
+                 json={"plan_id": business["id"]})
     r = client.patch("/api/company/branding", headers=admin, json={
         "primary_color": "#a8641f", "accent_color": "#e3b26b", "hero_title_ar": "اكتشف عُمان والعالم",
         "about_en": "Since 2011 in Muscat.", "sections": ["search", "offers", "about", "contact"],
@@ -637,7 +641,7 @@ def test_page_editor_changes_show_on_the_customer_page(client, agency):
     assert b["primary_color"] == "#a8641f" and b["hero_title_ar"] == "اكتشف عُمان والعالم"
     assert b["sections"] == ["search", "offers", "about", "contact"]
     assert b["elements"]["budget_filter"] is False
-    assert b["elements"]["powered_by"] is True  # only the platform owner can hide it
+    assert b["elements"]["powered_by"] is True  # only the platform owner can hide it on this plan
     assert b["cards"]["style"] == "photo" and b["cards"]["show_seats"] is True
     assert b["texts"]["en"] == {"findTrips": "Search"}
     assert "dashboard_color" not in b

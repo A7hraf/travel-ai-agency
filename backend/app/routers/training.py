@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from ..ai import training as service
+from ..audit import audit
 from ..database import get_db
 from ..deps import require_permission
 from ..models import User
@@ -33,12 +34,18 @@ def list_examples(me: User = Depends(can_train), db: Session = Depends(get_db)):
 
 @router.post("", response_model=TrainingOut, status_code=201)
 def add_example(body: TrainingIn, me: User = Depends(can_train), db: Session = Depends(get_db)):
-    return service.add_example(db, me.company_id, body.question, body.answer)
+    out = service.add_example(db, me.company_id, body.question, body.answer)
+    audit(db, me, "ai.training", target=body.question[:200], detail="answer added", commit=True)
+    return out
 
 
 @router.post("/import", response_model=TrainingImportOut)
 def import_examples(body: TrainingImportIn, me: User = Depends(can_train), db: Session = Depends(get_db)):
-    return service.import_examples(db, me.company_id, body.text, body.preview)
+    out = service.import_examples(db, me.company_id, body.text, body.preview)
+    if not body.preview:
+        added = out["added"] if isinstance(out, dict) else getattr(out, "added", 0)
+        audit(db, me, "ai.training", detail=f"{added} answers imported", commit=True)
+    return out
 
 
 @router.post("/try", response_model=TryAIOut)
@@ -53,14 +60,20 @@ def get_knowledge(me: User = Depends(can_train), db: Session = Depends(get_db)):
 
 @router.patch("/knowledge", response_model=AIKnowledgeOut)
 def update_knowledge(body: AIKnowledgeUpdate, me: User = Depends(can_train), db: Session = Depends(get_db)):
-    return service.update_knowledge(db, me.company, body.model_dump(exclude_unset=True))
+    data = body.model_dump(exclude_unset=True)
+    out = service.update_knowledge(db, me.company, data)
+    audit(db, me, "ai.knowledge", detail=", ".join(sorted(k.replace("_", " ") for k in data)), commit=True)
+    return out
 
 
 @router.put("/{example_id}", response_model=TrainingOut)
 def update_example(example_id: int, body: TrainingIn, me: User = Depends(can_train), db: Session = Depends(get_db)):
-    return service.update_example(db, me.company_id, example_id, body.question, body.answer)
+    out = service.update_example(db, me.company_id, example_id, body.question, body.answer)
+    audit(db, me, "ai.training", target=body.question[:200], detail="answer edited", commit=True)
+    return out
 
 
 @router.delete("/{example_id}", status_code=204)
 def delete_example(example_id: int, me: User = Depends(can_train), db: Session = Depends(get_db)):
     service.delete_example(db, me.company_id, example_id)
+    audit(db, me, "ai.training", detail="answer deleted", commit=True)

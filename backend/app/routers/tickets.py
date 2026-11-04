@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
 
+from ..audit import audit
 from ..database import get_db
 from ..deps import require_permission
 from ..models import (
@@ -131,6 +132,9 @@ def update_ticket(ticket_id: int, body: TicketUpdate,
             if ticket.status in NEEDS_PAYMENT_REFERENCE and new_ref is None:
                 raise HTTPException(400, "A paid booking must keep its payment reference")
             _event(db, ticket, me, "payment_reference", ticket.payment_reference, new_ref)
+            audit(db, me, "ticket.payment", target=ticket.reference,
+                  detail="payment reference added" if new_ref and not ticket.payment_reference
+                  else "payment reference removed" if not new_ref else "payment reference changed")
             ticket.payment_reference = new_ref
 
     if body.total_price is not None:
@@ -139,6 +143,8 @@ def update_ticket(ticket_id: int, body: TicketUpdate,
             if not is_admin:
                 raise HTTPException(403, "Only a company admin can change the price of a booking")
             _event(db, ticket, me, "price", ticket.total_price, new_total)
+            audit(db, me, "ticket.price", target=ticket.reference,
+                  detail=f"{ticket.total_price} → {new_total} {ticket.currency}")
             ticket.total_price = new_total
 
     if body.status is not None and body.status != ticket.status:
@@ -168,6 +174,7 @@ def update_ticket(ticket_id: int, body: TicketUpdate,
             _event(db, ticket, me, "payment_reference", ticket.payment_reference, None)
             ticket.payment_reference = None
         _event(db, ticket, me, "status", old, new)
+        audit(db, me, "ticket.status", target=ticket.reference, detail=f"{old} → {new}")
         chat_events.append(f"Ticket {ticket.reference}: {old} → {new} by {me.full_name}")
         ticket.status = new
         if new == TicketStatus.IN_PROGRESS and ticket.assigned_to_id is None:

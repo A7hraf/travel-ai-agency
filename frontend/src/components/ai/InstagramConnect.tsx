@@ -32,9 +32,14 @@ export default function InstagramConnect({ variant, base }: {
   const [st, setSt] = useState<InstagramStatus | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const load = () => get<InstagramStatus>(base).then(setSt).catch((e) => setLoadError(e.message));
+  const load = () => get<InstagramStatus>(base).then((s) => { setSt(s); setLoadError(null); }).catch((e) => setLoadError(e.message));
   useEffect(() => { load(); }, [base]);
-  if (!st) return loadError ? <div className="error-box">{loadError}</div> : <div className="skeleton" style={{ height: 260, borderRadius: 24 }} />;
+  if (!st) return loadError ? (
+    <section className="ad-card">
+      <h2 className="ad-card-title">{t("Connect Instagram")}</h2>
+      <ErrorBox error={t("The Instagram connection could not be loaded: {error}", { error: loadError })} onRetry={load} />
+    </section>
+  ) : <div className="skeleton" style={{ height: 260, borderRadius: 24 }} />;
 
   const webhook = st.webhook_path ? `${window.location.origin}${st.webhook_path}` : "";
   // Where account fixes are saved: the company's own settings, or the owner's endpoint.

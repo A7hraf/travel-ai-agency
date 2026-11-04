@@ -25,6 +25,7 @@ from .routers import (
     users,
     whatsapp,
 )
+from .routers import plans as plans_router
 from .seed import (
     DEFAULT_ADMIN_PASSWORD,
     ensure_system_admin,
@@ -135,6 +136,18 @@ for r in (auth, system_admin, users, company, packages, conversations, tickets, 
     app.include_router(r.router)
 app.include_router(platform.router)
 app.include_router(instagram.router)
+
+# --- Business tools: System health, Customers, exports and the activity log ---
+from . import diagnostics as _diagnostics  # noqa: E402
+from .routers import activity as _activity, customers as _customers  # noqa: E402
+from .routers import diagnostics as _diagnostics_router, exports as _exports  # noqa: E402
+
+for _r in (_diagnostics_router, _customers, _exports, _activity):
+    app.include_router(_r.router)
+# Records unhandled errors and 5xx answers (never bodies, headers, tokens or query strings).
+app.add_middleware(_diagnostics.ErrorCapture)
+_diagnostics.install_log_handler()
+app.include_router(plans_router.router)
 
 
 @app.get("/api/health", tags=["health"])

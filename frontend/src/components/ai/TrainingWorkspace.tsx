@@ -29,7 +29,9 @@ export default function TrainingWorkspace({ base, tab, onTab, settingsLink }: {
   const [knowledge, setKnowledge] = useState<AIKnowledge | null>(null);
 
   const load = () => get<TrainingExample[]>(base).then((x) => { setItems(x); setListError(null); }).catch((e) => setListError(e.message));
-  const loadKnowledge = () => get<AIKnowledge>(`${base}/knowledge`).then(setKnowledge).catch(() => {});
+  const [knowledgeError, setKnowledgeError] = useState<string | null>(null);
+  const loadKnowledge = () => get<AIKnowledge>(`${base}/knowledge`).then((k) => { setKnowledge(k); setKnowledgeError(null); })
+    .catch((e) => setKnowledgeError((e as Error).message));
   useEffect(() => { setItems(null); load(); loadKnowledge(); }, [base]);
 
   const tabs: [TrainingTab, string, ReactNode][] = [
@@ -52,7 +54,8 @@ export default function TrainingWorkspace({ base, tab, onTab, settingsLink }: {
       {nothingYet && tab !== "try" && <HowItWorks onTab={onTab} />}
 
       {tab === "answers" && <AnswersTab base={base} items={items} listError={listError} reload={load} />}
-      {tab === "knowledge" && <KnowledgeTab base={base} knowledge={knowledge} onSaved={setKnowledge} extra={settingsLink} />}
+      {tab === "knowledge" && <KnowledgeTab base={base} knowledge={knowledge} onSaved={setKnowledge} extra={settingsLink}
+        loadError={knowledgeError} onRetry={loadKnowledge} />}
       {tab === "try" && <TryTab base={base} onTaught={load} agent={knowledge?.ai_agent_name ?? "AI"} />}
 
       <p className="tr-foot">
@@ -175,7 +178,7 @@ function AnswersTab({ base, items, listError, reload }: {
           <input type="search" placeholder={t("Search answers")} aria-label={t("Search answers")} value={filter} onChange={(e) => setFilter(e.target.value)} />
         </div>
       </div>
-      <ErrorBox error={listError ?? rowError} />
+      <ErrorBox error={listError ?? rowError} onRetry={listError ? reload : undefined} />
       {items === null ? (listError ? null : <div className="skeleton" style={{ height: 120, borderRadius: 20 }} />) : shown.length === 0 ? (
         <div className="empty">
           <ChatsCircle className="empty-icon" />
@@ -269,8 +272,9 @@ function ImportCard({ base, onDone, onClose }: { base: string; onDone: () => voi
 
 // --- Company knowledge ----------------------------------------------------------------------
 
-function KnowledgeTab({ base, knowledge, onSaved, extra }: {
+function KnowledgeTab({ base, knowledge, onSaved, extra, loadError, onRetry }: {
   base: string; knowledge: AIKnowledge | null; onSaved: (k: AIKnowledge) => void; extra?: ReactNode;
+  loadError?: string | null; onRetry?: () => void;
 }) {
   const { t } = useI18n();
   const [k, setK] = useState<AIKnowledge | null>(knowledge);
@@ -278,7 +282,7 @@ function KnowledgeTab({ base, knowledge, onSaved, extra }: {
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   useEffect(() => { if (knowledge && !k) setK(knowledge); }, [knowledge]);
-  if (!k) return <div className="skeleton" style={{ height: 320, borderRadius: 24 }} />;
+  if (!k) return loadError ? <ErrorBox error={loadError} onRetry={onRetry} /> : <div className="skeleton" style={{ height: 320, borderRadius: 24 }} />;
 
   const set = <K extends keyof AIKnowledge>(key: K, v: AIKnowledge[K]) => { setSaved(false); setK({ ...k, [key]: v }); };
   const save = async (e: FormEvent) => {

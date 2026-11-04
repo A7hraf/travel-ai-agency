@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..ai.health import check_ai, for_company
+from ..audit import audit
 from ..branding import Branding, BrandingUpdate, apply_update, get_branding
 from ..database import get_db
 from ..deps import get_company_user, require_permission
@@ -42,6 +43,7 @@ from ..schemas import (
 )
 from ..serializers import OPEN_TICKET_STATUSES, company_settings_out
 from ..services import instagram as instagram_service
+from ..services import plans
 from ..services import whatsapp as whatsapp_service
 from ..services.users import seats_used
 from ..timeutil import days_back, local_date
@@ -60,6 +62,7 @@ def update_company(body: CompanySettingsUpdate, me: User = Depends(require_permi
                    db: Session = Depends(get_db)):
     company = me.company
     data = body.model_dump(exclude_unset=True)
+    before = _channel_state(company)  # activity log
     # These columns can't be empty in the database: null means "leave as it is".
     for key in NOT_NULL_FIELDS:
         if key in data and data[key] is None:
@@ -74,8 +77,12 @@ def update_company(body: CompanySettingsUpdate, me: User = Depends(require_permi
     if "whatsapp_phone_number_id" in data:
         number_id = (data.pop("whatsapp_phone_number_id") or "").strip() or None
         if number_id and number_id != company.whatsapp_phone_number_id:
+            plans.require_channel(db, company.id, "whatsapp")
             _check_number_is_ours(db, company, number_id)
         company.whatsapp_phone_number_id = number_id
+    if (company.instagram_access_token and "instagram_access_token" in body.model_fields_set) or \
+            (data.get("instagram_account_id") or "").strip() not in ("", company.instagram_account_id or ""):
+        plans.require_channel(db, company.id, "instagram")  # before anything is saved
     if "instagram_access_token" in body.model_fields_set and company.instagram_access_token \
             and not company.instagram_account_id and not (data.get("instagram_account_id") or "").strip():
         _detect_instagram_account(db, company)
@@ -92,6 +99,7 @@ def update_company(body: CompanySettingsUpdate, me: User = Depends(require_permi
         if key in ("ai_agent_name", "currency") and not value:
             continue  # required fields can't be blanked
         setattr(company, key, value)
+    _audit_settings(db, me, before, _channel_state(company), set(body.model_fields_set))
     try:
         db.commit()
     except IntegrityError as exc:  # the same number or account saved by another company at the same moment
@@ -247,11 +255,14 @@ def read_branding(me: User = Depends(require_permission("settings.manage"))):
 @router.patch("/company/branding", response_model=Branding)
 def update_branding(body: BrandingUpdate, me: User = Depends(require_permission("settings.manage")),
                     db: Session = Depends(get_db)):
-    """The company admin edits the customer page; dashboard colours stay with the platform owner."""
+    """The company admin edits the customer page; dashboard colours stay with the platform owner.
+    The plan decides whether the page editor is included and whether "Powered by" can be hidden."""
+    ent = plans.require_page_editor(db, me.company_id)
     for url in body.image_urls():
         if not media_belongs_to(db, url, me.company_id):
             raise HTTPException(400, "Use an image uploaded by your company")
-    branding = apply_update(me.company, body, allow_dashboard=False)
+    branding = apply_update(me.company, body, allow_dashboard=False, allow_powered_by=ent.remove_powered_by)
+    audit(db, me, "branding.saved")
     db.commit()
     return branding
 
@@ -326,4 +337,42 @@ def analytics(days: int = 30, me: User = Depends(require_permission("reports.vie
         booked_value=round(booked_value, 3),
         paid_value=round(paid_value, 3),
     )
+
+
+# --- Activity log of the settings page (business tools) -----------------------------------------
+
+_AI_FIELDS = {"ai_agent_name", "ai_welcome_message", "ai_welcome_message_ar", "ai_instructions", "knowledge_base"}
+_WA_SECRETS = {"whatsapp_access_token", "whatsapp_app_secret"}
+_IG_SECRETS = {"instagram_access_token", "instagram_app_secret"}
+
+
+def _channel_state(company: Company) -> dict:
+    return {"wa": company.whatsapp_phone_number_id, "wa_number": company.whatsapp_display_number,
+            "ig": company.instagram_account_id, "ig_user": company.instagram_username}
+
+
+def _audit_settings(db: Session, me: User, before: dict, after: dict, fields: set[str]) -> None:
+    """Connections and changed field names only: never the value of a token or secret."""
+    if after["wa"] != before["wa"]:
+        if after["wa"]:
+            audit(db, me, "whatsapp.connected", target=after["wa_number"] or after["wa"])
+        else:
+            audit(db, me, "whatsapp.disconnected", target=before["wa_number"] or before["wa"])
+    if fields & _WA_SECRETS:
+        audit(db, me, "whatsapp.credentials", detail=", ".join(sorted(f.replace("whatsapp_", "").replace("_", " ")
+                                                                       for f in fields & _WA_SECRETS)))
+    if after["ig"] != before["ig"]:
+        if after["ig"]:
+            audit(db, me, "instagram.connected", target=f"@{after['ig_user']}" if after["ig_user"] else after["ig"])
+        else:
+            audit(db, me, "instagram.disconnected",
+                  target=f"@{before['ig_user']}" if before["ig_user"] else before["ig"])
+    if fields & _IG_SECRETS:
+        audit(db, me, "instagram.credentials", detail=", ".join(sorted(f.replace("instagram_", "").replace("_", " ")
+                                                                        for f in fields & _IG_SECRETS)))
+    if fields & _AI_FIELDS:
+        audit(db, me, "ai.knowledge", detail=", ".join(sorted(f.replace("_", " ") for f in fields & _AI_FIELDS)))
+    rest = fields - _AI_FIELDS - _WA_SECRETS - _IG_SECRETS - {"whatsapp_phone_number_id", "instagram_account_id"}
+    if rest:
+        audit(db, me, "settings.saved", detail=", ".join(sorted(f.replace("_", " ") for f in rest)))
 

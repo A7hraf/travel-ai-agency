@@ -158,6 +158,7 @@ def update_company_user(db: Session, user: User, data: UserUpdate, acting_user: 
     if data.is_active and not user.is_active:
         _check_seat(db, user.company)
 
+    changes = _account_changes(user, data, bool(password_hash), is_self)  # activity log, before applying
     if data.email is not None:
         email = data.email.lower()
         _check_email_free(db, user.company_id, email, exclude_user_id=user.id)
@@ -173,7 +174,6 @@ def update_company_user(db: Session, user: User, data: UserUpdate, acting_user: 
             user.permissions = list(ROLE_DEFAULT_PERMISSIONS[data.role])
     if data.permissions is not None and not is_self:
         user.permissions = clean_permissions(data.permissions)
-    changes = _account_changes(user, data, bool(password_hash), is_self)  # activity log, before applying
     if data.is_active is not None and data.is_active != user.is_active:
         user.is_active = data.is_active
         if not data.is_active:
@@ -201,21 +201,23 @@ def delete_company_user(db: Session, user: User, acting_user: User) -> None:
 
 
 def _account_changes(user: User, data: UserUpdate, password_reset: bool, is_self: bool) -> list[tuple[str, str]]:
-    """Activity log entries for an account update (field names only, never a password).
-    Called after the name, email, role and permissions were applied, before the active flag."""
+    """Activity log entries for an account update, compared with the account before the change
+    (field names only, never a password)."""
     out: list[tuple[str, str]] = []
     if data.is_active is not None and data.is_active != user.is_active:
         out.append(("user.disabled" if not data.is_active else "user.enabled", ""))
-    changed = [name for name, value in (("name", data.full_name), ("email", data.email), ("role", data.role))
-               if value is not None]
-    if data.permissions is not None and not is_self:
+    changed = []
+    if data.full_name is not None and " ".join(data.full_name.split()) != user.full_name:
+        changed.append("name")
+    if data.email is not None and data.email.lower() != user.email:
+        changed.append("email")
+    if data.role is not None and data.role != user.role:
+        changed.append(f"role: {user.role} → {data.role}")
+    if data.permissions is not None and not is_self and \
+            set(clean_permissions(data.permissions)) != set(clean_permissions(user.permissions or [])):
         changed.append("permissions")
     if password_reset:
         changed.append("password reset")
     if changed:
-        detail = ", ".join(changed)
-        if data.role is not None:
-            detail += f" (role: {user.role})"
-        out.append(("user.updated", detail))
+        out.append(("user.updated", ", ".join(changed)))
     return out
-

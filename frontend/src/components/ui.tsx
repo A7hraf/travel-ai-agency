@@ -105,8 +105,16 @@ export function Field({ label, hint, children }: { label: string; hint?: ReactNo
   );
 }
 
-export function ErrorBox({ error }: { error: string | null }) {
-  return error ? <div className="error-box">{error}</div> : null;
+/** A failed load or save, in words. With `onRetry` it also offers to try again. */
+export function ErrorBox({ error, onRetry }: { error: string | null; onRetry?: () => void }) {
+  if (!error) return null;
+  if (!onRetry) return <div className="error-box">{error}</div>;
+  return (
+    <div className="error-box error-retry" role="alert">
+      <span>{error}</span>
+      <button type="button" className="btn btn-sm" onClick={onRetry}>{tr("Retry")}</button>
+    </div>
+  );
 }
 
 export function Empty({ children }: { children: ReactNode }) {

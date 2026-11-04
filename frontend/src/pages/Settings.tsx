@@ -25,8 +25,9 @@ export default function Settings() {
   const [saved, setSaved] = useState<Partial<Record<Section, boolean>>>({});
   const [busy, setBusy] = useState<Section | null>(null);
 
-  useEffect(() => { get<CompanySettings>("/api/company").then(setS).catch((e) => setLoadError(e.message)); }, []);
-  if (!s) return loadError ? <div className="error-box">{loadError}</div> : <div className="skeleton" style={{ height: 320, borderRadius: 24 }} />;
+  const load = () => { setLoadError(null); get<CompanySettings>("/api/company").then(setS).catch((e) => setLoadError(e.message)); };
+  useEffect(load, []);
+  if (!s) return loadError ? <ErrorBox error={loadError} onRetry={load} /> : <div className="skeleton" style={{ height: 320, borderRadius: 24 }} />;
 
   const set = <K extends keyof CompanySettings>(k: K, v: CompanySettings[K]) => {
     const section = (Object.keys(SECTION_FIELDS) as Section[]).find((x) => SECTION_FIELDS[x].includes(k));

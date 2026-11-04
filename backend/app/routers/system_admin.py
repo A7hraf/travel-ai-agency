@@ -27,6 +27,7 @@ from ..schemas import (
 )
 from ..security import revoke_sessions_now
 from ..serializers import company_admin_out, user_out
+from ..services import plans as plans_service
 from ..services.users import (
     create_company_user,
     delete_company_user,
@@ -102,14 +103,18 @@ def create_company(body: CompanyCreate, _: User = Depends(require_system_admin),
     company = Company(
         name=body.name,
         slug=slug,
-        max_users=body.max_users,
+        max_users=body.max_users or 5,
         currency=body.currency.upper(),
         contact_email=body.contact_email,
         contact_phone=body.contact_phone,
     )
+    plan = _plan_for_new_company(db, body.plan_id)
     db.add(company)
     try:
         db.flush()
+        # The subscription first: the account limit follows the plan unless a limit was given.
+        plans_service.start_subscription(db, company, plan, custom_max_users=body.max_users,
+                                         cycle=body.billing_cycle)
         create_company_user(
             db,
             company,
@@ -132,6 +137,17 @@ def create_company(body: CompanyCreate, _: User = Depends(require_system_admin),
     return company_admin_out(db, company)
 
 
+def _plan_for_new_company(db: Session, plan_id: int | None):
+    if plan_id is None:
+        return None  # the default plan
+    from ..models import Plan  # noqa: PLC0415
+
+    plan = db.get(Plan, plan_id)
+    if plan is None or plan.is_archived:
+        raise HTTPException(400, "Choose a plan that is not archived")
+    return plan
+
+
 @router.get("/companies/{company_id}", response_model=CompanyAdminOut)
 def get_company(company_id: int, _: User = Depends(require_system_admin), db: Session = Depends(get_db)):
     return company_admin_out(db, _get_company(db, company_id))
@@ -149,8 +165,14 @@ def update_company(company_id: int, body: CompanyAdminUpdate, _: User = Depends(
             raise HTTPException(400, f"This company has {used} active accounts. Disable or delete some "
                                      f"before lowering the limit to {body.max_users}.")
         company.max_users = body.max_users
+        # A limit typed here is this company's own limit (it no longer follows the plan).
+        sub = plans_service.ensure_subscription(db, company)
+        if sub is not None:
+            sub.max_users_custom = True
     if body.whatsapp_phone_number_id is not None:
         number = body.whatsapp_phone_number_id.strip() or None
+        if number and number != company.whatsapp_phone_number_id:
+            plans_service.require_channel(db, company.id, "whatsapp")
         if number and db.scalar(select(Company.id).where(Company.whatsapp_phone_number_id == number,
                                                          Company.id != company.id)):
             raise HTTPException(409, "This WhatsApp number is already connected to another company")
@@ -331,6 +353,8 @@ def update_company_instagram(company_id: int, body: InstagramOwnerUpdate, _: Use
         if account_id and db.scalar(select(Company.id).where(Company.instagram_account_id == account_id,
                                                              Company.id != company.id)):
             raise HTTPException(409, "This Instagram account is already connected to another company")
+        if account_id and account_id != company.instagram_account_id:
+            plans_service.require_channel(db, company.id, "instagram")
         if account_id != company.instagram_account_id:
             company.instagram_username = None
         company.instagram_account_id = account_id

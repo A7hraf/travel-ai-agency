@@ -190,6 +190,9 @@ def seed_demo(db: Session, production: bool = False) -> None:
     )
     db.add(company)
     db.flush()
+    from .services.plans import ensure_subscription  # noqa: PLC0415
+
+    ensure_subscription(db, company)
     for _, email, name, role, password in DEMO_STAFF:
         db.add(User(company_id=company.id, email=email, full_name=name, role=role,
                     password_hash=hash_password(secrets.token_urlsafe(16) if production else password),

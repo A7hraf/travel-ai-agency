@@ -164,7 +164,7 @@ def upgrade(engine: Engine) -> None:
 def _customers_permission_is_new(engine: Engine) -> bool:
     """True on the first start with the Customers page: customers has no notes column yet."""
     insp = inspect(engine)
-    if "customers" not in insp.get_table_names():
+    if not {"customers", "users"} <= set(insp.get_table_names()):
         return False
     return "notes" not in {c["name"] for c in insp.get_columns("customers")}
 

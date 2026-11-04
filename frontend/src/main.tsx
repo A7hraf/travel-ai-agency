@@ -5,6 +5,7 @@ import App from "./App";
 import { AuthProvider } from "./auth";
 import { IconContext } from "./components/Icon";
 import { LangProvider } from "./lang";
+import { installGlobalErrorHandlers } from "./errorReporter";
 // Ghanjah brand fonts, served with the app (no outside requests): Source Serif 4 for English,
 // Noto Naskh Arabic for Arabic.
 import "@fontsource/source-serif-4/400.css";
@@ -16,6 +17,10 @@ import "./styles/base.css";
 import "./styles/staff.css";
 import "./styles/admin.css";
 import "./styles/storefront.css";
+import "./styles/tools.css";
+
+// Errors of this browser reach the owner's System health page.
+installGlobalErrorHandlers();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

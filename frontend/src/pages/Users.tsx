@@ -20,15 +20,20 @@ export function UserManager({ basePath, listPath, createPath, onChanged }: {
   const [catalog, setCatalog] = useState<PermissionCatalog | null>(null);
   const [editing, setEditing] = useState<User | "new" | null>(null);
 
-  const load = () => get<UserList>(listPath).then(setData).catch(() => {});
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const load = () => get<UserList>(listPath).then((d) => { setData(d); setLoadError(null); })
+    .catch((e) => setLoadError((e as Error).message));
+  const loadCatalog = () => get<PermissionCatalog>("/api/permissions").then((c) => { setCatalog(c); setCatalogError(null); })
+    .catch((e) => setCatalogError((e as Error).message));
   const changed = () => { load(); onChanged?.(); };
   useEffect(() => {
     load();
-    get<PermissionCatalog>("/api/permissions").then(setCatalog).catch(() => {});
+    loadCatalog();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listPath]);
 
-  if (!data) return <div className="skeleton" style={{ height: 240, borderRadius: 24 }} />;
+  if (!data) return loadError ? <ErrorBox error={loadError} onRetry={load} /> : <div className="skeleton" style={{ height: 240, borderRadius: 24 }} />;
   const full = data.used >= data.max_users;
   // An employee with users.manage who is not a company admin cannot manage admin accounts.
   const delegate = !!me && me.role !== "company_admin" && me.role !== "system_admin";
@@ -84,6 +89,7 @@ export function UserManager({ basePath, listPath, createPath, onChanged }: {
         })}
       </ul>
 
+      {!catalog && catalogError && <ErrorBox error={catalogError} onRetry={loadCatalog} />}
       {editing && catalog && (
         <UserForm user={editing === "new" ? null : editing} catalog={catalog} basePath={basePath} createPath={createPath}
           isSelf={editing !== "new" && editing.id === me?.id} delegate={delegate} myPermissions={me?.permissions ?? []}

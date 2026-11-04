@@ -1,6 +1,7 @@
 import { CSSProperties, useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { get } from "../api";
+import { ApiError, get } from "../api";
+import { tr } from "../lang";
 import { GhanjahMark } from "../components/Brand";
 import { Binoculars, SunHorizon } from "../components/Icon";
 import { Modal } from "../components/ui";
@@ -39,16 +40,25 @@ export default function Storefront() {
   const [company, setCompany] = useState<PublicCompany | null>(null);
   const [packages, setPackages] = useState<TravelPackage[]>([]);
   const [notFound, setNotFound] = useState(false);
+  // Anything but "no such company" (server error, no connection): say so and offer to try again.
+  const [failed, setFailed] = useState(false);
+  // The agency's subscription ended (after its grace period): the page is paused, nothing is deleted.
+  const [paused, setPaused] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     setCompany(null);
     setNotFound(false);
+    setFailed(false);
+    setPaused(false);
     get<PublicCompany>(`/api/public/companies/${slug}`).then((c) => {
       setCompany(c);
       document.title = c.name;
-    }).catch(() => setNotFound(true));
-    get<TravelPackage[]>(`/api/public/companies/${slug}/packages`).then(setPackages).catch(() => {});
-  }, [slug]);
+    }).catch((e) => (e instanceof ApiError && e.status === 423 ? setPaused(true)
+      : e instanceof ApiError && e.status === 404 ? setNotFound(true) : setFailed(true)));
+    get<TravelPackage[]>(`/api/public/companies/${slug}/packages`).then(setPackages)
+      .catch((e) => { if (!(e instanceof ApiError && (e.status === 404 || e.status === 423))) setFailed(true); });
+  }, [slug, attempt]);
 
   // The customer page has its own dark background (the staff app's is a little darker).
   useEffect(() => {
@@ -57,11 +67,24 @@ export default function Storefront() {
   }, []);
 
   const dir = lang === "ar" ? "rtl" : "ltr";
-  if (notFound || !company) {
+  if (notFound || failed || paused || !company) {
     return (
       <div className="sf sf-state" dir={dir} lang={lang}>
         <div className="sf-orbs" aria-hidden="true" />
-        {notFound ? (
+        {paused ? (
+          <div className="sf-state-box" role="status">
+            <SunHorizon className="sf-empty-icon" />
+            <h1>{t.paused}</h1>
+            <p>{t.pausedHint}</p>
+          </div>
+        ) : failed && !notFound ? (
+          <div className="sf-state-box" role="alert">
+            <Binoculars className="sf-empty-icon" />
+            <h1>{tr("This page could not be loaded")}</h1>
+            <p>{tr("Check your internet connection and try again in a moment.")}</p>
+            <button type="button" className="btn btn-primary" onClick={() => setAttempt((n) => n + 1)}>{tr("Try again")}</button>
+          </div>
+        ) : notFound ? (
           <div className="sf-state-box" role="alert">
             <Binoculars className="sf-empty-icon" />
             <h1>{t.notFound}</h1>

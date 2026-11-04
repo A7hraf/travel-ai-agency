@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useId, useState } from "react";
+import { FormEvent, useEffect, useId, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { get, patch } from "../api";
 import { useAuth } from "../auth";
@@ -7,6 +7,8 @@ import { Money, moneyText } from "../components/Money";
 import { ConfirmRequest, ConfirmSheet, PushPanel } from "../components/staff/Sheet";
 import { useStaff } from "../components/staff/StaffContext";
 import { ErrorBox, Field } from "../components/ui";
+import ExportCsv from "../components/ExportCsv";
+import { pollWatcher } from "../errorReporter";
 import { trServer, useI18n } from "../lang";
 import type { Ticket, TicketEvent, TicketStatus, User } from "../types";
 import {
@@ -65,12 +67,17 @@ export default function Tickets() {
   const [tickets, setTickets] = useState<Ticket[] | null>(null);
   const [seen, setSeen] = useState(readSeen);
   const openId = params.get("open");
+  const { can } = useAuth();
+  const [listError, setListError] = useState<string | null>(null);
+  const listPoll = useRef(pollWatcher("Tickets list"));
 
   const load = () => {
     const q = new URLSearchParams({ limit: "1000" });
     if (mine) q.set("mine", "true");
     if (search.trim()) q.set("q", search.trim());
-    get<Ticket[]>(`/api/tickets?${q}`).then(setTickets).catch(() => {});
+    get<Ticket[]>(`/api/tickets?${q}`, { quiet: true })
+      .then((list) => { setTickets(list); setListError(null); listPoll.current.ok(); })
+      .catch((e) => { setListError((e as Error).message); listPoll.current.fail(e); });
   };
   usePolling(load, 10000, [mine, search]);
 
@@ -89,6 +96,7 @@ export default function Tickets() {
     <div className="tk-page">
       <div className="tk-head">
         <h1 className="screen-title">{t("Tickets")}</h1>
+        {can("reports.view") && <ExportCsv className="btn btn-sm btn-ghost" />}
         {toCollect.size > 0 && (
           <div className="tk-collect">
             {[...toCollect].map(([cur, v], i) => (
@@ -116,7 +124,9 @@ export default function Tickets() {
         </label>
       </div>
 
-      {shown === null ? (
+      {shown === null && listError ? (
+        <ErrorBox error={listError} onRetry={load} />
+      ) : shown === null ? (
         <div className="tk-grid">{[0, 1, 2].map((i) => <div key={i} className="skeleton tk-skel" />)}</div>
       ) : shown.length === 0 ? (
         <div className="empty">
@@ -198,14 +208,19 @@ function TicketPanel({ id, onClose, onSaved }: { id: number; onClose: () => void
   const [confirmReq, setConfirmReq] = useState<ConfirmRequest | null>(null);
   const [grown, setGrown] = useState(false);
 
-  const loadEvents = () => get<TicketEvent[]>(`/api/tickets/${id}/events`).then(setEvents).catch(() => setEvents([]));
+  const [eventsError, setEventsError] = useState<string | null>(null);
+  const [teamError, setTeamError] = useState<string | null>(null);
+  const loadEvents = () => get<TicketEvent[]>(`/api/tickets/${id}/events`)
+    .then((x) => { setEvents(x); setEventsError(null); }).catch((e) => setEventsError((e as Error).message));
+  const loadTeam = () => get<User[]>("/api/team").then((x) => { setTeam(x); setTeamError(null); })
+    .catch((e) => setTeamError((e as Error).message));
 
   useEffect(() => {
     get<Ticket>(`/api/tickets/${id}`).then((tk) => {
       setTicket(tk);
       setForm(formFrom(tk));
     }).catch((e) => setError(e.message));
-    get<User[]>("/api/team").then(setTeam).catch(() => {});
+    loadTeam();
     loadEvents();
     // The stepper line grows in once the ticket is shown.
     const timer = window.setTimeout(() => setGrown(true), 120);
@@ -454,8 +469,9 @@ function TicketPanel({ id, onClose, onSaved }: { id: number; onClose: () => void
               </button>
             )}
           </form>
-
-          <TicketHistory events={events} currency={ticket.currency} lang={lang} />
+          <ErrorBox error={teamError} onRetry={loadTeam} />
+          {eventsError && events === null ? <ErrorBox error={eventsError} onRetry={loadEvents} />
+            : <TicketHistory events={events} currency={ticket.currency} lang={lang} />}
         </div>
       )}
       {confirmReq && <ConfirmSheet req={confirmReq} onClose={() => setConfirmReq(null)} />}

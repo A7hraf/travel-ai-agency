@@ -155,7 +155,7 @@ function TextInput({ id, label, value, placeholder, onChange, max, long, lang, h
 }
 
 /** Edits a company's customer page (and, for the platform owner, the employee dashboard colours). */
-export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSaved, name }: {
+export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSaved, name, canHidePoweredBy }: {
   loadPath: string;
   uploadPath: string;
   slug: string;
@@ -163,6 +163,8 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
   onSaved?: () => void;
   /** Company name for the preview (else read from the public page). */
   name?: string;
+  /** The company's plan lets it hide "Powered by Ghanjah" itself. */
+  canHidePoweredBy?: boolean;
 }) {
   const { t, lang } = useI18n();
   const [b, setB] = useState<Branding | null>(null);
@@ -185,7 +187,8 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
     setB(full);
     setSavedJson(JSON.stringify(full));
   };
-  useEffect(() => { get<Branding>(loadPath).then(load).catch((e) => setError(e.message)); }, [loadPath]);
+  const fetchBranding = () => { setError(null); get<Branding>(loadPath).then(load).catch((e) => setError(e.message)); };
+  useEffect(fetchBranding, [loadPath]);
   useEffect(() => {
     // Real content for the preview, from the public page (suspended companies have none: samples are used).
     get<PublicCompany>(`/api/public/companies/${slug}`).then(setInfo).catch(() => {});
@@ -199,7 +202,7 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
 
-  if (!b) return error ? <ErrorBox error={error} /> : <div className="skeleton" style={{ height: 420, borderRadius: 24 }} />;
+  if (!b) return error ? <ErrorBox error={t("The page design could not be loaded: {error}", { error })} onRetry={fetchBranding} /> : <div className="skeleton" style={{ height: 420, borderRadius: 24 }} />;
 
   const agent = info?.ai_agent_name ?? "Sara";
   const companyName = name ?? info?.name ?? "";
@@ -259,7 +262,7 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
 
   const resetAll = () => {
     setConfirmReset(false);
-    update({ ...DEFAULTS, elements: { ...DEFAULT_ELEMENTS, powered_by: owner ? true : b.elements.powered_by } });
+    update({ ...DEFAULTS, elements: { ...DEFAULT_ELEMENTS, powered_by: owner || canHidePoweredBy ? true : b.elements.powered_by } });
   };
 
   const activeTheme = THEMES.find((x) => x.p === b.primary_color.toLowerCase() && x.a === b.accent_color.toLowerCase());
@@ -443,7 +446,7 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
             <h2 className="ad-card-title">{t("Show or hide smaller parts")}</h2>
             <ul className="bz-sections pe-elements">
               {ELEMENT_LABELS.map((x) => {
-                const locked = x.key === "powered_by" && !owner;
+                const locked = x.key === "powered_by" && !owner && !canHidePoweredBy;
                 return (
                   <li key={x.key} className={b.elements[x.key] ? "" : "off"}>
                     <Switch checked={b.elements[x.key]} disabled={locked} onChange={(v) => setEl(x.key, v)} label={t(x.label)}

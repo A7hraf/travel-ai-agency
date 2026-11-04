@@ -11,6 +11,9 @@ import { Money, moneyText } from "../components/Money";
 import { currentLocale, useI18n } from "../lang";
 import type { Analytics, ConversationSummary, Dashboard as DashboardData } from "../types";
 import { customerLabel, usePolling } from "../util";
+import ExportCsv from "../components/ExportCsv";
+import { ErrorBox } from "../components/ui";
+import { pollWatcher } from "../errorReporter";
 
 const PERIODS = [7, 30, 90];
 
@@ -61,11 +64,20 @@ export default function Dashboard() {
   const [flash, setFlash] = useState<{ channel: ConversationSummary["channel"]; text: string; n: number } | null>(null);
   const lastIds = useRef<Set<number> | null>(null);
   const canChats = can("conversations.view");
+  // Polling stays quiet when a refresh fails; a first load that fails is shown with a Retry button.
+  const [dashError, setDashError] = useState<string | null>(null);
+  const [queueError, setQueueError] = useState<string | null>(null);
+  const [aError, setAError] = useState<string | null>(null);
+  const polls = useRef({ dash: pollWatcher("Dashboard"), queue: pollWatcher("Dashboard queue"), a: pollWatcher("Dashboard analytics") });
 
-  usePolling(() => {
-    get<DashboardData>("/api/dashboard").then(setData).catch(() => {});
+  const loadMain = () => {
+    get<DashboardData>("/api/dashboard", { quiet: true })
+      .then((d) => { setData(d); setDashError(null); polls.current.dash.ok(); })
+      .catch((e) => { setDashError((e as Error).message); polls.current.dash.fail(e); });
     if (canChats) {
-      get<ConversationSummary[]>("/api/conversations?status=human&limit=50").then((list) => {
+      get<ConversationSummary[]>("/api/conversations?status=human&limit=50", { quiet: true }).then((list) => {
+        setQueueError(null);
+        polls.current.queue.ok();
         const waiting = list.filter((c) => !c.assigned_to);
         // A new chat waiting for a human since the last poll: short live flash.
         if (lastIds.current) {
@@ -77,17 +89,21 @@ export default function Dashboard() {
         }
         lastIds.current = new Set(waiting.map((c) => c.id));
         setQueue(waiting);
-      }).catch(() => setQueue([]));
+      }).catch((e) => { setQueueError((e as Error).message); polls.current.queue.fail(e); });
     }
-  }, 15000, [canChats]);
+  };
+  usePolling(loadMain, 15000, [canChats]);
 
-  usePolling(() => {
-    get<Analytics>(`/api/dashboard/analytics?days=${days}`).then(setA).catch(() => {});
+  const loadAnalytics = () => {
+    get<Analytics>(`/api/dashboard/analytics?days=${days}`, { quiet: true })
+      .then((x) => { setA(x); setAError(null); polls.current.a.ok(); })
+      .catch((e) => { setAError((e as Error).message); polls.current.a.fail(e); });
     // The same days before this period, for the "on the previous N days" comparison.
     get<Analytics>(`/api/dashboard/analytics?days=${days * 2}`).then((x) => {
       setPrevBooked(x.daily.slice(0, days).reduce((s, d) => s + d.booked_value, 0));
     }).catch(() => setPrevBooked(null));
-  }, 60000, [days]);
+  };
+  usePolling(loadAnalytics, 60000, [days]);
 
   useEffect(() => {
     if (!flash) return;
@@ -100,6 +116,7 @@ export default function Dashboard() {
   const now = new Date();
 
   if (!data) {
+    if (dashError) return <div className="dash"><ErrorBox error={dashError} onRetry={loadMain} /></div>;
     return (
       <div className="dash">
         <div className="dash-skel">
@@ -167,7 +184,9 @@ export default function Dashboard() {
             </button>
           ))}
         </div>
+        {can("tickets.view") && <ExportCsv className="btn btn-sm btn-ghost" />}
       </header>
+      {!a && aError && <ErrorBox error={aError} onRetry={loadAnalytics} />}
 
       <section className="dash-kpis" aria-busy={!ready}>
         <div className="kpi-card kpi-hero">
@@ -306,7 +325,8 @@ export default function Dashboard() {
                 <h2>{t("Waiting for you")}</h2>
                 <span className="queue-count">{t("{n} chats", { n: data.conversations_waiting })}</span>
               </div>
-              {queue === null ? <div className="skeleton" style={{ height: 52, marginTop: 10 }} /> : queue.length === 0 ? (
+              {queue === null ? (queueError ? <ErrorBox error={queueError} onRetry={loadMain} />
+                : <div className="skeleton" style={{ height: 52, marginTop: 10 }} />) : queue.length === 0 ? (
                 <p className="queue-empty"><ChatCircleDots /> {t("Nobody is waiting. The AI has it covered.")}</p>
               ) : (
                 <ul className="queue">

@@ -52,7 +52,9 @@ export default function Packages() {
   const manage = can("packages.manage");
   const today = todayIso();
 
-  const load = () => get<TravelPackage[]>("/api/packages").then((list) => { setItems(list); return list; }).catch(() => null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const load = () => get<TravelPackage[]>("/api/packages").then((list) => { setItems(list); setLoadError(null); return list; })
+    .catch((e) => { setLoadError((e as Error).message); return null; });
   useEffect(() => { load(); }, []);
 
   const shown = (items ?? []).filter((p) =>
@@ -73,7 +75,10 @@ export default function Packages() {
         </div>
       </div>
       {notice && <div className="ok-box ad-notice" role="status">{notice}</div>}
-      {items === null ? (
+      {items !== null && loadError && <ErrorBox error={loadError} onRetry={load} />}
+      {items === null && loadError ? (
+        <ErrorBox error={loadError} onRetry={load} />
+      ) : items === null ? (
         <div className="pk-grid">{[0, 1, 2].map((i) => <div key={i} className="skeleton" style={{ height: 420, borderRadius: 24 }} />)}</div>
       ) : shown.length === 0 ? (
         <div className="empty">

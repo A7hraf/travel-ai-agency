@@ -425,7 +425,7 @@ class AuditEvent(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
-    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL", onupdate="CASCADE"))
     actor: Mapped[str] = mapped_column(String(200))
     action: Mapped[str] = mapped_column(String(40), index=True)
     target: Mapped[str | None] = mapped_column(String(200))

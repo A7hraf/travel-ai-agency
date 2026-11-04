@@ -1,4 +1,5 @@
 import { Component, ReactNode } from "react";
+import { reportCrash } from "../errorReporter";
 import { tr } from "../lang";
 
 /** A page that crashes shows a short message with a reload button instead of a blank screen.
@@ -16,6 +17,7 @@ export default class ErrorBoundary extends Component<{ resetKey: string; childre
 
   componentDidCatch(error: unknown) {
     console.error("Page error", error);
+    reportCrash(error);
   }
 
   render() {

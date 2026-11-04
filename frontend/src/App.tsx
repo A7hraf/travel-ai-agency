@@ -18,6 +18,14 @@ const Users = lazy(() => import("./pages/Users"));
 const Companies = lazy(() => import("./pages/system/Companies"));
 const CompanyDetail = lazy(() => import("./pages/system/CompanyDetail"));
 const PlatformSettings = lazy(() => import("./pages/system/PlatformSettings"));
+// Business tools
+const SystemHealth = lazy(() => import("./pages/system/SystemHealth"));
+const Customers = lazy(() => import("./pages/Customers"));
+const Activity = lazy(() => import("./pages/Activity"));
+// Subscription plans
+const Plans = lazy(() => import("./pages/system/Plans"));
+const MyPlan = lazy(() => import("./pages/MyPlan"));
+const Invoice = lazy(() => import("./pages/Invoice"));
 
 /** After a new release the old script files are gone: a tab opened before it reloads once to get the
  *  new version instead of showing a broken page. */
@@ -71,12 +79,16 @@ export default function App() {
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
       <Route path="/c/:slug" element={<Storefront />} />
+      <Route path="/system/invoices/:id" element={<RequireUser system><Invoice owner /></RequireUser>} />
+      <Route path="/app/plan/invoices/:id" element={<RequireUser system={false}><Invoice /></RequireUser>} />
 
       <Route path="/system" element={<RequireUser system><Layout /></RequireUser>}>
         <Route index element={<Companies />} />
         <Route path="companies/:id" element={<CompanyDetail />} />
         <Route path="account" element={<Account />} />
         <Route path="settings" element={<PlatformSettings />} />
+        <Route path="health" element={<SystemHealth />} />
+        <Route path="plans" element={<Plans />} />
       </Route>
 
       <Route path="/app" element={<RequireUser system={false}><Layout /></RequireUser>}>
@@ -90,6 +102,10 @@ export default function App() {
         <Route path="settings" element={<RequireUser permission="settings.manage"><Settings /></RequireUser>} />
         <Route path="branding" element={<RequireUser permission="settings.manage"><Branding /></RequireUser>} />
         <Route path="training" element={<RequireUser permission="settings.manage"><Training /></RequireUser>} />
+        <Route path="customers" element={<RequireUser permission="conversations.view"><Customers /></RequireUser>} />
+        <Route path="customers/:id" element={<RequireUser permission="conversations.view"><Customers /></RequireUser>} />
+        <Route path="activity" element={<Activity />} />
+        <Route path="plan" element={<MyPlan />} />
         <Route path="account" element={<Account />} />
       </Route>
 

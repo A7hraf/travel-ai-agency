@@ -129,7 +129,11 @@ SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 class CompanyCreate(BaseModel):
     name: str = Field(min_length=2, max_length=200)
     slug: str | None = Field(default=None, max_length=80)
-    max_users: int = Field(default=5, ge=1, le=10000)
+    # Empty: the account limit follows the plan's staff limit; a number is a custom limit.
+    max_users: int | None = Field(default=None, ge=1, le=10000)
+    # Subscription plan (empty: the default plan). A plan with trial days starts as a trial.
+    plan_id: int | None = None
+    billing_cycle: Literal["monthly", "yearly"] = "monthly"
     currency: Currency = "OMR"
     contact_email: EmailStr | None = None
     contact_phone: str | None = None

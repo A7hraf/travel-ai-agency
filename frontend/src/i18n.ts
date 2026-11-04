@@ -144,6 +144,8 @@ export const STOREFRONT_TEXT = {
     openPackage: (title: string) => `Details of ${title}`,
     notFound: "This travel agency page does not exist.",
     notFoundHint: "Check the address, or ask the agency for its page link.",
+    paused: "This page is taking a short break.",
+    pausedHint: "The agency will be back soon. Please try again later.",
     loading: "Loading trips…",
   },
   ar: {
@@ -265,6 +267,8 @@ export const STOREFRONT_TEXT = {
     openPackage: (title: string) => `تفاصيل ${title}`,
     notFound: "صفحة وكالة السفر هذه غير موجودة.",
     notFoundHint: "تأكد من العنوان، أو اطلب رابط الصفحة من وكالة السفر.",
+    paused: "هذه الصفحة متوقفة مؤقتاً.",
+    pausedHint: "ستعود الوكالة قريباً. يُرجى المحاولة لاحقاً.",
     loading: "جارٍ تحميل الرحلات…",
   },
 };

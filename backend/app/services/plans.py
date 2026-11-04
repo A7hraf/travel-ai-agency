@@ -471,6 +471,17 @@ def change_plan(db: Session, company: Company, sub: Subscription, plan: Plan) ->
     sub.plan_id = plan.id
     sub.plan = plan
     _sync_max_users(company, sub, plan)
+    if not plan.allow_remove_powered_by:
+        show_powered_by(company)
+
+
+def show_powered_by(company: Company) -> None:
+    """A plan that does not let the company hide "Powered by Ghanjah" shows it again (the platform
+    owner can still hide it for the company on the page editor)."""
+    branding = company.branding if isinstance(company.branding, dict) else None
+    elements = branding.get("elements") if branding else None
+    if isinstance(elements, dict) and elements.get("powered_by") is False:
+        company.branding = {**branding, "elements": {**elements, "powered_by": True}}
 
 
 def follow_plan_limit(db: Session, plan: Plan) -> None:
