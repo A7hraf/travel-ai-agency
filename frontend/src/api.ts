@@ -20,6 +20,15 @@ export interface ApiOptions {
 
 /** Failed requests the owner should see on System health: server errors, the server not answering,
  *  and failed page loads (GET 4xx such as 403/404 loops; 401 is just an ended session). */
+/** A request that gets no answer fails after a while, so a page shows an error instead of loading forever.
+ *  (A sleeping free server can take up to a minute to wake up, hence the generous limit.) */
+const REQUEST_TIMEOUT_MS = 75_000;
+function fetchWithTimeout(input: string, init: RequestInit, ms = REQUEST_TIMEOUT_MS): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(new DOMException("timeout", "TimeoutError")), ms);
+  return fetch(input, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(timer));
+}
+
 function shouldReport(method: string, status: number): boolean {
   if (status === 0 || status >= 500) return true;
   // 401 = signed out, 423 = a customer page paused by its plan: both expected, not faults.
@@ -188,9 +197,12 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
 
   let res: Response;
   try {
-    res = await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
-  } catch {
-    throw report(new ApiError(0, tr("Could not reach the server. Check your internet connection and try again.")), method, path, opts);
+    res = await fetchWithTimeout(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+  } catch (err) {
+    const timedOut = err instanceof DOMException && err.name === "TimeoutError";
+    throw report(new ApiError(0, timedOut
+      ? tr("The server did not answer in time. Please try again in a moment.")
+      : tr("Could not reach the server. Check your internet connection and try again.")), method, path, opts);
   }
   if (res.status === 204) return undefined as T;
   const raw = await res.text().catch(() => "");
@@ -218,7 +230,7 @@ export async function download(path: string, filename: string): Promise<void> {
   if (token) headers.Authorization = `Bearer ${token}`;
   let res: Response;
   try {
-    res = await fetch(path, { headers });
+    res = await fetchWithTimeout(path, { headers }, 120_000);
   } catch {
     throw report(new ApiError(0, tr("Could not reach the server. Check your internet connection and try again.")), "GET", path);
   }

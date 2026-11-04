@@ -574,6 +574,7 @@ export const AR: Record<string, string> = {
   "Reload to get the latest version of the app. If it happens again, tell us what you clicked.": "أعد التحميل للحصول على أحدث نسخة من التطبيق. إذا تكرر ذلك أخبرنا بما ضغطت عليه.",
   "Reload": "إعادة التحميل",
   "Version of {date}": "نسخة {date}",
+  "The server did not answer in time. Please try again in a moment.": "لم يرد الخادم في الوقت المحدد. حاول مرة أخرى بعد قليل.",
 };
 
 /**

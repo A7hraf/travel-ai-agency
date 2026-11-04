@@ -78,10 +78,14 @@ def overrides() -> dict[str, str]:
     """The values saved in the database (decrypted), cached briefly."""
     global _cache, _loaded_at
     with _lock:
-        if _cache is None or time.monotonic() - _loaded_at > CACHE_SECONDS:
-            _cache = _load()
-            _loaded_at = time.monotonic()
-        return _cache
+        if _cache is not None and time.monotonic() - _loaded_at <= CACHE_SECONDS:
+            return _cache
+    # Read outside the lock: a request waiting for a database connection must never hold it, or
+    # requests that already hold connections and need a setting would wait for each other forever.
+    fresh = _load()
+    with _lock:
+        _cache, _loaded_at = fresh, time.monotonic()
+    return fresh
 
 
 def invalidate() -> None:
