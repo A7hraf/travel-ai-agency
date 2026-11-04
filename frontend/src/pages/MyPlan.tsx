@@ -32,11 +32,11 @@ export default function MyPlan() {
     <div className="pl-page">
       {title}
 
-      <section className="ad-card pl-current">
+      <section className="gx-card pl-current">
         <div className="pl-current-head">
           <span className="pl-card-icon" aria-hidden="true"><Crown weight="duotone" /></span>
           <div className="pl-current-name">
-            <div className="ad-kicker">{t("Current plan")}</div>
+            <div className="gx-kicker">{t("Current plan")}</div>
             <h2 dir="auto">{planName(p, lang)}</h2>
           </div>
           <StateBadge state={data.state} />
@@ -54,18 +54,18 @@ export default function MyPlan() {
           <span>{t("To upgrade, renew or change your plan, contact the platform. Your data is always kept.")}</span></div>
       </section>
 
-      <section className="ad-card">
-        <h2 className="ad-card-title">{t("Limits and usage")}</h2>
+      <section className="gx-card">
+        <h2 className="gx-card-title">{t("Limits and usage")}</h2>
         <UsageMeters usage={data.usage} />
       </section>
 
-      <section className="ad-card">
-        <h2 className="ad-card-title">{t("What your plan includes")}</h2>
+      <section className="gx-card">
+        <h2 className="gx-card-title">{t("What your plan includes")}</h2>
         <PlanIncludes plan={p} />
       </section>
 
-      <section className="ad-card">
-        <h2 className="ad-card-title">{t("Payment history")}{data.payments_total > 0 && <span className="pl-sub">{t("Total")}: <Money value={data.payments_total} currency="OMR" /></span>}</h2>
+      <section className="gx-card">
+        <h2 className="gx-card-title">{t("Payment history")}{data.payments_total > 0 && <span className="pl-sub">{t("Total")}: <Money value={data.payments_total} currency="OMR" /></span>}</h2>
         <PaymentTable payments={data.payments} invoiceBase="/app/plan/invoices" />
       </section>
     </div>

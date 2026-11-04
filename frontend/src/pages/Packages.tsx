@@ -68,13 +68,13 @@ export default function Packages() {
         title={t("Packages")}
         subtitle={t("The AI only offers what is listed here, at these prices and dates.")}
         actions={manage && <button className="btn btn-primary" onClick={() => setEditing("new")}><Plus weight="bold" />{t("New package")}</button>} />
-      <div className="ad-toolbar">
-        <div className="ad-search">
+      <div className="gx-toolbar">
+        <div className="gx-search">
           <MagnifyingGlass aria-hidden="true" />
           <input type="search" placeholder={t("Filter packages")} aria-label={t("Filter packages")} value={filter} onChange={(e) => setFilter(e.target.value)} />
         </div>
       </div>
-      {notice && <div className="ok-box ad-notice" role="status">{notice}</div>}
+      {notice && <div className="ok-box gx-notice" role="status">{notice}</div>}
       {items !== null && loadError && <ErrorBox error={loadError} onRetry={load} />}
       {items === null && loadError ? (
         <ErrorBox error={loadError} onRetry={load} />
@@ -221,18 +221,18 @@ function PackageForm({ pkg, onClose, onSaved }: {
     <Modal title={pkg ? t("Edit {title}", { title: pkg.title }) : t("New package")} onClose={onClose} wide dirty={dirty}>
       <form onSubmit={save} className="pk-form">
         <div className="pk-form-section">
-          <div className="ad-grid-3">
+          <div className="gx-grid-3">
             <Field label={t("Title")}><input value={f.title} onChange={(e) => set("title", e.target.value)} required minLength={2} maxLength={200} dir="auto" /></Field>
             <Field label={t("Destination")} hint={t("City or region")}><input value={f.destination} onChange={(e) => set("destination", e.target.value)} required maxLength={120} dir="auto" /></Field>
             <Field label={t("Country")}><input value={f.country} onChange={(e) => set("country", e.target.value)} required maxLength={120} dir="auto" /></Field>
           </div>
-          <div className="ad-grid-4">
+          <div className="gx-grid-4">
             <Field label={t("Duration (days)")}><input type="number" min={1} max={365} step={1} value={f.duration_days} onChange={(e) => set("duration_days", e.target.value)} required /></Field>
             <Field label={t("Adult price")} hint={t("More than 0.")}><input type="number" min={0.001} step="0.001" value={f.price_per_person} onChange={(e) => set("price_per_person", e.target.value)} required dir="ltr" /></Field>
             <Field label={t("Child price")} hint={t("Empty = same as adult")}><input type="number" min={0} step="0.001" value={f.child_price} onChange={(e) => set("child_price", e.target.value)} dir="ltr" /></Field>
             <Field label={t("Currency")} hint={t("Empty = company currency")}><input maxLength={3} pattern="[A-Za-z]{3}" title={t("3 English letters, for example OMR")} dir="ltr" placeholder="OMR" value={f.currency} onChange={(e) => set("currency", e.target.value.toUpperCase())} /></Field>
           </div>
-          <div className="ad-grid-3">
+          <div className="gx-grid-3">
             <Field label={t("Seats per departure date")} hint={t("Each date has its own seats. Empty = unlimited")}><input type="number" min={0} step={1} value={f.seats_available} onChange={(e) => set("seats_available", e.target.value)} /></Field>
             <Field label={t("Hotel")}><input value={f.hotel_name} onChange={(e) => set("hotel_name", e.target.value)} dir="auto" /></Field>
             <Field label={t("Stars")}><input type="number" min={1} max={7} value={f.hotel_stars} onChange={(e) => set("hotel_stars", e.target.value)} /></Field>
@@ -271,7 +271,7 @@ function PackageForm({ pkg, onClose, onSaved }: {
             : t("Leave empty for flexible dates on request.")}</span>
         </div>
 
-        <div className="ad-grid-2">
+        <div className="gx-grid-2">
           <Field label={t("Included (one per line)")}><textarea rows={4} value={f.includes} onChange={(e) => set("includes", e.target.value)} dir="auto" /></Field>
           <Field label={t("Not included (one per line)")}><textarea rows={4} value={f.excludes} onChange={(e) => set("excludes", e.target.value)} dir="auto" /></Field>
         </div>

@@ -47,7 +47,7 @@ export default function ExportCsv({ className = "btn btn-ghost", initial = "tick
       {open && (
         <Modal title={t("Export CSV")} onClose={() => setOpen(false)}>
           <form onSubmit={submit}>
-            <p className="ad-card-note" style={{ marginTop: 0 }}>
+            <p className="gx-card-note" style={{ marginTop: 0 }}>
               {t("A file for Excel or Google Sheets. Dates are your local days; both days are included.")}
             </p>
             <div className="chips" role="group" aria-label={t("What to export")} style={{ marginBottom: 14 }}>
@@ -56,7 +56,7 @@ export default function ExportCsv({ className = "btn btn-ghost", initial = "tick
               <button type="button" className={`chip-btn ${what === "payments" ? "active" : ""}`} aria-pressed={what === "payments"}
                 onClick={() => setWhat("payments")}>{t("Payments")}</button>
             </div>
-            <div className="ad-grid-2">
+            <div className="gx-grid-2">
               <Field label={what === "payments" ? t("Paid from") : t("Created from")}>
                 <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} />
               </Field>
@@ -75,7 +75,7 @@ export default function ExportCsv({ className = "btn btn-ghost", initial = "tick
             )}
             {what === "payments" && <p className="bt-muted">{t("Paid and confirmed bookings, dated by the day they were marked as paid.")}</p>}
             <ErrorBox error={error} />
-            <div className="ad-form-actions">
+            <div className="gx-form-actions">
               <button className="btn btn-primary" disabled={busy}><DownloadSimple aria-hidden="true" />{busy ? t("Preparing…") : t("Download")}</button>
               <button type="button" className="btn btn-ghost" onClick={() => setOpen(false)}>{t("Cancel")}</button>
             </div>

@@ -24,7 +24,7 @@
 .ai-import-sum { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
 .ai-import-list { list-style: none; margin: 8px 0; padding: 0; max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
 .ai-import-list li { padding: 8px 12px; border-radius: 12px; background: var(--surface-2); font-size: 13.5px; line-height: 1.45; overflow-wrap: anywhere; }
-.ai-import-list li.bad { color: var(--warn-text); background: color-mix(in srgb, var(--st-waiting) 8%, transparent); }
+.ai-import-list li.bad { color: var(--warn-text); background: color-mix(in srgb, var(--st-waiting-tint) 8%, transparent); }
 .ai-import-list .ln { color: var(--text-faint); font-size: 12px; margin-inline-end: 8px; }
 
 /* Test chat */
@@ -45,7 +45,7 @@
 .ai-meta-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .ai-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; background: rgba(var(--fg-rgb), .07); color: var(--text); font-size: 12.5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ai-chip.brand { background: var(--brand-soft); color: var(--brand); }
-.ai-sim { padding: 8px 12px; border-radius: 12px; background: color-mix(in srgb, var(--st-waiting) 10%, transparent); color: var(--warn-text); font-size: 13px; }
+.ai-sim { padding: 8px 12px; border-radius: 12px; background: color-mix(in srgb, var(--st-waiting-tint) 10%, transparent); color: var(--warn-text); font-size: 13px; }
 .ai-teach { width: min(100%, 620px); padding: 14px; border-radius: 16px; background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--brand-line); }
 .ai-try-form { display: flex; gap: 8px; align-items: flex-end; padding-top: 12px; box-shadow: inset 0 1px 0 var(--line); }
 .ai-try-form textarea { flex: 1; min-height: 48px; max-height: 160px; resize: vertical; }

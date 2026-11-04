@@ -20,6 +20,12 @@ let currentLang: Lang = initialLang();
 export function tr(text: string, vars?: Record<string, string | number>): string {
   // "Active [company]": the bracket tells translators which word is meant and is never shown.
   let out = (currentLang === "ar" ? AR[text] : undefined) ?? text.replace(/ \[[^\]]+\]$/, "");
+  // Arabic counted nouns ("{n} chats"): singular, dual, 3–10 and 11+ each have their own form.
+  if (currentLang === "ar" && typeof vars?.n === "number" && AR_PLURALS[text]) {
+    const forms = AR_PLURALS[text];
+    const category = new Intl.PluralRules("ar").select(vars.n) as keyof typeof forms;
+    out = forms[category] ?? forms.other;
+  }
   if (vars) for (const [k, v] of Object.entries(vars)) out = out.split(`{${k}}`).join(String(v));
   return out;
 }

@@ -58,11 +58,11 @@ export default function SubscriptionPanel({ companyId, onChanged }: { companyId:
 
   return (
     <div className="pl-sub-panel">
-      <section className="ad-card pl-current">
+      <section className="gx-card pl-current">
         <div className="pl-current-head">
           <span className="pl-card-icon" aria-hidden="true"><Crown weight="duotone" /></span>
           <div className="pl-current-name">
-            <div className="ad-kicker">{t("Current plan")}</div>
+            <div className="gx-kicker">{t("Current plan")}</div>
             <h2 dir="auto">{planName(p, lang)}</h2>
           </div>
           <StateBadge state={sub.state} />
@@ -91,11 +91,11 @@ export default function SubscriptionPanel({ companyId, onChanged }: { companyId:
           )}
         </div>
         <ErrorBox error={error} />
-        {notice && <div className="ok-box ad-notice" role="status">{notice}</div>}
+        {notice && <div className="ok-box gx-notice" role="status">{notice}</div>}
       </section>
 
-      <section className="ad-card">
-        <h2 className="ad-card-title">{t("Usage")}</h2>
+      <section className="gx-card">
+        <h2 className="gx-card-title">{t("Usage")}</h2>
         <UsageMeters usage={sub.usage} />
       </section>
 
@@ -103,13 +103,13 @@ export default function SubscriptionPanel({ companyId, onChanged }: { companyId:
         sub={sub} plans={plans} busy={busy === "form"}
         onSave={(body) => act("form", () => patch(`${base}/subscription`, body))} />
 
-      <section className="ad-card">
-        <h2 className="ad-card-title">{t("What the plan includes")}</h2>
+      <section className="gx-card">
+        <h2 className="gx-card-title">{t("What the plan includes")}</h2>
         <PlanIncludes plan={p} />
       </section>
 
-      <section className="ad-card">
-        <h2 className="ad-card-title">{t("Payment history")}<span className="spacer" />
+      <section className="gx-card">
+        <h2 className="gx-card-title">{t("Payment history")}<span className="spacer" />
           <button type="button" className="btn btn-sm btn-soft" onClick={() => setSheet("payment")}><Receipt />{t("Record payment")}</button>
         </h2>
         <PaymentTable payments={payments} invoiceBase="/system/invoices" onDelete={setDeleting} busy={!!busy} />
@@ -187,9 +187,9 @@ function SubscriptionForm({ sub, plans, busy, onSave }: {
   };
 
   return (
-    <form className="ad-card" onSubmit={submit}>
-      <h2 className="ad-card-title">{t("Change plan and period")}</h2>
-      <div className="ad-grid-2">
+    <form className="gx-card" onSubmit={submit}>
+      <h2 className="gx-card-title">{t("Change plan and period")}</h2>
+      <div className="gx-grid-2">
         <Field label={t("Plan")}>
           <select value={f.plan_id} onChange={(e) => set("plan_id", e.target.value)}>
             {choices.map((x) => (
@@ -225,7 +225,7 @@ function SubscriptionForm({ sub, plans, busy, onSave }: {
       <Field label={t("Internal notes")} hint={t("Only you see these.")}>
         <textarea rows={2} value={f.notes} onChange={(e) => set("notes", e.target.value)} maxLength={4000} dir="auto" />
       </Field>
-      <div className="ad-form-actions"><button className="btn btn-primary" disabled={busy}>{busy ? t("Saving…") : t("Save")}</button></div>
+      <div className="gx-form-actions"><button className="btn btn-primary" disabled={busy}>{busy ? t("Saving…") : t("Save")}</button></div>
     </form>
   );
 }
@@ -259,7 +259,7 @@ function PaymentForm({ sub, base, onClose, onSaved }: { sub: Subscription; base:
   return (
     <Modal title={t("Record payment")} onClose={onClose} wide>
       <form onSubmit={submit}>
-        <div className="ad-grid-2">
+        <div className="gx-grid-2">
           <Field label={t("Amount (OMR)")}><input type="number" min={0.001} step="0.001" value={f.amount} onChange={(e) => set("amount", e.target.value)} required dir="ltr" /></Field>
           <Field label={t("Paid on")}><input type="date" value={f.paid_on} onChange={(e) => set("paid_on", e.target.value)} required /></Field>
           <Field label={t("Method")}>

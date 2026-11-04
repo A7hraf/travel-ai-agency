@@ -84,18 +84,18 @@ export default function CompanyDetail() {
   return (
     <div className="cd">
       <Link to="/system" className="cd-back"><ArrowLeft className="flip" />{t("All companies")}</Link>
-      <header className="ad-head cd-head">
+      <header className="gx-head cd-head">
         <span className="co-avatar big" style={{ ["--h" as string]: hueOf(c.slug) }} aria-hidden="true">{initials(c.name)}</span>
-        <div className="ad-head-text">
-          <div className="ad-kicker">{t("Platform console")}</div>
-          <h1 className="ad-title" dir="auto">{c.name}</h1>
-          <p className="ad-sub cd-meta">
-            {active ? <span className="ad-status on">{t("Active [company]")}</span> : <span className="ad-status bad">{t("Suspended")}</span>}
+        <div className="gx-head-text">
+          <div className="gx-kicker">{t("Platform console")}</div>
+          <h1 className="gx-title" dir="auto">{c.name}</h1>
+          <p className="gx-sub cd-meta">
+            {active ? <span className="gx-status on">{t("Active [company]")}</span> : <span className="gx-status bad">{t("Suspended")}</span>}
             <a href={`/c/${c.slug}`} target="_blank" rel="noreferrer"><bdi dir="ltr">/c/{c.slug}</bdi> <ArrowSquareOut /></a>
             <span>{t("Created")} {shortDate(c.created_at)}</span>
           </p>
         </div>
-        <div className="ad-actions">
+        <div className="gx-actions">
           {active
             ? <button className="btn btn-danger" disabled={!!busy} onClick={() => setSheet("suspend")}><Pause weight="fill" />{busy === "status" ? t("Please wait…") : t("Suspend company")}</button>
             : <button className="btn btn-primary" disabled={!!busy} onClick={() => update("status", { status: "active" })}><Play weight="fill" />{busy === "status" ? t("Please wait…") : t("Reactivate")}</button>}
@@ -126,15 +126,15 @@ export default function CompanyDetail() {
         <BrandingEditor owner loadPath={`/api/system/companies/${c.id}/branding`} name={c.name}
           uploadPath={`/api/system/companies/${c.id}/media`} slug={c.slug} />
       ) : (<>
-        <form className="ad-card" onSubmit={(e: FormEvent) => { e.preventDefault(); update("plan", { name }); }}>
-          <h2 className="ad-card-title">{t("Company")}</h2>
-          <p className="ad-card-note">{t("{a} of {b} accounts used", { a: c.user_count, b: c.max_users })}</p>
+        <form className="gx-card" onSubmit={(e: FormEvent) => { e.preventDefault(); update("plan", { name }); }}>
+          <h2 className="gx-card-title">{t("Company")}</h2>
+          <p className="gx-card-note">{t("{a} of {b} accounts used", { a: c.user_count, b: c.max_users })}</p>
           <div className="pl-name-row">
             <Field label={t("Company name")}><input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={200} dir="auto" /></Field>
             <button className="btn btn-primary" disabled={!!busy}>{busy === "plan" ? t("Saving…") : t("Save")}</button>
           </div>
           <ErrorBox error={error} />
-          {saved && <div className="ok-box ad-notice" role="status">{t("Saved.")}</div>}
+          {saved && <div className="ok-box gx-notice" role="status">{t("Saved.")}</div>}
         </form>
 
         <SubscriptionPanel companyId={c.id} onChanged={() => {
@@ -149,8 +149,8 @@ export default function CompanyDetail() {
             onChanged={() => { get<CompanyAdmin>(`/api/system/companies/${id}`).then(setC).catch(() => {}); }} />
         </section>
 
-        <section className="ad-card cd-danger">
-          <h2 className="ad-card-title"><span className="ad-card-icon danger"><WarningOctagon /></span>{t("Danger zone")}</h2>
+        <section className="gx-card cd-danger">
+          <h2 className="gx-card-title"><span className="gx-card-icon danger"><WarningOctagon /></span>{t("Danger zone")}</h2>
           <div className="cd-danger-row">
             <div>
               <strong>{t("Delete permanently")}</strong>

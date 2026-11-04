@@ -14,7 +14,7 @@
 img.brand-logo { object-fit: contain; border-radius: 10px; }
 .side-brand-text { line-height: 1.2; min-width: 0; }
 .side-agency { font-weight: 600; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.side-sub { font-size: 11px; color: color-mix(in srgb, var(--sidebar-text) 55%, transparent); }
+.side-sub { font-size: 11px; color: color-mix(in srgb, var(--sidebar-text) 66%, transparent); }
 .side-nav { display: flex; flex-direction: column; gap: 2px; margin-top: 30px; }
 .side-link { display: flex; align-items: center; gap: 12px; min-height: 42px; padding: 0 12px; border-radius: 12px; font-size: 14px;
   color: color-mix(in srgb, var(--sidebar-text) 70%, transparent); text-decoration: none !important; transition: background .15s, color .15s; }
@@ -34,7 +34,7 @@ img.brand-logo { object-fit: contain; border-radius: 10px; }
 .side-avatar.big { width: 44px; height: 44px; font-size: 18px; box-shadow: 0 0 22px var(--accent-glow); }
 .side-user-text { line-height: 1.2; min-width: 0; }
 .side-user-name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.side-user-role { font-size: 11px; color: color-mix(in srgb, var(--sidebar-text) 55%, transparent); }
+.side-user-role { font-size: 11px; color: color-mix(in srgb, var(--sidebar-text) 66%, transparent); }
 .side-actions { display: flex; gap: 4px; padding: 0 4px; }
 .side-act { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px; border: 0; border-radius: 999px; background: transparent;
   color: color-mix(in srgb, var(--sidebar-text) 65%, transparent); font: inherit; font-size: 12px; cursor: pointer; }
@@ -126,8 +126,8 @@ img.brand-logo { object-fit: contain; border-radius: 10px; }
 .cv-row { display: flex; gap: 12px; padding: 14px 12px; margin-bottom: 4px; border-radius: 20px; color: var(--text); text-decoration: none !important;
   transition: background .2s; animation: gjIn .4s ease-out both; }
 .cv-row:hover { background: rgba(var(--fg-rgb), .07); color: var(--text); }
-.cv-row.needs { background: color-mix(in srgb, var(--st-waiting) 7%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--st-waiting) 25%, transparent); }
-.cv-row.needs:hover { background: color-mix(in srgb, var(--st-waiting) 11%, transparent); }
+.cv-row.needs { background: color-mix(in srgb, var(--st-waiting-tint) 7%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--st-waiting-tint) 25%, transparent); }
+.cv-row.needs:hover { background: color-mix(in srgb, var(--st-waiting-tint) 11%, transparent); }
 .cv-row.selected { background: var(--brand-soft); box-shadow: inset 0 0 0 1px var(--brand-line); }
 .cv-avatar { width: 44px; height: 44px; border-radius: 50%; background: rgba(var(--fg-rgb), .08); display: grid; place-items: center; font-weight: 600; font-size: 14px;
   flex: none; color: var(--text); }
@@ -156,7 +156,7 @@ img.brand-logo { object-fit: contain; border-radius: 10px; }
 .ref-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--brand); text-decoration: none !important; }
 .ref-chip:hover { color: var(--brand-hover); }
 .chat-sub, .chat-reason { font-size: 12px; color: var(--text-faint); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.chat-reason { color: color-mix(in srgb, var(--st-waiting) 85%, transparent); }
+.chat-reason { color: color-mix(in srgb, var(--st-waiting-tint) 85%, transparent); }
 .tool-btn { flex: none; font-size: 1.1rem; }
 .tool-btn.on { background: var(--brand-soft); color: var(--brand); }
 
@@ -209,7 +209,7 @@ img.brand-logo { object-fit: contain; border-radius: 10px; }
 .canned-chip { flex: none; min-height: 34px; padding: 0 12px; border-radius: 999px; border: 0; background: var(--brand-soft); color: var(--brand); font: inherit; font-size: 13px;
   cursor: pointer; white-space: nowrap; }
 .canned-chip:hover { background: var(--brand); color: var(--on-brand); }
-.window-box { padding: 14px; border-radius: 18px; background: color-mix(in srgb, var(--st-waiting) 10%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--st-waiting) 35%, transparent); font-size: 14px; line-height: 1.45; }
+.window-box { padding: 14px; border-radius: 18px; background: color-mix(in srgb, var(--st-waiting-tint) 10%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--st-waiting-tint) 35%, transparent); font-size: 14px; line-height: 1.45; }
 .window-title { font-weight: 600; color: var(--st-waiting); display: flex; align-items: center; gap: 6px; }
 .window-text { color: var(--text-muted); margin-top: 4px; }
 .window-call { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; color: var(--st-waiting); font-weight: 600; min-height: 32px; }

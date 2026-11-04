@@ -63,8 +63,8 @@ export default function Plans() {
           <h3 dir="auto">{planName(p, lang)}</h3>
           <div className="pl-card-alt" dir="auto">{lang === "ar" ? p.name : p.name_ar}</div>
         </div>
-        {p.is_default && <span className="ad-status cyan"><Star weight="fill" />{t("Default for new companies")}</span>}
-        {p.is_archived && <span className="ad-status off">{t("Archived")}</span>}
+        {p.is_default && <span className="gx-status cyan"><Star weight="fill" />{t("Default for new companies")}</span>}
+        {p.is_archived && <span className="gx-status off">{t("Archived")}</span>}
       </header>
       <div className="pl-prices">
         <div><span className="pl-price"><Money value={p.price_monthly} currency="OMR" /></span><span className="pl-per">{t("/ month")}</span></div>
@@ -100,9 +100,9 @@ export default function Plans() {
         <div className="pl-grid">{active.map(card)}</div>
       )}
 
-      <form className="ad-card pl-grace" onSubmit={saveGrace}>
-        <h2 className="ad-card-title">{t("Grace period")}</h2>
-        <p className="ad-card-note">{t("After a paid period ends, the AI and the customer page keep working for this many days. Then they pause until the company renews, and staff see a renewal banner. Nothing is deleted.")}</p>
+      <form className="gx-card pl-grace" onSubmit={saveGrace}>
+        <h2 className="gx-card-title">{t("Grace period")}</h2>
+        <p className="gx-card-note">{t("After a paid period ends, the AI and the customer page keep working for this many days. Then they pause until the company renews, and staff see a renewal banner. Nothing is deleted.")}</p>
         <div className="pl-grace-row">
           <Field label={t("Days")}>
             <input type="number" min={0} max={90} value={grace} onChange={(e) => { setGrace(e.target.value); setGraceSaved(false); }} required />
@@ -110,7 +110,7 @@ export default function Plans() {
           <button className="btn btn-primary" disabled={!overview}>{t("Save")}</button>
         </div>
         <ErrorBox error={graceError} />
-        {graceSaved && <div className="ok-box ad-notice" role="status">{t("Saved.")}</div>}
+        {graceSaved && <div className="ok-box gx-notice" role="status">{t("Saved.")}</div>}
       </form>
 
       {archived.length > 0 && (<>
@@ -172,7 +172,7 @@ function PlanForm({ plan, onClose, onSaved }: { plan: Plan | null; onClose: () =
   return (
     <Modal title={plan ? t("Edit plan") : t("New plan")} onClose={onClose} wide dirty={dirty}>
       <form onSubmit={submit} className="pl-form">
-        <div className="ad-grid-2">
+        <div className="gx-grid-2">
           <Field label={t("Name (English)")}><input value={f.name} onChange={(e) => set("name", e.target.value)} required maxLength={100} dir="ltr" /></Field>
           <Field label={t("Name (Arabic)")}><input value={f.name_ar} onChange={(e) => set("name_ar", e.target.value)} maxLength={100} dir="rtl" /></Field>
           <Field label={t("Monthly price (OMR)")} hint={t("Up to 3 decimals (baisa).")}>
@@ -206,7 +206,7 @@ function PlanForm({ plan, onClose, onSaved }: { plan: Plan | null; onClose: () =
             label={t("Default for new companies")} hint={plan?.is_default ? t("Make another plan the default to change this.") : undefined} />
         </div>
         <h3 className="co-form-h">{t("Shown to companies")}</h3>
-        <div className="ad-grid-2">
+        <div className="gx-grid-2">
           <Field label={t("Description (English)")}><textarea rows={3} value={f.description} onChange={(e) => set("description", e.target.value)} maxLength={2000} dir="ltr" /></Field>
           <Field label={t("Description (Arabic)")}><textarea rows={3} value={f.description_ar} onChange={(e) => set("description_ar", e.target.value)} maxLength={2000} dir="rtl" /></Field>
           <Field label={t("Features (English)")} hint={t("One per line.")}><textarea rows={5} value={f.features} onChange={(e) => set("features", e.target.value)} dir="ltr" /></Field>

@@ -2,7 +2,7 @@ import { ComponentType, lazy as reactLazy, ReactNode, Suspense, useEffect } from
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { homePath, useAuth } from "./auth";
-import { useI18n } from "./lang";
+import { ErrorBox, Loading as LoadingState } from "./components/ui";
 /** The staff pages' code, fetched in the background once someone is signed in, so moving between pages
  *  never waits for a slow (sleeping) server to send a page's script. */
 const PRELOAD: (() => Promise<unknown>)[] = [];
@@ -52,11 +52,22 @@ function lazy<T extends ComponentType<any>>(load: () => Promise<{ default: T }>,
   }));
 }
 
+/** Full-screen wait for the session check (a sleeping server can take up to a minute). */
+function SessionWait() {
+  const { loading, loadError, retry } = useAuth();
+  return (
+    <div className="loading-screen">
+      <div style={{ width: "min(460px, 100%)" }}>
+        {loading || !loadError ? <LoadingState height={0} /> : <ErrorBox error={loadError} onRetry={retry} />}
+      </div>
+    </div>
+  );
+}
+
 function RequireUser({ system, permission, children }: { system?: boolean; permission?: string; children: ReactNode }) {
-  const { user, loading, can, sessionEnded } = useAuth();
-  const { t } = useI18n();
+  const { user, loading, can, sessionEnded, loadError } = useAuth();
   const location = useLocation();
-  if (loading) return <div className="loading-screen">{t("Loading…")}</div>;
+  if (loading || (!user && loadError)) return <SessionWait />;
   // After signing in again the person comes back to the page they were on.
   if (!user) return <Navigate to="/login" replace state={{ from: location.pathname + location.search, expired: sessionEnded }} />;
   const isSystem = user.role === "system_admin";
@@ -66,16 +77,14 @@ function RequireUser({ system, permission, children }: { system?: boolean; permi
 }
 
 function Home() {
-  const { user, loading } = useAuth();
-  const { t } = useI18n();
-  if (loading) return <div className="loading-screen">{t("Loading…")}</div>;
+  const { user, loading, loadError } = useAuth();
+  if (loading || (!user && loadError)) return <SessionWait />;
   return <Navigate to={user ? homePath(user) : "/login"} replace />;
 }
 
 /** Each area loads its own code, so a traveller opening /c/<slug> does not download the staff app. */
 function Loading() {
-  const { t } = useI18n();
-  return <div className="loading-screen">{t("Loading…")}</div>;
+  return <div className="loading-screen"><div style={{ width: "min(460px, 100%)" }}><LoadingState height={0} /></div></div>;
 }
 
 export default function App() {

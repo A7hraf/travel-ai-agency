@@ -70,7 +70,7 @@ export default function ActivityLog({ path }: { path: string }) {
   useEffect(load, [path, days, area, person]);
 
   return (
-    <section className="ad-card">
+    <section className="gx-card">
       <div className="bt-toolbar">
         <div className="chips" role="group" aria-label={t("Period")}>
           {PERIODS.map((d) => (
@@ -114,7 +114,7 @@ export default function ActivityLog({ path }: { path: string }) {
         </ul>
       )}
       {page?.has_more && (
-        <div className="ad-form-actions">
+        <div className="gx-form-actions">
           <button type="button" className="btn btn-ghost" disabled={loading} onClick={more}>{loading ? t("Loading…") : t("Show older")}</button>
         </div>
       )}

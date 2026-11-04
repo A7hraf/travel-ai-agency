@@ -66,10 +66,10 @@ export function forDark(hex: string, min = 6): string {
   return out;
 }
 
-/** Light theme: an agency colour is darkened until text in it reads on the paper page and white cards
- *  (contrast of at least 4.5:1 with Paper #f3f2f2, so also with white). Ghanjah cyan #0088b0 is 3.7:1 on
- *  Paper and becomes #007496 (4.8:1); Ghanjah magenta #d6006c already passes (4.6:1). */
-export function forLight(hex: string, min = 4.5): string {
+/** Light theme: an agency colour is darkened until text in it reads on the paper page, white cards and its
+ *  own soft tint (contrast of at least 5.2:1 with Paper #f3f2f2, so 4.5:1 is kept on a 10% tint).
+ *  Ghanjah cyan #0088b0 is only 3.7:1 on Paper (4.1:1 on white) and becomes #006684 (5.8:1). */
+export function forLight(hex: string, min = 5.2): string {
   let out = hex;
   for (let step = 1; contrast(out, GHANJAH.paper) < min && step <= 16; step++) out = shade(hex, -step * 0.05);
   return out;
@@ -87,7 +87,7 @@ function actionVars(name: "brand" | "agency-accent", base: string, theme: Theme 
   return {
     [`--${name}`]: base,
     [`--${name}-hover`]: light ? shade(base, -0.18) : shade(base, 0.45),
-    [`--${name}-soft`]: rgba(base, light ? 0.1 : 0.14),
+    [`--${name}-soft`]: rgba(base, light ? 0.08 : 0.14),
     [`--${name}-glow`]: rgba(base, light ? 0.2 : 0.42),
     [`--${name}-line`]: rgba(base, 0.3),
     [`--on-${name}`]: textOn(base),
@@ -112,7 +112,7 @@ export function dashboardVars(primary?: string, sidebar?: string, theme: Theme =
     "--bg-sidebar": s,
     "--sidebar-text": textOn(s),
     "--side-brand": sideBrand,
-    "--side-brand-soft": rgba(sideBrand, isDark(s) ? 0.14 : 0.1),
+    "--side-brand-soft": rgba(sideBrand, isDark(s) ? 0.14 : 0.08),
     "--side-on-brand": textOn(sideBrand),
   };
 }

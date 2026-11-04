@@ -72,11 +72,11 @@ export function UserManager({ basePath, listPath, createPath, onChanged }: {
                 <bdi dir="ltr" className="tm-email">{u.email}</bdi>
               </div>
               <div className="tm-role">
-                <span className="ad-status cyan plain">{t(ROLE_LABELS[u.role])}</span>
+                <span className="gx-status cyan plain">{t(ROLE_LABELS[u.role])}</span>
                 <span className="tm-perms">{u.role === "company_admin" ? t("All permissions") : t("{n} permissions", { n: u.permissions.length })}</span>
               </div>
               <div className="tm-state">
-                {u.is_active ? <span className="ad-status on">{t("Active")}</span> : <span className="ad-status off">{t("Disabled")}</span>}
+                {u.is_active ? <span className="gx-status on">{t("Active")}</span> : <span className="gx-status off">{t("Disabled")}</span>}
                 <span className="tm-login">{t("Last login")}: {dateTime(u.last_login_at)}</span>
               </div>
               <div className="tm-action">

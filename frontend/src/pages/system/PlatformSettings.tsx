@@ -110,8 +110,8 @@ export default function PlatformSettings() {
 
   const pageTitle = <PageTitle kicker={t("Platform console")} title={t("Platform settings")}
     subtitle={t("The AI brain and the shared WhatsApp connection used by every company.")} />;
-  if (loadError) return <div className="narrow ad-narrow">{pageTitle}<ErrorBox error={t("The platform settings could not be loaded: {error}", { error: loadError })} onRetry={loadSettings} /></div>;
-  if (!data) return <div className="narrow ad-narrow">{pageTitle}<Loading height={320} /></div>;
+  if (loadError) return <div className="narrow gx-narrow">{pageTitle}<ErrorBox error={t("The platform settings could not be loaded: {error}", { error: loadError })} onRetry={loadSettings} /></div>;
+  if (!data) return <div className="narrow gx-narrow">{pageTitle}<Loading height={320} /></div>;
 
   const A = data.ai;
   const W = data.whatsapp;
@@ -214,14 +214,14 @@ export default function PlatformSettings() {
   const aiChange = lastChange(A);
   const waChange = lastChange(W);
   const changedLine = (s: PlatformSettingValue | null) => s && (
-    <p className="ad-card-note">{t("Last changed {date} by {who}", { date: dateTime(s.updated_at), who: s.updated_by ?? "—" })}</p>
+    <p className="gx-card-note">{t("Last changed {date} by {who}", { date: dateTime(s.updated_at), who: s.updated_by ?? "—" })}</p>
   );
   const placeholder = (s: PlatformSettingValue | undefined) => (s && !s.saved && s.env_set ? String(s.env_value) : "");
   const secretPlaceholder = (s: PlatformSettingValue | undefined) =>
     s?.saved ? `•••••••• (${t("saved")})` : s?.env_set ? `•••••••• (${t("from Render")})` : "";
 
   return (
-    <div className="narrow ad-narrow">
+    <div className="narrow gx-narrow">
       {pageTitle}
 
       <div className="info-box small" style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
@@ -230,13 +230,13 @@ export default function PlatformSettings() {
       </div>
 
       {/* --- AI brain --- */}
-      <form className={`ad-card ai-card ${tone}`} onSubmit={saveAI}>
-        <h2 className="ad-card-title"><span className="ad-card-icon"><Brain /></span>{t("AI brain")}<span className="spacer" />
-          {provider === "mock" ? <span className="ad-status warn">{t("Demo mode")}</span>
-            : A.llm_api_key?.effective_set || preset === "ollama" ? <span className="ad-status on">{t("Configured")}</span>
-            : <span className="ad-status off">{t("API key missing")}</span>}
+      <form className={`gx-card ai-card ${tone}`} onSubmit={saveAI}>
+        <h2 className="gx-card-title"><span className="gx-card-icon"><Brain /></span>{t("AI brain")}<span className="spacer" />
+          {provider === "mock" ? <span className="gx-status warn">{t("Demo mode")}</span>
+            : A.llm_api_key?.effective_set || preset === "ollama" ? <span className="gx-status on">{t("Configured")}</span>
+            : <span className="gx-status off">{t("API key missing")}</span>}
         </h2>
-        <p className="ad-card-note">{t("The AI model that answers customers for every company. Choose your provider, paste the API key, then press Test AI.")}</p>
+        <p className="gx-card-note">{t("The AI model that answers customers for every company. Choose your provider, paste the API key, then press Test AI.")}</p>
         {changedLine(aiChange)}
 
         <div className="field">
@@ -251,7 +251,7 @@ export default function PlatformSettings() {
           <div className="info-box small">{t("Demo mode: a simple built-in helper lists your packages. No real AI is used. Choose a provider above to connect a real AI.")}</div>
         ) : (
           <>
-            <div className="ad-grid-2">
+            <div className="gx-grid-2">
               <Field label={t("Server address (base URL)")} hint={hint(A.llm_base_url, preset === "groq" ? t("Groq: {url}", { url: GROQ_URL }) : undefined)}>
                 <input dir="ltr" maxLength={500} value={ai.llm_base_url} placeholder={placeholder(A.llm_base_url)} onChange={(e) => setAiField("llm_base_url", e.target.value)} />
               </Field>
@@ -296,8 +296,8 @@ export default function PlatformSettings() {
           )}
         </div>
         <ErrorBox error={aiError} />
-        {aiSaved && <div className="ok-box ad-notice" role="status">{t("AI settings saved. They apply to the next customer message.")}</div>}
-        <div className="ad-form-actions" style={{ flexWrap: "wrap" }}>
+        {aiSaved && <div className="ok-box gx-notice" role="status">{t("AI settings saved. They apply to the next customer message.")}</div>}
+        <div className="gx-form-actions" style={{ flexWrap: "wrap" }}>
           <button className="btn btn-primary" disabled={aiBusy}>{aiBusy ? t("Saving…") : t("Save AI settings")}</button>
           <button type="button" className="btn" onClick={testAI} disabled={testing} aria-busy={testing}>
             {testing ? <><span className="login-spin" aria-hidden="true" />{t("Testing…")}</> : <><Lightning weight="fill" />{t("Test AI")}</>}
@@ -309,11 +309,11 @@ export default function PlatformSettings() {
       </form>
 
       {/* --- WhatsApp (platform app) --- */}
-      <form className="ad-card" onSubmit={submitWA}>
-        <h2 className="ad-card-title"><span className="ad-card-icon wa"><WhatsappLogo weight="fill" /></span>{t("WhatsApp (platform app)")}<span className="spacer" />
-          {waReady ? <span className="ad-status on">{t("Ready to receive")}</span> : <span className="ad-status off">{t("App secret missing")}</span>}
+      <form className="gx-card" onSubmit={submitWA}>
+        <h2 className="gx-card-title"><span className="gx-card-icon wa"><WhatsappLogo weight="fill" /></span>{t("WhatsApp (platform app)")}<span className="spacer" />
+          {waReady ? <span className="gx-status on">{t("Ready to receive")}</span> : <span className="gx-status off">{t("App secret missing")}</span>}
         </h2>
-        <p className="ad-card-note">{t("Your own Meta app, shared with the companies: you add each company's WhatsApp number to it, and messages reach the right company automatically. Companies that use their own Meta app do not need this.")}</p>
+        <p className="gx-card-note">{t("Your own Meta app, shared with the companies: you add each company's WhatsApp number to it, and messages reach the right company automatically. Companies that use their own Meta app do not need this.")}</p>
         {changedLine(waChange)}
 
         <div className="info-box small wa-steps">
@@ -330,7 +330,7 @@ export default function PlatformSettings() {
           {!waReady && <div><strong>{t("Until the app secret is saved, WhatsApp messages sent to this address are refused.")}</strong></div>}
         </div>
 
-        <div className="ad-grid-2">
+        <div className="gx-grid-2">
           <Field label={t("App secret")} hint={hint(W.whatsapp_app_secret)}>
             <input type="password" dir="ltr" autoComplete="new-password" maxLength={500} value={appSecret} placeholder={secretPlaceholder(W.whatsapp_app_secret)}
               onChange={(e) => { setAppSecret(e.target.value); setWaSaved(null); }} />
@@ -348,8 +348,8 @@ export default function PlatformSettings() {
           hint={tokenReady ? t("Off: every company must save its own token on its AI & WhatsApp page.") : t("No shared access token is set yet.")} />
 
         <ErrorBox error={waError} />
-        {waSaved && <div className="ok-box ad-notice" role="status">{waSaved}</div>}
-        <div className="ad-form-actions" style={{ flexWrap: "wrap" }}>
+        {waSaved && <div className="ok-box gx-notice" role="status">{waSaved}</div>}
+        <div className="gx-form-actions" style={{ flexWrap: "wrap" }}>
           <button className="btn btn-primary" disabled={waBusy}>{waBusy ? t("Saving…") : t("Save WhatsApp settings")}</button>
           {W.whatsapp_app_secret?.saved && (
             <button type="button" className="btn btn-ghost" disabled={waBusy} onClick={() => setConfirm("whatsapp_app_secret")}>{t("Remove app secret")}</button>
@@ -361,8 +361,8 @@ export default function PlatformSettings() {
       </form>
 
       {/* --- Read-only info --- */}
-      <section className="ad-card">
-        <h2 className="ad-card-title"><span className="ad-card-icon"><Key /></span>{t("About this platform")}</h2>
+      <section className="gx-card">
+        <h2 className="gx-card-title"><span className="gx-card-icon"><Key /></span>{t("About this platform")}</h2>
         <dl className="acc-details" style={{ marginTop: 4 }}>
           <div><dt>{t("Version")}</dt><dd dir="ltr" style={{ textAlign: "start" }}>{data.info.version || "—"}{data.info.commit ? ` · ${data.info.commit}` : ""}</dd></div>
           <div><dt>{t("Database")}</dt><dd>{data.info.database}{data.info.database === "SQLite" && data.info.environment === "production" ? ` · ${t("data is lost when the server restarts on hosts without a disk")}` : ""}</dd></div>

@@ -35,13 +35,13 @@ export function PageTitle({ kicker, title, subtitle, actions, live }: {
   live?: boolean;
 }) {
   return (
-    <header className="ad-head">
-      <div className="ad-head-text">
-        {kicker && <div className={`ad-kicker ${live ? "live" : ""}`}>{kicker}</div>}
-        <h1 className="ad-title">{title}</h1>
-        {subtitle && <p className="ad-sub">{subtitle}</p>}
+    <header className="gx-head">
+      <div className="gx-head-text">
+        {kicker && <div className={`gx-kicker ${live ? "live" : ""}`}>{kicker}</div>}
+        <h1 className="gx-title">{title}</h1>
+        {subtitle && <p className="gx-sub">{subtitle}</p>}
       </div>
-      {actions && <div className="ad-actions">{actions}</div>}
+      {actions && <div className="gx-actions">{actions}</div>}
     </header>
   );
 }
@@ -55,10 +55,10 @@ export function Switch({ checked, onChange, label, hint, disabled }: {
   disabled?: boolean;
 }) {
   return (
-    <label className={`ad-switch ${disabled ? "disabled" : ""}`}>
+    <label className={`gx-switch ${disabled ? "disabled" : ""}`}>
       <input type="checkbox" role="switch" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
-      <span className="ad-switch-track" aria-hidden="true"><span /></span>
-      <span className="ad-switch-text">
+      <span className="gx-switch-track" aria-hidden="true"><span /></span>
+      <span className="gx-switch-text">
         <span>{label}</span>
         {hint && <small>{hint}</small>}
       </span>
@@ -88,7 +88,7 @@ export function ConfirmSheet({ title, text, confirmLabel, tone = "primary", busy
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     const el = box.current;
-    const first = el?.querySelector<HTMLElement>("input:not([disabled])") ?? el?.querySelector<HTMLElement>(".ad-sheet-actions .btn");
+    const first = el?.querySelector<HTMLElement>("input:not([disabled])") ?? el?.querySelector<HTMLElement>(".gx-sheet-actions .btn");
     first?.focus({ preventScroll: true });
     const onKey = (e: KeyboardEvent) => {
       if (!el) return;
@@ -117,13 +117,13 @@ export function ConfirmSheet({ title, text, confirmLabel, tone = "primary", busy
   }, []);
 
   return createPortal(
-    <div className="ad-sheet-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onCancel(); }}>
-      <div ref={box} className="ad-sheet" role="alertdialog" aria-modal="true" aria-labelledby={titleId}>
+    <div className="gx-sheet-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onCancel(); }}>
+      <div ref={box} className="gx-sheet" role="alertdialog" aria-modal="true" aria-labelledby={titleId}>
         <div className="sheet-grip" aria-hidden="true" />
         <h2 id={titleId}>{title}</h2>
-        {text && <p className="ad-sheet-text">{text}</p>}
+        {text && <p className="gx-sheet-text">{text}</p>}
         {children}
-        <div className="ad-sheet-actions">
+        <div className="gx-sheet-actions">
           <button type="button" className="btn btn-ghost" onClick={onCancel} disabled={busy}>{t("Cancel")}</button>
           <button type="button" className={`btn ${tone === "danger" ? "btn-danger" : tone === "accent" ? "btn-accent" : "btn-primary"}`}
             onClick={onConfirm} disabled={busy || confirmDisabled}>{confirmLabel}</button>

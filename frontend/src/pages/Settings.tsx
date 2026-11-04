@@ -30,11 +30,11 @@ export default function Settings() {
   const title = <PageTitle kicker={t("Agency workspace")} title={t("AI & channels")} subtitle={t("One AI brain, your own persona and knowledge, on your page, WhatsApp and Instagram.")} />;
   // The AI check and the channel cards load on their own: they never wait for the company settings.
   if (!s) return (
-    <div className="narrow ad-narrow">
+    <div className="narrow gx-narrow">
       {title}
       <AICheckCard path="/api/company/ai-check" />
-      <section className="ad-card">
-        <h2 className="ad-card-title"><span className="ad-card-icon"><Robot /></span>{t("AI travel consultant")}</h2>
+      <section className="gx-card">
+        <h2 className="gx-card-title"><span className="gx-card-icon"><Robot /></span>{t("AI travel consultant")}</h2>
         {loadError ? <ErrorBox error={loadError} onRetry={load} /> : <Loading height={120} />}
       </section>
       <WhatsAppConnect variant="company" base="/api/company/whatsapp" />
@@ -70,20 +70,20 @@ export default function Settings() {
   const storefront = `${window.location.origin}/c/${s.slug}`;
 
   return (
-    <div className="narrow ad-narrow">
+    <div className="narrow gx-narrow">
       {title}
 
       <AICheckCard path="/api/company/ai-check" />
 
-      <section className="ad-card">
-        <h2 className="ad-card-title"><span className="ad-card-icon"><Robot /></span>{t("AI travel consultant")}</h2>
-        <p className="ad-card-note">{t("{name} answers your customers on your page, on WhatsApp and on Instagram. Its knowledge, personality, welcome messages and trained answers are all in AI training, with a test chat to try it.", { name: s.ai_agent_name })}</p>
-        <div className="ad-grid-2">
+      <section className="gx-card">
+        <h2 className="gx-card-title"><span className="gx-card-icon"><Robot /></span>{t("AI travel consultant")}</h2>
+        <p className="gx-card-note">{t("{name} answers your customers on your page, on WhatsApp and on Instagram. Its knowledge, personality, welcome messages and trained answers are all in AI training, with a test chat to try it.", { name: s.ai_agent_name })}</p>
+        <div className="gx-grid-2">
           <Field label={t("Your customer page (share this link)")}>
             <a href={storefront} target="_blank" rel="noreferrer" className="link-box" dir="ltr">{storefront} <ArrowSquareOut /></a>
           </Field>
         </div>
-        <div className="ad-form-actions">
+        <div className="gx-form-actions">
           <Link to="/app/training" className="btn btn-primary"><GraduationCap />{t("Train your AI")}</Link>
           <Link to="/app/training?tab=knowledge" className="btn btn-ghost">{t("Company knowledge")}</Link>
           <Link to="/app/training?tab=try" className="btn btn-ghost"><Sparkle weight="fill" />{t("Try your AI")}</Link>
@@ -94,18 +94,18 @@ export default function Settings() {
 
       <InstagramConnect variant="company" base="/api/company/instagram" />
 
-      <form className="ad-card" onSubmit={(e: FormEvent) => { e.preventDefault(); save("company", {
+      <form className="gx-card" onSubmit={(e: FormEvent) => { e.preventDefault(); save("company", {
         currency: s.currency, contact_email: s.contact_email || null, contact_phone: s.contact_phone ?? "" }); }}>
-        <h2 className="ad-card-title"><span className="ad-card-icon"><Buildings /></span>{t("Company")}</h2>
-        <div className="ad-grid-2">
+        <h2 className="gx-card-title"><span className="gx-card-icon"><Buildings /></span>{t("Company")}</h2>
+        <div className="gx-grid-2">
           <Field label={t("Default currency")} hint={t("OMR = Omani rial (3 decimals).")}><input maxLength={3} pattern="[A-Za-z]{3}" title={t("3 English letters, for example OMR")} dir="ltr" value={s.currency} onChange={(e) => set("currency", e.target.value.toUpperCase())} required /></Field>
           <Field label={t("Contact email")}><input type="email" dir="ltr" value={s.contact_email ?? ""} onChange={(e) => set("contact_email", e.target.value)} /></Field>
           <Field label={t("Contact phone")}><input dir="ltr" maxLength={50} value={s.contact_phone ?? ""} onChange={(e) => set("contact_phone", e.target.value)} /></Field>
           <Field label={t("Account limit")}><input value={t("{n} accounts (set by the platform admin)", { n: s.max_users })} disabled /></Field>
         </div>
         <ErrorBox error={errors.company ?? null} />
-        {saved.company && <div className="ok-box ad-notice" role="status">{t("Saved.")}</div>}
-        <div className="ad-form-actions">{button("company", t("Save"))}</div>
+        {saved.company && <div className="ok-box gx-notice" role="status">{t("Saved.")}</div>}
+        <div className="gx-form-actions">{button("company", t("Save"))}</div>
       </form>
     </div>
   );

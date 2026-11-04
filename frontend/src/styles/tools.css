@@ -8,7 +8,7 @@
 .bt-title-row > h1 { margin-bottom: 0; }
 .bt-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
 .bt-toolbar select { width: auto; min-width: 140px; min-height: 44px; border-radius: 999px; padding-inline: 16px 2.4rem; }
-.bt-toolbar .ad-search { max-width: 340px; }
+.bt-toolbar .gx-search { max-width: 340px; }
 .bt-count { color: var(--text-muted); font-size: 14px; margin: 0 0 10px; }
 .bt-muted { color: var(--text-muted); font-size: 13px; }
 .bt-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -21,7 +21,7 @@
 .bt-chan.instagram { color: var(--ig); background: color-mix(in srgb, var(--ig) 12%, transparent); }
 .bt-chan.web { color: var(--brand); background: var(--brand-soft); }
 .bt-tags { display: inline-flex; gap: 4px; flex-wrap: wrap; }
-.bt-tag { font-size: 11.5px; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--st-waiting) 12%, transparent); color: var(--st-waiting); }
+.bt-tag { font-size: 11.5px; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--st-waiting-tint) 12%, transparent); color: var(--st-waiting); }
 
 .bt-back { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); margin-bottom: 12px; font-size: 14px; }
 .bt-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
@@ -71,7 +71,7 @@
   .bt-activity li { grid-template-columns: minmax(0, 1fr); }
   .bt-toolbar select { flex: 1 1 150px; min-width: 0; }
   .bt-toolbar .chips { flex: 1 1 100%; }
-  .bt-toolbar .ad-search { max-width: none; min-width: 100%; }
+  .bt-toolbar .gx-search { max-width: none; min-width: 100%; }
   .table.cards td.bt-first { justify-content: flex-start; text-align: start; }
 }
 
@@ -91,4 +91,4 @@
    pages sit centred with equal margins instead of leaving one side empty. */
 .app-shell > .content { overflow-x: clip; }
 .dash { overflow-x: visible; width: 100%; max-width: 1880px; margin-inline: auto; }
-.ad-narrow { margin-inline: auto; }
+.gx-narrow { margin-inline: auto; }

@@ -23,10 +23,10 @@ export function CopyValue({ value }: { value: string }) {
 
 export function WhatsAppBadge({ status }: { status: WhatsAppStatus["status"] }) {
   const { t } = useI18n();
-  if (status === "connected") return <span className="ad-status on">{t("Connected")}</span>;
-  if (status === "needs_app_secret") return <span className="ad-status warn">{t("Needs app secret")}</span>;
-  if (status === "needs_token") return <span className="ad-status warn">{t("Needs the platform token")}</span>;
-  return <span className="ad-status off">{t("Not connected")}</span>;
+  if (status === "connected") return <span className="gx-status on">{t("Connected")}</span>;
+  if (status === "needs_app_secret") return <span className="gx-status warn">{t("Needs app secret")}</span>;
+  if (status === "needs_token") return <span className="gx-status warn">{t("Needs the platform token")}</span>;
+  return <span className="gx-status off">{t("Not connected")}</span>;
 }
 
 const ext = (href: string, label: string) => <a href={href} target="_blank" rel="noreferrer">{label} <ArrowSquareOut /></a>;
@@ -49,8 +49,8 @@ export default function WhatsAppConnect({ variant, base, companyPath }: {
     .catch((e) => setLoadError(e.message));
   useEffect(() => { load(); }, [base]);
   if (!st) return (
-    <section className="ad-card wa-connect">
-      <h2 className="ad-card-title"><span className="ad-card-icon wa"><WhatsappLogo weight="fill" /></span>{t("Connect WhatsApp")}</h2>
+    <section className="gx-card wa-connect">
+      <h2 className="gx-card-title"><span className="gx-card-icon wa"><WhatsappLogo weight="fill" /></span>{t("Connect WhatsApp")}</h2>
       {loadError
         ? <ErrorBox error={t("The WhatsApp connection could not be loaded: {error}", { error: loadError })} onRetry={load} />
         : <Loading height={160} />}
@@ -60,18 +60,18 @@ export default function WhatsAppConnect({ variant, base, companyPath }: {
   const webhook = st.webhook_path ? `${window.location.origin}${st.webhook_path}` : "";
 
   return (
-    <section className="ad-card wa-connect">
+    <section className="gx-card wa-connect">
       <div className="wa-connect-head">
-        <h2 className="ad-card-title" style={{ margin: 0 }}><span className="ad-card-icon wa"><WhatsappLogo weight="fill" /></span>{t("Connect WhatsApp")}</h2>
+        <h2 className="gx-card-title" style={{ margin: 0 }}><span className="gx-card-icon wa"><WhatsappLogo weight="fill" /></span>{t("Connect WhatsApp")}</h2>
         <span className="spacer" />
         <WhatsAppBadge status={st.status} />
       </div>
-      <p className="ad-card-note">{variant === "company"
+      <p className="gx-card-note">{variant === "company"
         ? t("Customers who message your WhatsApp number talk to your AI consultant, and your team sees the chats in Conversations. Choose how to connect:")
         : t("This company's WhatsApp connection. You can assign a number of the platform's Meta app, or the company connects its own Meta app in its settings.")}</p>
 
       {st.phone_number_id && (
-        <p className="ad-card-note">{t("Phone number ID:")} <code dir="ltr">{st.phone_number_id}</code>
+        <p className="gx-card-note">{t("Phone number ID:")} <code dir="ltr">{st.phone_number_id}</code>
           {st.display_number && <> · <bdi dir="ltr">{st.display_number}</bdi></>}
           {" · "}{st.mode === "platform" ? t("on the platform's WhatsApp app") : t("on the company's own Meta app")}</p>
       )}
@@ -187,7 +187,7 @@ function OwnSteps({ st, webhook, base, onSaved, onResult }: {
 
       <Step n={2} done={st.mode === "own" && !!st.phone_number_id && st.token_set && st.app_secret_set} title={t("Enter them here")}>
         <form onSubmit={save}>
-          <div className="ad-grid-2">
+          <div className="gx-grid-2">
             <Field label={t("Phone number ID")} hint={t("Checked with Meta using your access token, so nobody can connect a number that isn't theirs.")}>
               <input dir="ltr" inputMode="numeric" maxLength={64} value={numberId} onChange={(e) => { setNumberId(e.target.value.replace(/\s/g, "")); setSaved(false); }} />
             </Field>
@@ -202,8 +202,8 @@ function OwnSteps({ st, webhook, base, onSaved, onResult }: {
             </Field>
           </div>
           <ErrorBox error={error} />
-          {saved && <div className="ok-box ad-notice" role="status">{t("WhatsApp settings saved.")}</div>}
-          <div className="ad-form-actions">
+          {saved && <div className="ok-box gx-notice" role="status">{t("WhatsApp settings saved.")}</div>}
+          <div className="gx-form-actions">
             <button className="btn btn-primary" disabled={busy} aria-busy={busy}>{busy ? t("Saving…") : t("Save WhatsApp settings")}</button>
             {st.token_set && (
               <button type="button" className="btn btn-ghost" disabled={busy} onClick={async () => {
@@ -216,7 +216,7 @@ function OwnSteps({ st, webhook, base, onSaved, onResult }: {
       </Step>
 
       <Step n={3} done={st.app_secret_set && st.status === "connected"} title={t("Point Meta's webhook to your AI")}>
-        <p className="ad-card-note" style={{ marginTop: 0 }}>{t("In your app → WhatsApp → Configuration → Webhook → Edit, paste:")}</p>
+        <p className="gx-card-note" style={{ marginTop: 0 }}>{t("In your app → WhatsApp → Configuration → Webhook → Edit, paste:")}</p>
         <div>{t("Callback URL:")}</div>
         {webhook && <CopyValue value={webhook} />}
         <div>{t("Verify token:")}</div>
@@ -273,7 +273,7 @@ function OwnerAssign({ st, companyPath, onSaved }: { st: WhatsAppStatus; company
           <button className="btn btn-primary" disabled={busy}>{busy ? t("Saving…") : t("Save")}</button>
         </div>
         <ErrorBox error={error} />
-        {saved && <div className="ok-box ad-notice" role="status">{t("Saved.")}</div>}
+        {saved && <div className="ok-box gx-notice" role="status">{t("Saved.")}</div>}
       </div>
     </form>
   );
@@ -320,7 +320,7 @@ function TestBox({ base, st, onResult }: { base: string; st: WhatsAppStatus; onR
 
   return (
     <div className="wa-test">
-      <p className="ad-card-note" style={{ marginTop: 0 }}>{t("Asks Meta whether the access token may use this phone number.")}</p>
+      <p className="gx-card-note" style={{ marginTop: 0 }}>{t("Asks Meta whether the access token may use this phone number.")}</p>
       <button type="button" className="btn btn-primary" onClick={test} disabled={busy !== null} aria-busy={busy === "test"}>
         {busy === "test" ? <><span className="login-spin" aria-hidden="true" />{t("Testing…")}</> : <><Plugs />{t("Test connection")}</>}
       </button>
@@ -349,7 +349,7 @@ function TestBox({ base, st, onResult }: { base: string; st: WhatsAppStatus; onR
             </button>
           </div>
           <div aria-live="polite">
-            {msgOk && <div className="ok-box ad-notice">{msgOk}</div>}
+            {msgOk && <div className="ok-box gx-notice">{msgOk}</div>}
             <ErrorBox error={msgError} />
           </div>
         </form>

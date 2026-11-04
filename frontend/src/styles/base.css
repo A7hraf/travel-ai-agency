@@ -72,7 +72,7 @@
   --on-text: #201e1d;
   --ink-2: rgba(243, 242, 242, .82);
   --text-muted: rgba(243, 242, 242, .66);
-  --text-faint: rgba(243, 242, 242, .5);
+  --text-faint: rgba(243, 242, 242, .55);
   --placeholder: rgba(243, 242, 242, .5);
 
   /* Accent (Ghanjah magenta, used for the human team and danger) */
@@ -88,6 +88,7 @@
 
   /* Status (always shown with a text label) */
   --st-waiting: #f2b33d;
+  --st-waiting-tint: #f2b33d;
   --st-progress: #6aa8ff;
   --st-paid: #3fc1b0;
   --st-confirmed: #5cc98a;
@@ -179,24 +180,25 @@
   --text-faint: #6b6664;
   --placeholder: #7a7573;
 
-  --accent: #d6006c;
-  --accent-hover: #af0059;
-  --accent-soft: rgba(214, 0, 108, .09);
-  --accent-glow: rgba(214, 0, 108, .22);
+  --accent: #b8005a;
+  --accent-hover: #96004a;
+  --accent-soft: rgba(214, 0, 108, .08);
+  --accent-glow: rgba(214, 0, 108, .2);
   --on-accent: #ffffff;
-  --whatsapp: #1d7a46;
+  --whatsapp: #17663a;
   --whatsapp-fill: #1d7a46;
   --whatsapp-fill-hover: #17663a;
   --ig: #b02a77;
 
-  --st-waiting: #8a5a00;
-  --st-progress: #2a63c4;
-  --st-paid: #0e7468;
-  --st-confirmed: #1d7a46;
-  --st-cancelled: #6b6766;
+  --st-waiting: #7a4f00;
+  --st-waiting-tint: #e8a21c;
+  --st-progress: #1f54a8;
+  --st-paid: #0a6158;
+  --st-confirmed: #17663a;
+  --st-cancelled: #5c5857;
   --st-colleague: #4a4644;
-  --danger: #c4174d;
-  --ok: #1d7a46;
+  --danger: #b0164a;
+  --ok: #17663a;
   --danger-text: #b0164a;
   --danger-text-strong: #9c1342;
   --warn-text: #7a4f00;
@@ -220,11 +222,11 @@
   --shadow-modal: 0 30px 80px rgba(32, 30, 29, .22), 0 2px 8px rgba(32, 30, 29, .08);
   --shadow-toast: 0 14px 34px rgba(32, 30, 29, .16), inset 0 0 0 1px rgba(32, 30, 29, .08);
 
-  --brand: #007496;
-  --brand-hover: #005f7b;
-  --brand-soft: rgba(0, 116, 150, .1);
-  --brand-glow: rgba(0, 116, 150, .2);
-  --brand-line: rgba(0, 116, 150, .3);
+  --brand: #006684;
+  --brand-hover: #00536c;
+  --brand-soft: rgba(0, 102, 132, .08);
+  --brand-glow: rgba(0, 102, 132, .2);
+  --brand-line: rgba(0, 102, 132, .3);
   --on-brand: #ffffff;
   --bg-sidebar: #ffffff;
   --sidebar-text: #201e1d;
@@ -234,6 +236,8 @@
 :root[data-theme="light"][dir="rtl"] .app-side { box-shadow: inset 1px 0 0 var(--line); }
 :root[data-theme="light"] input[type="date"]::-webkit-calendar-picker-indicator { filter: none; }
 :root[data-theme="light"] .table tr.clickable:hover td { background: var(--surface-2); }
+/* Glows read as blur on paper: text glows are dropped in light */
+:root[data-theme="light"] .accent-word, :root[data-theme="light"] .kpi-big { text-shadow: none; }
 /* Before main.tsx has set data-theme (first frame), follow the device */
 @media (prefers-color-scheme: light) { :root:not([data-theme]) { background: #ebe9e8; } }
 
@@ -353,6 +357,8 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); opaci
 .count.amber { background: var(--st-waiting-fill); color: var(--ghanjah-ink); }
 .count.cyan { background: var(--brand); color: var(--on-brand); }
 .count.teal { background: var(--st-paid-fill); color: var(--ghanjah-ink); }
+.chip-btn.active .count, .tab.active .count { background: color-mix(in srgb, var(--on-text) 16%, transparent); color: var(--on-text); }
+.seg button.active .count, .co-filter button.active .count { background: color-mix(in srgb, var(--on-brand) 12%, transparent); color: var(--on-brand); opacity: 1; }
 .tabs { display: flex; gap: .45rem; flex-wrap: wrap; }
 .seg { display: inline-flex; align-self: flex-start; width: fit-content; padding: 4px; gap: 2px; border-radius: 999px; background: var(--surface-1); box-shadow: var(--ring); }
 .seg button { border: 0; background: transparent; color: var(--text-muted); padding: .45rem 1rem; font: inherit; font-size: .9rem; cursor: pointer; border-radius: 999px; transition: background .15s, color .15s; }
@@ -364,7 +370,7 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); opaci
 
 /* --- Status pills and badges (always with text) --------------------------------- */
 .badge, .pill { display: inline-flex; align-items: center; gap: .35rem; font-size: .76rem; font-weight: 600; padding: .2rem .6rem; border-radius: 999px; white-space: nowrap; line-height: 1.3; }
-.badge-amber, .st-pending_payment, .st-needs { color: var(--st-waiting); background: color-mix(in srgb, var(--st-waiting) 16%, transparent); }
+.badge-amber, .st-pending_payment, .st-needs { color: var(--st-waiting); background: color-mix(in srgb, var(--st-waiting-tint) 16%, transparent); }
 .badge-blue, .st-in_progress { color: var(--st-progress); background: color-mix(in srgb, var(--st-progress) 16%, transparent); }
 .badge-teal, .st-paid, .st-ai { color: var(--st-paid); background: color-mix(in srgb, var(--st-paid) 16%, transparent); }
 .badge-green, .st-confirmed { color: var(--st-confirmed); background: color-mix(in srgb, var(--ok) 16%, transparent); }
@@ -378,7 +384,7 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); opaci
 .error-box { background: var(--accent-soft); color: var(--danger-text); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent); padding: .7rem .95rem; border-radius: 14px; margin: .6rem 0; font-size: .92rem; white-space: pre-line; }
 .ok-box { background: color-mix(in srgb, var(--ok) 12%, transparent); color: var(--ok); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok) 30%, transparent); padding: .7rem .95rem; border-radius: 14px; margin: .6rem 0; font-size: .92rem; }
 .info-box { background: var(--brand-soft); color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--brand-line); padding: .8rem 1rem; border-radius: 14px; margin: .6rem 0; line-height: 1.6; }
-.warn-box { background: color-mix(in srgb, var(--st-waiting) 10%, transparent); color: var(--warn-text); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--st-waiting) 30%, transparent); padding: .8rem 1rem; border-radius: 14px; margin: .6rem 0; line-height: 1.55; }
+.warn-box { background: color-mix(in srgb, var(--st-waiting-tint) 10%, transparent); color: var(--warn-text); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--st-waiting-tint) 30%, transparent); padding: .8rem 1rem; border-radius: 14px; margin: .6rem 0; line-height: 1.55; }
 .link-box { display: block; padding: .6rem .8rem; box-shadow: inset 0 0 0 1px var(--line-strong); border-radius: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .loading, .loading-screen { padding: 2rem; color: var(--text-muted); }
 .loading-screen { display: grid; place-items: center; min-height: 100vh; background: var(--bg-app); }
@@ -521,7 +527,7 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); opaci
 @keyframes gjFade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes gjSheet { from { transform: translateY(100%); } to { transform: none; } }
 @keyframes gjDot { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
-@keyframes gjPulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--st-waiting) 55%, transparent); } 70% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--st-waiting) 0%, transparent); } 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--st-waiting) 0%, transparent); } }
+@keyframes gjPulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--st-waiting-tint) 55%, transparent); } 70% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--st-waiting-tint) 0%, transparent); } 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--st-waiting-tint) 0%, transparent); } }
 @keyframes gjLive { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 @keyframes gjShake { 0%, 100% { transform: none; } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
 @keyframes gjFloat { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(30px, -24px); } }

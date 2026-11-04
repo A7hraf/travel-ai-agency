@@ -134,8 +134,8 @@ export default function Companies() {
                     <bdi dir="ltr" className="co-slug">/c/{c.slug}</bdi>
                   </div>
                   {c.status === "active"
-                    ? <span className="ad-status on">{t("Active [company]")}</span>
-                    : <span className="ad-status bad">{t("Suspended")}</span>}
+                    ? <span className="gx-status on">{t("Active [company]")}</span>
+                    : <span className="gx-status bad">{t("Suspended")}</span>}
                 </div>
                 <div className="co-usage">
                   <div className="co-usage-row"><span>{t("Accounts")}</span><span className="tnum" dir="ltr">{c.user_count} / {c.max_users}</span></div>
@@ -227,7 +227,7 @@ function CreateCompany({ onClose, onCreated }: { onClose: () => void; onCreated:
           <Globe aria-hidden="true" />
           <bdi dir="ltr">{window.location.host}/c/<b>{address || "…"}</b></bdi>
         </div>
-        <div className="ad-grid-2">
+        <div className="gx-grid-2">
           <Field label={t("Company name")}>
             <input value={f.name} onChange={(e) => set("name", e.target.value)} required minLength={2} maxLength={200} dir="auto" />
           </Field>
@@ -258,7 +258,7 @@ function CreateCompany({ onClose, onCreated }: { onClose: () => void; onCreated:
           <Field label={t("Contact email")}><input type="email" dir="ltr" value={f.contact_email} onChange={(e) => set("contact_email", e.target.value)} /></Field>
         </div>
         <h3 className="co-form-h">{t("First admin")}</h3>
-        <div className="ad-grid-2">
+        <div className="gx-grid-2">
           <Field label={t("Name")}><input value={f.admin_full_name} onChange={(e) => set("admin_full_name", e.target.value)} required minLength={2} maxLength={200} dir="auto" /></Field>
           <Field label={t("Email")}><input type="email" dir="ltr" autoComplete="off" value={f.admin_email} onChange={(e) => set("admin_email", e.target.value)} required /></Field>
           <Field label={t("Temporary password")} hint={t("8 to 72 characters. Ask them to change it.")}><input minLength={8} maxLength={72} autoComplete="new-password" dir="ltr" value={f.admin_password} onChange={(e) => set("admin_password", e.target.value)} required /></Field>
@@ -317,7 +317,7 @@ function CreateDemo({ onClose, onCreated }: { onClose: () => void; onCreated: (d
           <Globe aria-hidden="true" />
           <bdi dir="ltr">{window.location.host}/c/<b>{address}</b></bdi>
         </div>
-        <div className="ad-grid-2">
+        <div className="gx-grid-2">
           <Field label={t("Company name")}>
             <input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} required minLength={2} maxLength={200} dir="auto" />
           </Field>

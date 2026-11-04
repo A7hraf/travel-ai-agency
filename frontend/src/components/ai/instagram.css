@@ -1,6 +1,6 @@
 /* Instagram Direct: icon and label colours (magenta-purple --ig: #e05aa8 keeps text at 5:1 on the dark
    surfaces, #b02a77 at 5.5:1 on paper; the chart series uses --chart-ig, see components/Charts.tsx). */
-.ad-card-icon.ig { background: color-mix(in srgb, var(--ig) 16%, transparent); color: var(--ig); }
+.gx-card-icon.ig { background: color-mix(in srgb, var(--ig) 16%, transparent); color: var(--ig); }
 .cv-channel.ig { color: var(--ig); }
 .queue-ch.ig { color: var(--ig); }
 .ig-account { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }

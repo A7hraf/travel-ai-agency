@@ -339,9 +339,9 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
         </div>
 
         {tab === "theme" && (<>
-          <section className="ad-card">
-            <h2 className="ad-card-title"><span className="ad-card-icon"><PaintBrush /></span>{t("Colours")}</h2>
-            <div className="ad-section-label">{t("Ready themes")}</div>
+          <section className="gx-card">
+            <h2 className="gx-card-title"><span className="gx-card-icon"><PaintBrush /></span>{t("Colours")}</h2>
+            <div className="gx-section-label">{t("Ready themes")}</div>
             <div className="bz-themes">
               {THEMES.map((p) => {
                 const on = activeTheme?.name === p.name;
@@ -356,7 +356,7 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
                 );
               })}
             </div>
-            <div className="ad-grid-2">
+            <div className="gx-grid-2">
               <ColorInput label={t("Main colour")} value={b.primary_color} onChange={(v) => v && set("primary_color", v)}
                 hint={t("Buttons, links and the highlighted word.")} />
               <ColorInput label={t("Accent colour")} value={b.accent_color} onChange={(v) => v && set("accent_color", v)}
@@ -374,8 +374,8 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
               </div>
             )}
           </section>
-          <section className="ad-card">
-            <h2 className="ad-card-title">{t("Top banner")}</h2>
+          <section className="gx-card">
+            <h2 className="gx-card-title">{t("Top banner")}</h2>
             <div className="field">
               <span className="field-label">{t("Style")}</span>
               <Seg label={t("Style")} value={b.hero_style} onChange={(v) => set("hero_style", v)} options={[
@@ -392,9 +392,9 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
         </>)}
 
         {tab === "texts" && (
-          <section className="ad-card">
-            <h2 className="ad-card-title"><span className="ad-card-icon"><TextT /></span>{t("Texts of the page")}</h2>
-            <p className="ad-card-note">{t("Every text your customers see. Empty fields use the standard text shown in grey. Write each language separately.")}</p>
+          <section className="gx-card">
+            <h2 className="gx-card-title"><span className="gx-card-icon"><TextT /></span>{t("Texts of the page")}</h2>
+            <p className="gx-card-note">{t("Every text your customers see. Empty fields use the standard text shown in grey. Write each language separately.")}</p>
             <div className="pe-texts-top">
               {langTabs}
               <label className="pe-find">
@@ -425,9 +425,9 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
         )}
 
         {tab === "layout" && (<>
-          <section className="ad-card">
-            <h2 className="ad-card-title"><span className="ad-card-icon"><Layout /></span>{t("Page structure")}</h2>
-            <p className="ad-card-note">{t("Choose which parts appear on the customer page and in which order.")}</p>
+          <section className="gx-card">
+            <h2 className="gx-card-title"><span className="gx-card-icon"><Layout /></span>{t("Page structure")}</h2>
+            <p className="gx-card-note">{t("Choose which parts appear on the customer page and in which order.")}</p>
             <ul className="bz-sections">
               <li className={searchOn ? "" : "off"}>
                 <Switch checked={searchOn} onChange={() => toggle("search")} label={t(SECTION_LABELS.search)} hint={t("The search bar is always at the top.")} />
@@ -443,8 +443,8 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
             </ul>
             <p className="field-hint">{t("About us and Contact are shown together, where the first of the two is.")}</p>
           </section>
-          <section className="ad-card">
-            <h2 className="ad-card-title">{t("Show or hide smaller parts")}</h2>
+          <section className="gx-card">
+            <h2 className="gx-card-title">{t("Show or hide smaller parts")}</h2>
             <ul className="bz-sections pe-elements">
               {ELEMENT_LABELS.map((x) => {
                 const locked = x.key === "powered_by" && !owner && !canHidePoweredBy;
@@ -460,8 +460,8 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
         </>)}
 
         {tab === "photos" && (
-          <section className="ad-card">
-            <h2 className="ad-card-title"><span className="ad-card-icon"><Images /></span>{t("Photos")}</h2>
+          <section className="gx-card">
+            <h2 className="gx-card-title"><span className="gx-card-icon"><Images /></span>{t("Photos")}</h2>
             <div className="pe-photos">
               <div className="field">
                 <span className="field-label">{t("Logo")}</span>
@@ -493,8 +493,8 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
         )}
 
         {tab === "cards" && (
-          <section className="ad-card">
-            <h2 className="ad-card-title"><span className="ad-card-icon"><Cards /></span>{t("Package cards")}</h2>
+          <section className="gx-card">
+            <h2 className="gx-card-title"><span className="gx-card-icon"><Cards /></span>{t("Package cards")}</h2>
             <div className="field">
               <span className="field-label">{t("Card style")}</span>
               <div className="pe-styles" role="group" aria-label={t("Card style")}>
@@ -511,7 +511,7 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
                 ))}
               </div>
             </div>
-            <div className="ad-grid-2">
+            <div className="gx-grid-2">
               <div className="field">
                 <span className="field-label">{t("Card corners")}</span>
                 <Seg label={t("Card corners")} value={b.card_style} onChange={(v) => set("card_style", v)} options={[
@@ -523,7 +523,7 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
                   options={[{ v: 2, label: "2" }, { v: 3, label: "3" }, { v: 4, label: "4" }]} />
               </div>
             </div>
-            <div className="ad-section-label md-label">{t("Shown on each card")}</div>
+            <div className="gx-section-label md-label">{t("Shown on each card")}</div>
             <ul className="bz-sections pe-elements">
               {([
                 ["show_price", "Price"], ["per_person", "\"per person\" after the price"], ["show_duration", "Number of days"],
@@ -536,26 +536,26 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
                 </li>
               ))}
             </ul>
-            <div className="ad-section-label md-label">{t("Button texts")}</div>
+            <div className="gx-section-label md-label">{t("Button texts")}</div>
             {langTabs}
-            <div className="ad-grid-2 pe-btn-texts">
+            <div className="gx-grid-2 pe-btn-texts">
               {TEXT_GROUPS.find((g) => g.id === "buttons")!.fields.map((f) => field(f))}
             </div>
           </section>
         )}
 
         {tab === "dashboard" && owner && (
-          <section className="ad-card">
-            <h2 className="ad-card-title">{t("Employee dashboard")}</h2>
-            <p className="ad-card-note">{t("Only you (the platform owner) can change these. Company employees see them after their next page load.")}</p>
-            <div className="ad-grid-2">
+          <section className="gx-card">
+            <h2 className="gx-card-title">{t("Employee dashboard")}</h2>
+            <p className="gx-card-note">{t("Only you (the platform owner) can change these. Company employees see them after their next page load.")}</p>
+            <div className="gx-grid-2">
               <ColorInput label={t("Dashboard main colour")} value={b.dashboard_color} onChange={(v) => v && set("dashboard_color", v)} />
               <ColorInput label={t("Sidebar colour")} value={b.dashboard_sidebar} onChange={(v) => v && set("dashboard_sidebar", v)} />
             </div>
             <button type="button" className="btn btn-sm btn-soft" onClick={() => set("dashboard_color", b.primary_color)}>
               {t("Use the customer page colour")}
             </button>
-            <div className="ad-section-label md-label">{t("Staff dashboard preview")}</div>
+            <div className="gx-section-label md-label">{t("Staff dashboard preview")}</div>
             <DashboardPreview b={b} name={companyName} />
           </section>
         )}
@@ -563,7 +563,7 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
         <div className="bz-bar pe-bar">
           <div className="bz-bar-msg" aria-live="polite">
             <ErrorBox error={error} />
-            {saved && !dirty && <div className="ok-box ad-notice">{t("Saved. Customers see the new design right away.")}</div>}
+            {saved && !dirty && <div className="ok-box gx-notice">{t("Saved. Customers see the new design right away.")}</div>}
             {dirty && <span className="pe-unsaved"><span className="pe-dot" />{t("Unsaved changes")}</span>}
           </div>
           <button type="button" className="btn btn-ghost" onClick={() => setConfirmReset(true)}><ArrowCounterClockwise />{t("Reset all to default")}</button>

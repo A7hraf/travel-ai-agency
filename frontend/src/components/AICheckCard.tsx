@@ -30,18 +30,18 @@ export default function AICheckCard({ path }: { path: string }) {
   const good = !!result && result.ok && result.uses_tools;
   const tone = !result ? "" : good ? "ok" : result.ok ? "warn" : "bad";
   return (
-    <section className={`ad-card ai-card ${tone}`}>
+    <section className={`gx-card ai-card ${tone}`}>
       <div className="ai-status">
         <span className="ai-icon" aria-hidden="true"><Brain /></span>
         <div className="ai-status-text">
-          <h2 className="ad-card-title">{t("AI brain status")}
+          <h2 className="gx-card-title">{t("AI brain status")}
             {result && !busy && (
-              <span className={`ad-status ${good ? "on" : result.ok ? "warn" : "bad"}`}>
+              <span className={`gx-status ${good ? "on" : result.ok ? "warn" : "bad"}`}>
                 {good ? t("Working") : result.ok ? t("Partly working") : t("Not working")}
               </span>
             )}
           </h2>
-          <p className="ad-card-note">{t("Sends one test question to the AI and shows exactly what happens.")}</p>
+          <p className="gx-card-note">{t("Sends one test question to the AI and shows exactly what happens.")}</p>
         </div>
         <button className="btn btn-primary" onClick={run} disabled={busy} aria-busy={busy}>
           {busy ? <><span className="login-spin" aria-hidden="true" />{t("Testing…")}</> : <><Lightning weight="fill" />{t("Test AI")}</>}
