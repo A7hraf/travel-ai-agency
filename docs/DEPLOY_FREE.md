@@ -61,8 +61,8 @@ Free plans change often; check each provider's pricing page if something below l
 
 5. Click **Apply** / **Deploy Blueprint**. The first build takes 5–10 minutes.
 6. When it says **Live**, open the address at the top of the service page, e.g.
-   `https://travel-ai-agency.onrender.com` (the service name in `render.yaml` is
-   `travel-ai-agency`; if another Render user already has that name, Render adds a few random letters).
+   `https://ghanjah.onrender.com` (the service name in `render.yaml` is `ghanjah`; if another
+   Render user already has that name, Render adds a few random letters).
 
 ## Step 4: First login
 
@@ -100,13 +100,15 @@ Follow [WHATSAPP_SETUP.md](WHATSAPP_SETUP.md) with:
 Render updates the service by itself after every change on the `main` branch. If a page still
 looks old:
 
-1. Render → your service **travel-ai-agency** → **Events**: the newest deploy must say **Live**.
+1. Render → your service **ghanjah** → **Events**: the newest deploy must say **Live**.
    If it says **Failed**, open it to see why.
 2. If nothing new was deployed: **Settings → Build & Deploy** → Branch must be `main` and
    **Auto-Deploy** must be **On**. Then click **Manual Deploy → Deploy latest commit**.
 3. In your browser, reload the page once (the app asks the server for the newest version).
-4. If Render's **Blueprints** page shows a service called `ghanjah` that failed or waits for
-   values, you can delete it: the app stays at `https://travel-ai-agency.onrender.com`.
+4. The app lives at `https://ghanjah.onrender.com`. An older service called `travel-ai-agency` is
+   no longer needed once everything works on the new address: delete it (**Settings → Delete Web
+   Service**) so the free hours are not shared, and point any WhatsApp or Instagram webhook in Meta
+   to the new address.
 
 Optional: rename the GitHub repository to `ghanjah` (GitHub → Settings → Repository name). GitHub
 redirects the old name and Render follows the rename.
