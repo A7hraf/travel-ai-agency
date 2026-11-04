@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ..audit import audit
 from ..models import Company, Role, User
 from ..permissions import (
     COMPANY_ROLES,
@@ -113,6 +114,7 @@ def create_company_user(db: Session, company: Company, data: UserCreate, acting_
     except IntegrityError as exc:  # the same email created at the same moment
         db.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, "An account with this email already exists") from exc
+    audit(db, acting_user, "user.created", target=user.full_name, detail=str(data.role), company_id=company.id)
     if commit:
         db.commit()
         db.refresh(user)
@@ -171,10 +173,13 @@ def update_company_user(db: Session, user: User, data: UserUpdate, acting_user: 
             user.permissions = list(ROLE_DEFAULT_PERMISSIONS[data.role])
     if data.permissions is not None and not is_self:
         user.permissions = clean_permissions(data.permissions)
+    changes = _account_changes(user, data, bool(password_hash), is_self)  # activity log, before applying
     if data.is_active is not None and data.is_active != user.is_active:
         user.is_active = data.is_active
         if not data.is_active:
             user.tokens_valid_after = revoke_sessions_now()  # old logins stay dead after re-enabling
+    for action, detail in changes:
+        audit(db, acting_user, action, target=user.full_name, detail=detail, company_id=user.company_id)
     db.commit()
     db.refresh(user)
     return user
@@ -190,5 +195,27 @@ def delete_company_user(db: Session, user: User, acting_user: User) -> None:
     db.refresh(user)
     if user.role == Role.COMPANY_ADMIN and user.is_active and _active_admins(db, user.company_id) <= 1:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "The company must keep at least one active admin")
+    audit(db, acting_user, "user.deleted", target=user.full_name, company_id=user.company_id)
     db.delete(user)
     db.commit()
+
+
+def _account_changes(user: User, data: UserUpdate, password_reset: bool, is_self: bool) -> list[tuple[str, str]]:
+    """Activity log entries for an account update (field names only, never a password).
+    Called after the name, email, role and permissions were applied, before the active flag."""
+    out: list[tuple[str, str]] = []
+    if data.is_active is not None and data.is_active != user.is_active:
+        out.append(("user.disabled" if not data.is_active else "user.enabled", ""))
+    changed = [name for name, value in (("name", data.full_name), ("email", data.email), ("role", data.role))
+               if value is not None]
+    if data.permissions is not None and not is_self:
+        changed.append("permissions")
+    if password_reset:
+        changed.append("password reset")
+    if changed:
+        detail = ", ".join(changed)
+        if data.role is not None:
+            detail += f" (role: {user.role})"
+        out.append(("user.updated", detail))
+    return out
+

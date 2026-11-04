@@ -3,6 +3,7 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..audit import audit
 from ..config import get_settings
 from ..database import get_db
 from ..deps import get_current_user
@@ -77,6 +78,7 @@ def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
     if user.company is not None and user.company.status != CompanyStatus.ACTIVE:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Your company account is suspended")
     user.last_login_at = utcnow()
+    audit(db, user, "auth.login")
     db.commit()
     return TokenOut(access_token=create_access_token(user.id), user=me_out(user))
 

@@ -34,6 +34,9 @@ NEW_COLUMNS = [
     ("companies", "instagram_verify_token", "VARCHAR(64)"),
     ("customers", "instagram_id", "VARCHAR(64)"),
     ("companies", "instagram_token_refreshed_at", "TIMESTAMP WITH TIME ZONE"),
+    # Business tools: staff notes and labels on customers
+    ("customers", "notes", "TEXT"),
+    ("customers", "tags", "JSON"),
 ]
 
 # Unique indexes of the Instagram columns (same names create_all gives them on a new database).
@@ -56,6 +59,11 @@ BACKFILL = {
         "UPDATE travel_packages SET seats_available = seats_available + (SELECT COALESCE(SUM(t.seats_held), 0) "
         "FROM tickets t WHERE t.package_id = travel_packages.id) WHERE seats_available IS NOT NULL"
     ),
+    # Chats the AI already answered count for the month they started in (plan usage meters).
+    ("conversations", "ai_started_at"): (
+        "UPDATE conversations SET ai_started_at = created_at WHERE id IN "
+        "(SELECT conversation_id FROM messages WHERE sender = 'customer')"
+    ),
     ("conversations", "was_handed_over"): (
         "UPDATE conversations SET was_handed_over = TRUE WHERE handover_reason IS NOT NULL "
         "OR status = 'human' OR assigned_to_id IS NOT NULL"
@@ -73,6 +81,7 @@ THREE_DECIMALS = [
 def upgrade(engine: Engine) -> None:
     from .models import Company  # noqa: PLC0415 (models import the database module)
 
+    grant_customers_manage = _customers_permission_is_new(engine)  # business tools
     with engine.begin() as conn:
         if engine.dialect.name == "postgresql":
             # Several app instances may start together: only one upgrades at a time.
@@ -145,3 +154,54 @@ def upgrade(engine: Engine) -> None:
             company.instagram_webhook_key = company.instagram_webhook_key or random_token(18)
             company.instagram_verify_token = company.instagram_verify_token or random_token(18)
         db.commit()
+    if grant_customers_manage:
+        _grant_customers_manage(engine)
+    _upgrade_plans(engine)
+
+
+# --- Business tools: the new "customers.manage" permission -------------------------------------
+
+def _customers_permission_is_new(engine: Engine) -> bool:
+    """True on the first start with the Customers page: customers has no notes column yet."""
+    insp = inspect(engine)
+    if "customers" not in insp.get_table_names():
+        return False
+    return "notes" not in {c["name"] for c in insp.get_columns("customers")}
+
+
+def _grant_customers_manage(engine: Engine) -> None:
+    """Existing support employees who see conversations get "customers.manage", like new support
+    accounts (company admins always have every permission). Runs once, when the column is added, so
+    an admin who later takes the permission away keeps it that way."""
+    from .models import Role, User  # noqa: PLC0415
+    from .permissions import clean_permissions  # noqa: PLC0415
+
+    with Session(engine) as db:
+        for user in db.scalars(select(User).where(User.role == Role.SUPPORT)).all():
+            perms = list(user.permissions or [])
+            if "conversations.view" in perms and "customers.manage" not in perms:
+                user.permissions = clean_permissions([*perms, "customers.manage"])
+        db.commit()
+
+
+
+def _upgrade_plans(engine: Engine) -> None:
+    """Subscription plans: the default catalogue on first start, and a subscription for every company
+    that existed before plans (status active for a year, on a plan that allows what it already uses,
+    so the upgrade never locks a company out). See services/plans.py."""
+    from .services.plans import backfill_subscriptions, ensure_default_plans  # noqa: PLC0415
+
+    with engine.begin() as conn:
+        tables = set(inspect(conn).get_table_names())
+        if "conversations" in tables and "ai_started_at" in {c["name"] for c in inspect(conn).get_columns("conversations")}:
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_conversations_company_ai_started "
+                              "ON conversations (company_id, ai_started_at)"))
+        if not {"plans", "subscriptions", "companies"} <= tables:
+            return
+        if engine.dialect.name == "postgresql":
+            conn.execute(text("SELECT pg_advisory_xact_lock(724502)"))
+        db = Session(bind=conn)
+        ensure_default_plans(db)
+        backfill_subscriptions(db)
+        db.flush()
+        db.close()

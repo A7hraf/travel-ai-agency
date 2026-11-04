@@ -16,6 +16,7 @@ export const PERMISSION_LABELS: Record<string, string> = {
   "packages.manage": "Create, edit and delete travel packages",
   "conversations.view": "View customer conversations",
   "conversations.reply": "Reply to customers and take over from the AI",
+  "customers.manage": "Edit customer details and notes, export the customer list",
   "tickets.view": "View booking tickets",
   "tickets.manage": "Update booking tickets (status, payment, notes)",
   "tickets.assign": "Assign tickets to other employees",

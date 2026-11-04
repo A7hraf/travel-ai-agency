@@ -1,8 +1,7 @@
-# Render Blueprint: the whole system as one free web service.
-# Step-by-step guide: docs/DEPLOY_FREE.md
+# Render Blueprint: the application as a single web service.
+# Deployment guide: docs/OPERATIONS.md
 services:
   - type: web
-    # The service name is also the web address: https://ghanjah.onrender.com
     name: ghanjah
     runtime: docker
     plan: free
@@ -14,20 +13,15 @@ services:
         value: production
       - key: SECRET_KEY
         generateValue: true
-      # Postgres connection string from Neon (free, does not expire).
+      # Set in the Render dashboard; never commit values.
       - key: DATABASE_URL
         sync: false
-      # Your platform-owner login, created on the first start.
       - key: SYSTEM_ADMIN_EMAIL
         sync: false
       - key: SYSTEM_ADMIN_PASSWORD
         sync: false
-      # Demo company "Sunrise Travel" (Muscat, prices in OMR). In production its staff logins
-      # get random passwords; reset them from the platform console if you want to use them.
       - key: SEED_DEMO_DATA
         value: "true"
-      # AI brain: open-source gpt-oss (Apache 2.0) hosted by Groq (free tier).
-      # Groq retired Llama 3.3 70B in August 2026; the fallback is used if a model is retired again.
       - key: LLM_PROVIDER
         value: openai_compatible
       - key: LLM_BASE_URL
@@ -40,13 +34,10 @@ services:
         value: low
       - key: LLM_API_KEY
         sync: false
-      # Shorter history = fewer tokens = more chats within the free AI limits.
       - key: LLM_MAX_HISTORY_MESSAGES
         value: "20"
-      # Faster logins on the small free instance.
       - key: BCRYPT_ROUNDS
         value: "10"
-      # Render runs one proxy in front of the app: the client IP is the last X-Forwarded-For entry.
       - key: TRUSTED_PROXY_HOPS
         value: "1"
       - key: WHATSAPP_VERIFY_TOKEN
