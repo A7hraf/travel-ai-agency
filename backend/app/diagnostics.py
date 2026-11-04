@@ -19,6 +19,7 @@ import threading
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, func, select
+from starlette.concurrency import run_in_threadpool
 
 log = logging.getLogger(__name__)
 
@@ -40,8 +41,10 @@ _KEY_VALUE = re.compile(
 _JWT = re.compile(r"\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\b")
 # Long runs of key-like characters (API keys, access tokens, webhook keys, hashes).
 _LONG_TOKEN = re.compile(r"[A-Za-z0-9_\-+/=]{24,}")
-# Phone numbers and other long numbers (card numbers, ids of people).
-_LONG_NUMBER = re.compile(r"\+?\d[\d \-]{7,}\d")
+# Phone numbers (8 digits in Oman) and other long numbers (card numbers, ids of people).
+_LONG_NUMBER = re.compile(r"\+?\d[\d \-]{6,}\d")
+# user:password@ in connection addresses (database, SMTP, proxies).
+_URL_PASSWORD = re.compile(r"(\b[A-Za-z][A-Za-z0-9+.-]*://[^\s:/@]+:)[^\s@/]+@")
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 # Parts of database errors that quote the statement or its values.
 _SQL_TAIL = re.compile(r"\s*\[(SQL|parameters|Background on this error)[^\]]*\].*", re.S)
@@ -59,6 +62,7 @@ def scrub(text: str | None, limit: int = MAX_MESSAGE) -> str:
     s = str(text)
     s = _SQL_TAIL.sub("", s)
     s = _INPUT_VALUE.sub("input_value=[hidden]", s)
+    s = _URL_PASSWORD.sub(r"\1[hidden]@", s)
     s = _JWT.sub("[token]", s)
     s = _BEARER.sub(lambda m: f"{m.group(1)} [hidden]", s)
     s = _KEY_VALUE.sub(lambda m: f"{m.group(1)}{m.group(2)}[hidden]", s)
@@ -180,14 +184,19 @@ def _record(source, method, path, page, status, error_type, message, user_id, co
 
 
 def _prune(db, now: datetime) -> None:
+    """Age, then a row cap per source: a flood of (anonymous) browser reports never pushes the
+    server's own errors out of the list."""
     from .models import ErrorEvent  # noqa: PLC0415
 
     db.execute(delete(ErrorEvent).where(ErrorEvent.last_seen_at < now - timedelta(days=KEEP_DAYS)))
-    total = db.scalar(select(func.count(ErrorEvent.id))) or 0
-    if total > MAX_ROWS:
-        cutoff = db.scalar(select(ErrorEvent.id).order_by(ErrorEvent.id.desc()).offset(MAX_ROWS - 1).limit(1))
-        if cutoff is not None:
-            db.execute(delete(ErrorEvent).where(ErrorEvent.id < cutoff))
+    for source in ("server", "client"):
+        mine = ErrorEvent.source == source
+        total = db.scalar(select(func.count(ErrorEvent.id)).where(mine)) or 0
+        if total > MAX_ROWS:
+            cutoff = db.scalar(select(ErrorEvent.id).where(mine).order_by(ErrorEvent.id.desc())
+                               .offset(MAX_ROWS - 1).limit(1))
+            if cutoff is not None:
+                db.execute(delete(ErrorEvent).where(mine, ErrorEvent.id < cutoff))
 
 
 # --- Server side: middleware and logging handler ---------------------------------------------------
@@ -221,14 +230,17 @@ class ErrorCapture:
                 status_box["status"] = message["status"]
             await send(message)
 
+        # The database write runs in a worker thread: a slow or unreachable database must never
+        # hold up the event loop (and with it every other request).
         try:
             await self.app(scope, receive, send_watch)
         except Exception as exc:
-            self._record(scope, status_box.get("status") or 500, type(exc).__name__, str(exc))
+            await run_in_threadpool(self._record, scope, status_box.get("status") or 500, type(exc).__name__,
+                                    str(exc))
             raise
         status = status_box.get("status", 0)
         if status >= 500:
-            self._record(scope, status, f"HTTP {status}", None)
+            await run_in_threadpool(self._record, scope, status, f"HTTP {status}", None)
 
     @staticmethod
     def _record(scope, status, error_type, message):

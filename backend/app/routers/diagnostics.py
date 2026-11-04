@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from .. import diagnostics
 from ..config import get_settings
@@ -31,6 +32,8 @@ MAX_CLIENT_ERROR_BYTES = 4096
 CLIENT_ERRORS_PER_IP_PER_MINUTE = 20
 CLIENT_ERRORS_PER_IP_PER_HOUR = 200
 CLIENT_ERRORS_PER_USER_PER_MINUTE = 10
+# All browsers together (anonymous reports come from any number of addresses).
+CLIENT_ERRORS_PER_MINUTE = 300
 
 
 class ClientErrorIn(BaseModel):
@@ -70,6 +73,7 @@ async def client_error(request: Request):
     too_many = "Too many error reports"
     limiter.check(f"client-errors-ip:{ip}", CLIENT_ERRORS_PER_IP_PER_MINUTE, too_many)
     limiter.check(f"client-errors-ip-hour:{ip}", CLIENT_ERRORS_PER_IP_PER_HOUR, too_many, window=3600)
+    limiter.check("client-errors-all", CLIENT_ERRORS_PER_MINUTE, too_many)
     user_id = _optional_user_id(request)
     if user_id is not None:
         limiter.check(f"client-errors-user:{user_id}", CLIENT_ERRORS_PER_USER_PER_MINUTE, too_many)
@@ -79,7 +83,9 @@ async def client_error(request: Request):
     except (ValueError, ValidationError) as exc:
         raise HTTPException(422, "Invalid error report") from exc
     has_api = bool(body.api_path)
-    diagnostics.record_error(
+    # In a worker thread: the database write must not hold up the event loop.
+    await run_in_threadpool(
+        diagnostics.record_error,
         "client",
         method=(body.method or "GET") if has_api else "PAGE",
         path=body.api_path if has_api else body.page,

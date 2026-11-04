@@ -8,11 +8,13 @@ short and never hold secrets: callers pass names and field names, never values o
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from .diagnostics import scrub
-from .models import AuditEvent, User
+from .models import AuditEvent, User, utcnow
 
 log = logging.getLogger(__name__)
 
@@ -46,6 +48,11 @@ ACTIONS: dict[str, str] = {
 
 PLATFORM_OWNER = "Platform owner"
 
+# Retention: a year of history, and at most this many rows per company (oldest go first). Checked
+# when someone of the company logs in, so the log never grows without limit.
+KEEP_DAYS = 365
+MAX_ROWS_PER_COMPANY = 100_000
+
 
 def _clip(text: str | None, limit: int) -> str | None:
     if text is None:
@@ -66,7 +73,22 @@ def audit(db: Session, user: User | None, action: str, target: str | None = None
         db.add(AuditEvent(company_id=cid, user_id=user.id if user is not None else None, actor=_clip(actor, 200),
                           action=action[:40], target=_clip(target, 200),
                           detail=_clip(scrub(detail) if detail else None, 300)))
+        if action == "auth.login":
+            prune(db, cid)
         if commit:
             db.commit()
     except Exception:  # noqa: BLE001
         log.warning("Could not record activity %s", action, exc_info=True)
+
+
+def prune(db: Session, company_id: int) -> None:
+    """Removes the company's rows older than KEEP_DAYS and beyond the newest MAX_ROWS_PER_COMPANY
+    (two indexed queries on company_id)."""
+    db.flush()  # the row just added counts too
+    mine = AuditEvent.company_id == company_id
+    db.execute(delete(AuditEvent).where(mine, AuditEvent.created_at < utcnow() - timedelta(days=KEEP_DAYS))
+               .execution_options(synchronize_session=False))
+    cutoff = db.scalar(select(AuditEvent.id).where(mine).order_by(AuditEvent.id.desc())
+                       .offset(MAX_ROWS_PER_COMPANY - 1).limit(1))
+    if cutoff is not None:
+        db.execute(delete(AuditEvent).where(mine, AuditEvent.id < cutoff).execution_options(synchronize_session=False))

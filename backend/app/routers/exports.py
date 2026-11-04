@@ -24,7 +24,13 @@ OPEN = (TicketStatus.PENDING_PAYMENT, TicketStatus.IN_PROGRESS)
 PAID = (TicketStatus.PAID, TicketStatus.CONFIRMED)
 
 
+EARLIEST, LATEST = date(2000, 1, 1), date(2100, 12, 31)
+
+
 def _range(date_from: date | None, date_to: date | None) -> tuple[datetime | None, datetime | None]:
+    if any(d is not None and not EARLIEST <= d <= LATEST for d in (date_from, date_to)):
+        # Year 1 or 9999 would overflow when turned into a moment in time (a 500 error otherwise).
+        raise HTTPException(400, "Choose dates between 2000 and 2100")
     if date_from and date_to and date_from > date_to:
         raise HTTPException(400, "The start date must be before the end date")
     start = start_of_local_day(date_from) if date_from else None

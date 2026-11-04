@@ -22,7 +22,8 @@ export interface ApiOptions {
  *  and failed page loads (GET 4xx such as 403/404 loops; 401 is just an ended session). */
 function shouldReport(method: string, status: number): boolean {
   if (status === 0 || status >= 500) return true;
-  return method === "GET" && status >= 400 && status !== 401;
+  // 401 = signed out, 423 = a customer page paused by its plan: both expected, not faults.
+  return method === "GET" && status >= 400 && status !== 401 && status !== 423;
 }
 
 /** The server's own (English) text, so the same error reads the same in every language. */

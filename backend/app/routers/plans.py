@@ -206,7 +206,8 @@ def billing_overview(_: User = Depends(require_system_admin), db: Session = Depe
         state = svc.access_state(sub, on, grace)
         key = "past_due" if state == "grace" else state
         counts[key] = counts.get(key, 0) + 1
-        if state in svc.PAYING_STATES:
+        # A trial that ended and is in its grace period has never paid: not revenue.
+        if state in svc.PAYING_STATES and sub.status != SubscriptionStatus.TRIAL:
             mrr += svc.monthly_value(sub, plan)
         end = svc.period_end(sub)
         if end is not None and state != svc.STATE_PAUSED and 0 <= (end - on).days <= EXPIRING_DAYS:

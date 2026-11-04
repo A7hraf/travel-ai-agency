@@ -6,6 +6,7 @@ import { AR_EDITOR } from "./ar-editor";
 import { AR_PLANS, AR_PLANS_PATTERNS } from "./ar-plans";
 import { AR_PLATFORM } from "./ar-platform";
 import { AR_PROCESS, AR_PROCESS_PATTERNS } from "./ar-process";
+import { AR_RELEASE } from "./ar-release";
 import { AR_SECURITY2, AR_SECURITY2_PATTERNS } from "./ar-security2";
 import { AR_STAFF } from "./ar-staff";
 import { AR_TOOLS, AR_TOOLS_PATTERNS } from "./ar-tools";
@@ -581,7 +582,7 @@ export const AR: Record<string, string> = {
  * status label, {1:adults} / {1:children} a counted text.
  */
 // Texts of the redesigned screens live in their own files (merged here).
-Object.assign(AR, AR_STAFF, AR_ADMIN, AR_PROCESS, AR_PLATFORM, AR_AI, AR_EDITOR, AR_SECURITY2, AR_DEMO, AR_INSTAGRAM, AR_PLANS, AR_TOOLS);
+Object.assign(AR, AR_STAFF, AR_ADMIN, AR_PROCESS, AR_PLATFORM, AR_AI, AR_EDITOR, AR_SECURITY2, AR_DEMO, AR_INSTAGRAM, AR_PLANS, AR_TOOLS, AR_RELEASE);
 
 export const AR_PATTERNS: [RegExp, string][] = [
   [/^(.+) took over the conversation$/, "تولّى {1} المحادثة"],
