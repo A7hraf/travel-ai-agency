@@ -95,8 +95,10 @@ export default function Tickets() {
   return (
     <div className="tk-page">
       <div className="tk-head">
-        <h1 className="screen-title">{t("Tickets")}</h1>
-        {can("reports.view") && <ExportCsv className="btn btn-sm btn-ghost" />}
+        <div className="bt-title-row">
+          <h1 className="screen-title">{t("Tickets")}</h1>
+          {can("reports.view") && <ExportCsv className="btn btn-sm btn-ghost" />}
+        </div>
         {toCollect.size > 0 && (
           <div className="tk-collect">
             {[...toCollect].map(([cur, v], i) => (

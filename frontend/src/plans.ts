@@ -1,13 +1,5 @@
 /** Subscription plans: API types and small helpers shared by the console and the company pages. */
-import { AR, AR_PATTERNS } from "./locales/ar";
-import { AR_PLANS, AR_PLANS_PATTERNS } from "./locales/ar-plans";
 import { shortDate } from "./util";
-
-// Until ar.ts imports ar-plans.ts itself. Harmless once it does (same keys, patterns already there).
-if (!AR["My plan"]) {
-  Object.assign(AR, AR_PLANS);
-  AR_PATTERNS.unshift(...AR_PLANS_PATTERNS);
-}
 
 export interface Plan {
   id: number;
