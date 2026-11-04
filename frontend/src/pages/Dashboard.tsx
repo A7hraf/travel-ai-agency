@@ -12,7 +12,7 @@ import { currentLocale, useI18n } from "../lang";
 import type { Analytics, ConversationSummary, Dashboard as DashboardData } from "../types";
 import { customerLabel, usePolling } from "../util";
 import ExportCsv from "../components/ExportCsv";
-import { ErrorBox } from "../components/ui";
+import { ErrorBox, Loading } from "../components/ui";
 import { pollWatcher } from "../errorReporter";
 
 const PERIODS = [7, 30, 90];
@@ -115,25 +115,13 @@ export default function Dashboard() {
   const anim = useCountUp(a ? a.days : null);
   const now = new Date();
 
-  if (!data) {
-    if (dashError) return <div className="dash"><ErrorBox error={dashError} onRetry={loadMain} /></div>;
-    return (
-      <div className="dash">
-        <div className="dash-skel">
-          <div className="skeleton" style={{ height: 70, width: "50%" }} />
-          <div className="skeleton" style={{ height: 180 }} />
-          <div className="skeleton" style={{ height: 110 }} />
-          <div className="skeleton" style={{ height: 300 }} />
-        </div>
-      </div>
-    );
-  }
-
+  // The greeting shows at once; each part fills in as its own request answers (the numbers of
+  // "Right now" and the charts come from different requests, so one slow answer never blanks the page).
   const ready = !!a && a.days === days;
   const k = ready ? anim : 0;
-  const currency = a?.currency ?? data.currency;
-  const openTickets = (data.tickets_by_status.pending_payment ?? 0) + (data.tickets_by_status.in_progress ?? 0)
-    + (data.tickets_by_status.paid ?? 0);
+  const currency = a?.currency ?? data?.currency ?? "OMR";
+  const openTickets = data ? (data.tickets_by_status.pending_payment ?? 0) + (data.tickets_by_status.in_progress ?? 0)
+    + (data.tickets_by_status.paid ?? 0) : 0;
   const web = a ? a.daily.reduce((s, d) => s + d.web, 0) : 0;
   const wa = a ? a.daily.reduce((s, d) => s + d.whatsapp, 0) : 0;
   const ig = a ? a.daily.reduce((s, d) => s + (d.instagram ?? 0), 0) : 0;
@@ -145,7 +133,10 @@ export default function Dashboard() {
   const booked = a?.booked_value ?? 0;
   const paid = a?.paid_value ?? 0;
   const trend = prevBooked && prevBooked > 0 && ready ? (booked - prevBooked) / prevBooked : null;
-  const otherCurrencies = Object.entries(data.other_currencies ?? {}).filter(([, v]) => v > 0);
+  const otherCurrencies = Object.entries(data?.other_currencies ?? {}).filter(([, v]) => v > 0);
+  const waitingCount = data?.conversations_waiting ?? queue?.length ?? null;
+  // Numbers that have not arrived yet: a shimmer bar instead of a misleading 0.
+  const ph = (w = "60%") => <span className="skeleton" aria-hidden="true" style={{ display: "inline-block", width: w, height: "0.8em", borderRadius: 8, verticalAlign: "middle" }} />;
   const firstName = user?.full_name.split(" ")[0] ?? "";
   const dateText = now.toLocaleDateString(currentLocale(), { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const points = a ? dayPoints(a) : [];
@@ -186,13 +177,15 @@ export default function Dashboard() {
         </div>
         {can("tickets.view") && <ExportCsv className="btn btn-sm btn-ghost" />}
       </header>
+      {!data && dashError && <ErrorBox error={dashError} onRetry={loadMain} />}
       {!a && aError && <ErrorBox error={aError} onRetry={loadAnalytics} />}
+      {(!data || !a) && !dashError && !aError && <Loading height={0} />}
 
       <section className="dash-kpis" aria-busy={!ready}>
         <div className="kpi-card kpi-hero">
           <div className="kpi-kicker">{t("Booked value")}</div>
-          <div className="kpi-big tnum">{money(booked * k)}</div>
-          {trend !== null ? (
+          <div className="kpi-big tnum">{a ? money(booked * k) : ph()}</div>
+          {!a ? <div className="kpi-trend">{ph("45%")}</div> : trend !== null ? (
             <div className={`kpi-trend ${trend >= 0 ? "up" : "down"}`}>
               {trend >= 0 ? <TrendUp /> : <TrendDown />}
               {t("{p}% on the previous {period}", { p: Math.abs(Math.round(trend * 100)), period: periodText(days) })}
@@ -203,28 +196,29 @@ export default function Dashboard() {
         </div>
         <div className="kpi-card">
           <div className="kpi-kicker muted-k">{t("Paid sales")}</div>
-          <div className="kpi-mid tnum">{money(paid * k)}</div>
-          <div className="kpi-note">{booked > 0
+          <div className="kpi-mid tnum">{a ? money(paid * k) : ph()}</div>
+          <div className="kpi-note">{!a ? ph("70%") : booked > 0
             ? t("{p}% of booked value", { p: Math.round((paid / booked) * 100) })
             : t("Paid and confirmed bookings")}</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-kicker muted-k">{t("Conversations")}</div>
-          <div className="kpi-num tnum">{count(convs)}</div>
-          <div className="kpi-note">{t("{web} website · {wa} WhatsApp · {ig} Instagram", { web: count(web), wa: count(wa), ig: count(ig) })}</div>
+          <div className="kpi-num tnum">{a ? count(convs) : ph("40%")}</div>
+          <div className="kpi-note">{!a ? ph("80%") : t("{web} website · {wa} WhatsApp · {ig} Instagram", { web: count(web), wa: count(wa), ig: count(ig) })}</div>
         </div>
         <div className="kpi-card kpi-ring">
           <Ring value={aiShare} a={k} empty={!a || handled === 0}
-            label={handled ? t("{p}% handled fully by the AI", { p: Math.round(aiShare * 100) }) : t("No conversations yet")} />
+            label={!a ? t("Loading…") : handled ? t("{p}% handled fully by the AI", { p: Math.round(aiShare * 100) }) : t("No conversations yet")} />
           <div className="kpi-ring-text">
             <div className="kpi-pct tnum">{a && handled ? `${Math.round(aiShare * 100 * k)}%` : "—"}</div>
             <div className="kpi-note">{t("Handled fully by the AI")}</div>
-            <div className="kpi-note">{convs ? t("{p}% of chats became a booking", { p: Math.round(conversion * 100) }) : t("No conversations yet")}</div>
+            <div className="kpi-note">{!a ? ph("80%") : convs ? t("{p}% of chats became a booking", { p: Math.round(conversion * 100) }) : t("No conversations yet")}</div>
           </div>
         </div>
       </section>
 
-      <section className="dash-now" aria-label={t("Right now")}>
+      <section className="dash-now" aria-label={t("Right now")} aria-busy={!data}>
+        {!data ? [0, 1, 2, 3, 4].map((i) => <div key={i} className="skeleton now-skel" style={{ minHeight: 96, borderRadius: 18 }} />) : <>
         {canChats ? (
           <Link to="/app/conversations?status=human" className={`now-card now-waiting ${data.conversations_waiting ? "" : "calm"}`}>
             <div className="now-label">{t("Waiting for a human")}</div>
@@ -261,9 +255,10 @@ export default function Dashboard() {
           <div className="now-label">{t("Team accounts")}</div>
           <div className="now-value tnum">{data.users}<span className="now-of"> / {data.max_users}</span></div>
         </div>
+        </>}
       </section>
 
-      {quiet && (
+      {quiet && data && (
         <section className="dash-empty">
           <Storefront size={34} className="dash-empty-icon" />
           <div>
@@ -323,7 +318,7 @@ export default function Dashboard() {
             <section className="dash-card dash-queue">
               <div className="dash-card-head">
                 <h2>{t("Waiting for you")}</h2>
-                <span className="queue-count">{t("{n} chats", { n: data.conversations_waiting })}</span>
+                {waitingCount !== null && <span className="queue-count">{t("{n} chats", { n: waitingCount })}</span>}
               </div>
               {queue === null ? (queueError ? <ErrorBox error={queueError} onRetry={loadMain} />
                 : <div className="skeleton" style={{ height: 52, marginTop: 10 }} />) : queue.length === 0 ? (
@@ -367,7 +362,7 @@ export default function Dashboard() {
         </section>
         <section className="dash-card">
           <h2>{t("Top packages")}</h2>
-          {a && a.top_packages.length === 0 ? (
+          {!a ? <div className="skeleton" style={{ height: 140, marginTop: 14 }} /> : a.top_packages.length === 0 ? (
             <p className="queue-empty">{t("No bookings in this period yet.")}</p>
           ) : (
             <div className="top-list">

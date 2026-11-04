@@ -202,7 +202,7 @@ export const STOREFRONT_TEXT = {
     seatsLeft: (n: number) => (n <= 10 ? `${n} مقاعد متبقية` : `${n} مقعداً متبقياً`),
     soldOut: "نفدت المقاعد",
     seatsLow: (n: number) => (n === 1 ? "بقي مقعد واحد فقط" : n === 2 ? "بقي مقعدان فقط" : `بقي ${n} مقاعد فقط`),
-    departs: "Departs",
+    departs: "إقلاع",
     navTrips: "الرحلات",
     navHow: "طريقة الحجز",
     navAbout: "من نحن",

@@ -3,7 +3,7 @@ import { del, get, patch, post } from "../api";
 import { useAuth } from "../auth";
 import { ConfirmSheet, initials, PageTitle, Switch } from "../components/admin/AdminUI";
 import { LockSimple, PencilSimple, Plus, Trash } from "../components/Icon";
-import { ErrorBox, Field, Modal } from "../components/ui";
+import { ErrorBox, Field, Loading, Modal } from "../components/ui";
 import { useI18n } from "../lang";
 import type { PermissionCatalog, Role, User, UserList } from "../types";
 import { dateTime, ROLE_LABELS } from "../util";
@@ -33,7 +33,7 @@ export function UserManager({ basePath, listPath, createPath, onChanged }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listPath]);
 
-  if (!data) return loadError ? <ErrorBox error={loadError} onRetry={load} /> : <div className="skeleton" style={{ height: 240, borderRadius: 24 }} />;
+  if (!data) return loadError ? <ErrorBox error={loadError} onRetry={load} /> : <Loading height={240} />;
   const full = data.used >= data.max_users;
   // An employee with users.manage who is not a company admin cannot manage admin accounts.
   const delegate = !!me && me.role !== "company_admin" && me.role !== "system_admin";
@@ -72,11 +72,11 @@ export function UserManager({ basePath, listPath, createPath, onChanged }: {
                 <bdi dir="ltr" className="tm-email">{u.email}</bdi>
               </div>
               <div className="tm-role">
-                <span className="ad-status cyan plain">{t(ROLE_LABELS[u.role])}</span>
+                <span className="gx-status cyan plain">{t(ROLE_LABELS[u.role])}</span>
                 <span className="tm-perms">{u.role === "company_admin" ? t("All permissions") : t("{n} permissions", { n: u.permissions.length })}</span>
               </div>
               <div className="tm-state">
-                {u.is_active ? <span className="ad-status on">{t("Active")}</span> : <span className="ad-status off">{t("Disabled")}</span>}
+                {u.is_active ? <span className="gx-status on">{t("Active")}</span> : <span className="gx-status off">{t("Disabled")}</span>}
                 <span className="tm-login">{t("Last login")}: {dateTime(u.last_login_at)}</span>
               </div>
               <div className="tm-action">

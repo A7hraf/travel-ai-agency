@@ -3,7 +3,7 @@ import { get, patch, post } from "../../api";
 import { trServer, useI18n } from "../../lang";
 import type { InstagramStatus, InstagramTestResult } from "../../types";
 import { ArrowSquareOut, Check, CheckCircle, ClockCountdown, InstagramLogo, Plugs, XCircle } from "../Icon";
-import { ErrorBox, Field } from "../ui";
+import { ErrorBox, Field, Loading } from "../ui";
 import { CopyValue } from "./WhatsAppConnect";
 import "./ai.css";
 import "./instagram.css";
@@ -12,10 +12,10 @@ import "./instagram-i18n";
 
 export function InstagramBadge({ status }: { status: InstagramStatus["status"] }) {
   const { t } = useI18n();
-  if (status === "connected") return <span className="ad-status on">{t("Connected")}</span>;
-  if (status === "needs_app_secret") return <span className="ad-status warn">{t("Needs app secret")}</span>;
-  if (status === "needs_token") return <span className="ad-status warn">{t("Needs access token")}</span>;
-  return <span className="ad-status off">{t("Not connected")}</span>;
+  if (status === "connected") return <span className="gx-status on">{t("Connected")}</span>;
+  if (status === "needs_app_secret") return <span className="gx-status warn">{t("Needs app secret")}</span>;
+  if (status === "needs_token") return <span className="gx-status warn">{t("Needs access token")}</span>;
+  return <span className="gx-status off">{t("Not connected")}</span>;
 }
 
 const ext = (href: string, label: string) => <a href={href} target="_blank" rel="noreferrer">{label} <ArrowSquareOut /></a>;
@@ -34,30 +34,32 @@ export default function InstagramConnect({ variant, base }: {
 
   const load = () => get<InstagramStatus>(base).then((s) => { setSt(s); setLoadError(null); }).catch((e) => setLoadError(e.message));
   useEffect(() => { load(); }, [base]);
-  if (!st) return loadError ? (
-    <section className="ad-card">
-      <h2 className="ad-card-title">{t("Connect Instagram")}</h2>
-      <ErrorBox error={t("The Instagram connection could not be loaded: {error}", { error: loadError })} onRetry={load} />
+  if (!st) return (
+    <section className="gx-card wa-connect">
+      <h2 className="gx-card-title"><span className="gx-card-icon ig"><InstagramLogo weight="fill" /></span>{t("Connect Instagram")}</h2>
+      {loadError
+        ? <ErrorBox error={t("The Instagram connection could not be loaded: {error}", { error: loadError })} onRetry={load} />
+        : <Loading height={160} />}
     </section>
-  ) : <div className="skeleton" style={{ height: 260, borderRadius: 24 }} />;
+  );
 
   const webhook = st.webhook_path ? `${window.location.origin}${st.webhook_path}` : "";
   // Where account fixes are saved: the company's own settings, or the owner's endpoint.
   const savePath = variant === "company" ? "/api/company" : base;
 
   return (
-    <section className="ad-card wa-connect" aria-labelledby="ig-connect-title">
+    <section className="gx-card wa-connect" aria-labelledby="ig-connect-title">
       <div className="wa-connect-head">
-        <h2 className="ad-card-title" id="ig-connect-title" style={{ margin: 0 }}><span className="ad-card-icon ig"><InstagramLogo weight="fill" /></span>{t("Connect Instagram")}</h2>
+        <h2 className="gx-card-title" id="ig-connect-title" style={{ margin: 0 }}><span className="gx-card-icon ig"><InstagramLogo weight="fill" /></span>{t("Connect Instagram")}</h2>
         <span className="spacer" />
         <InstagramBadge status={st.status} />
       </div>
-      <p className="ad-card-note">{variant === "company"
+      <p className="gx-card-note">{variant === "company"
         ? t("Customers who send a Direct Message to your Instagram account talk to your AI consultant, and your team sees and answers the chats in Conversations, like WhatsApp.")
         : t("This company's Instagram Direct connection. You can set it up for the company here: you may assign an account ID without Instagram's ownership check, but never one used by another company.")}</p>
 
       {st.account_id && (
-        <p className="ad-card-note ig-account">{t("Instagram account:")}
+        <p className="gx-card-note ig-account">{t("Instagram account:")}
           {st.username && <bdi dir="ltr">@{st.username}</bdi>}
           <span>· {t("Account ID:")} <code dir="ltr">{st.account_id}</code></span></p>
       )}
@@ -158,7 +160,7 @@ function OwnSteps({ st, webhook, base, onSaved, onResult }: {
 
       <Step n={2} done={!!st.account_id && st.token_set && st.app_secret_set} title={t("Enter them here")}>
         <form onSubmit={save}>
-          <div className="ad-grid-2">
+          <div className="gx-grid-2">
             <Field label={t("Access token")} hint={st.token_set ? t("Saved (encrypted). Type a new one to replace it.") : t("The long token from Generate token. It is renewed automatically while customers write to you.")}>
               <input type="password" value={token} placeholder={st.token_set ? `•••••••• (${t("saved")})` : ""} onChange={(e) => { setToken(e.target.value); setSaved(false); }} autoComplete="new-password" dir="ltr" />
             </Field>
@@ -170,8 +172,8 @@ function OwnSteps({ st, webhook, base, onSaved, onResult }: {
             </Field>
           </div>
           <ErrorBox error={error} />
-          {saved && <div className="ok-box ad-notice" role="status">{t("Instagram settings saved.")}</div>}
-          <div className="ad-form-actions">
+          {saved && <div className="ok-box gx-notice" role="status">{t("Instagram settings saved.")}</div>}
+          <div className="gx-form-actions">
             <button className="btn btn-primary" disabled={busy} aria-busy={busy}>{busy ? t("Saving…") : t("Save Instagram settings")}</button>
             {(st.token_set || st.account_id) && (
               <button type="button" className="btn btn-ghost" disabled={busy} onClick={async () => {
@@ -184,7 +186,7 @@ function OwnSteps({ st, webhook, base, onSaved, onResult }: {
       </Step>
 
       <Step n={3} done={st.status === "connected"} title={t("Point Meta's webhook to your AI")}>
-        <p className="ad-card-note" style={{ marginTop: 0 }}>{t("In your app → Instagram → API setup with Instagram login → Configure webhooks, paste:")}</p>
+        <p className="gx-card-note" style={{ marginTop: 0 }}>{t("In your app → Instagram → API setup with Instagram login → Configure webhooks, paste:")}</p>
         <div>{t("Callback URL:")}</div>
         {webhook && <CopyValue value={webhook} />}
         <div>{t("Verify token:")}</div>
@@ -242,7 +244,7 @@ function OwnerForm({ st, base, onSaved }: { st: InstagramStatus; base: string; o
           <li>{t("The company's own Meta app sends and signs the messages: it needs the access token and the Instagram app secret of that app.")}</li>
           <li>{t("Leave the token and secret empty to keep the saved ones.")}</li>
         </ul>
-        <div className="ad-grid-2">
+        <div className="gx-grid-2">
           <Field label={t("Instagram account ID")} hint={t("Leave empty to disconnect.")}>
             <input value={accountId} onChange={(e) => { setAccountId(e.target.value.replace(/\D/g, "")); setSaved(false); }} inputMode="numeric" maxLength={64} dir="ltr" />
           </Field>
@@ -257,8 +259,8 @@ function OwnerForm({ st, base, onSaved }: { st: InstagramStatus; base: string; o
           </Field>
         </div>
         <ErrorBox error={error} />
-        {saved && <div className="ok-box ad-notice" role="status">{t("Saved.")}</div>}
-        <div className="ad-form-actions"><button className="btn btn-primary" disabled={busy}>{busy ? t("Saving…") : t("Save")}</button></div>
+        {saved && <div className="ok-box gx-notice" role="status">{t("Saved.")}</div>}
+        <div className="gx-form-actions"><button className="btn btn-primary" disabled={busy}>{busy ? t("Saving…") : t("Save")}</button></div>
       </div>
     </form>
   );
@@ -304,7 +306,7 @@ function TestBox({ base, savePath, onResult, onSaved }: {
 
   return (
     <div className="wa-test">
-      <p className="ad-card-note" style={{ marginTop: 0 }}>{t("Asks Instagram which account the access token belongs to, and whether it is the connected one.")}</p>
+      <p className="gx-card-note" style={{ marginTop: 0 }}>{t("Asks Instagram which account the access token belongs to, and whether it is the connected one.")}</p>
       <button type="button" className="btn btn-primary" onClick={test} disabled={busy} aria-busy={busy}>
         {busy ? <><span className="login-spin" aria-hidden="true" />{t("Testing…")}</> : <><Plugs />{t("Test connection")}</>}
       </button>

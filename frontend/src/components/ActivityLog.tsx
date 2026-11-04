@@ -4,7 +4,7 @@ import { trServer, useI18n } from "../lang";
 import type { ActivityItem, ActivityPage } from "../types";
 import { dateTime, TICKET_STATUS_LABELS } from "../util";
 import { ClockCounterClockwise } from "./Icon";
-import { ErrorBox } from "./ui";
+import { ErrorBox, Loading } from "./ui";
 
 const AREAS: [string, string][] = [
   ["", "Everything"],
@@ -70,7 +70,7 @@ export default function ActivityLog({ path }: { path: string }) {
   useEffect(load, [path, days, area, person]);
 
   return (
-    <section className="ad-card">
+    <section className="gx-card">
       <div className="bt-toolbar">
         <div className="chips" role="group" aria-label={t("Period")}>
           {PERIODS.map((d) => (
@@ -90,7 +90,7 @@ export default function ActivityLog({ path }: { path: string }) {
       </div>
 
       <ErrorBox error={error} onRetry={load} />
-      {!page && !error && <div className="skeleton" style={{ height: 220, borderRadius: 18 }} />}
+      {!page && !error && <Loading height={220} />}
       {page && items.length === 0 && !error && (
         <div className="empty">
           <ClockCounterClockwise className="empty-icon" aria-hidden="true" />
@@ -114,7 +114,7 @@ export default function ActivityLog({ path }: { path: string }) {
         </ul>
       )}
       {page?.has_more && (
-        <div className="ad-form-actions">
+        <div className="gx-form-actions">
           <button type="button" className="btn btn-ghost" disabled={loading} onClick={more}>{loading ? t("Loading…") : t("Show older")}</button>
         </div>
       )}

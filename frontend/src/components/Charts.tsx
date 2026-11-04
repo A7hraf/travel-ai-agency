@@ -1,16 +1,18 @@
 import { KeyboardEvent, ReactNode, useState } from "react";
 
 /** Dashboard chart colours (design handoff): website, WhatsApp, AI ring; ordinal funnel blues; booked-value line.
- *  Instagram (magenta-purple) was checked against the other two series on the dark surface: CVD ΔE ≥ 11,
- *  contrast 3.5:1. */
+ *  They are CSS variables (styles/base.css) with one value per theme, each mark at least 3:1 against the card:
+ *  dark — web #2a78d6 4.1, WhatsApp #eb6834 5.6, Instagram #c13584 3.5, AI #1baf7a 6.4;
+ *  light — web #2a78d6 4.4, WhatsApp #d0542a 4.2, Instagram #c13584 5.1, AI #11865c 4.6 (on white). */
 export const CHART = {
-  web: "#2a78d6",
-  wa: "#eb6834",
-  ig: "#c13584",
-  ai: "#1baf7a",
-  line: "#4fb6dc",
-  funnel: ["#2a78d6", "#5b9be6", "#9cc3f0"],
+  web: "var(--chart-web)",
+  wa: "var(--chart-wa)",
+  ig: "var(--chart-ig)",
+  ai: "var(--chart-ai)",
+  line: "var(--chart-line)",
+  funnel: ["var(--chart-funnel-1)", "var(--chart-funnel-2)", "var(--chart-funnel-3)"],
 };
+const GLOW = (color: string) => `drop-shadow(0 0 6px color-mix(in srgb, ${color} calc(var(--chart-glow) * 100%), transparent))`;
 
 export interface DayPoint {
   /** Short label for the axis ("19 Sep"). */
@@ -106,14 +108,14 @@ export function AreaChart({ points, a, format, ariaLabel }: {
       <svg viewBox="0 0 600 140" preserveAspectRatio="none" aria-hidden="true">
         <defs>
           <linearGradient id="gjArea" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor={CHART.line} stopOpacity="0.45" />
-            <stop offset="1" stopColor={CHART.line} stopOpacity="0" />
+            <stop offset="0" style={{ stopColor: CHART.line, stopOpacity: 0.45 }} />
+            <stop offset="1" style={{ stopColor: CHART.line, stopOpacity: 0 }} />
           </linearGradient>
         </defs>
         <path d={area} fill="url(#gjArea)" />
-        <path d={line} fill="none" stroke={CHART.line} strokeWidth="2.5" vectorEffect="non-scaling-stroke"
-          strokeLinejoin="round" style={{ filter: "drop-shadow(0 0 6px rgba(79,182,220,.7))" }} />
-        {hp && <line x1={xy[hover][0]} x2={xy[hover][0]} y1="0" y2="140" stroke="rgba(243,242,242,.25)" strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />}
+        <path d={line} fill="none" strokeWidth="2.5" vectorEffect="non-scaling-stroke"
+          strokeLinejoin="round" style={{ stroke: CHART.line, filter: GLOW(CHART.line) }} />
+        {hp && <line x1={xy[hover][0]} x2={xy[hover][0]} y1="0" y2="140" style={{ stroke: "var(--chart-guide)" }} strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />}
       </svg>
       {hp && (
         <>
@@ -131,10 +133,10 @@ export function Ring({ value, a, empty, label }: { value: number; a: number; emp
   const v = empty ? 0 : Math.max(0, Math.min(1, value));
   return (
     <svg width="88" height="88" viewBox="0 0 104 104" className="dc-ring" role="img" aria-label={label}>
-      <circle cx="52" cy="52" r="42" fill="none" stroke="rgba(243,242,242,.1)" strokeWidth="10" />
+      <circle cx="52" cy="52" r="42" fill="none" style={{ stroke: "var(--chart-track)" }} strokeWidth="10" />
       {v > 0 && (
-        <circle cx="52" cy="52" r="42" fill="none" stroke={CHART.ai} strokeWidth="10" strokeLinecap="round"
-          strokeDasharray={`${(v * c * a).toFixed(1)} ${c}`} style={{ filter: "drop-shadow(0 0 6px rgba(27,175,122,.6))" }} />
+        <circle cx="52" cy="52" r="42" fill="none" strokeWidth="10" strokeLinecap="round"
+          strokeDasharray={`${(v * c * a).toFixed(1)} ${c}`} style={{ stroke: CHART.ai, filter: GLOW(CHART.ai) }} />
       )}
     </svg>
   );

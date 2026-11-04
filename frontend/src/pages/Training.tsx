@@ -13,7 +13,7 @@ export default function Training() {
   const tab: TrainingTab = raw && TABS.includes(raw) ? raw : "answers";
 
   return (
-    <div className="narrow ad-narrow">
+    <div className="narrow gx-narrow">
       <PageTitle kicker={t("Agency workspace")} title={t("AI training")}
         subtitle={t("Teach your AI consultant how your company answers. When a customer asks something similar, in Arabic or English, the AI answers your way.")} />
       <TrainingWorkspace base="/api/training" tab={tab}

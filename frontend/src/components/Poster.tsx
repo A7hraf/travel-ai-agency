@@ -1,4 +1,5 @@
 import { CSSProperties, ReactNode } from "react";
+import { tr } from "../lang";
 
 /** Destination look per place: poster hue and airport code ("MCT → MLE"). Matched on the package's
  *  destination, country and title, in English or Arabic. Unknown places get a stable hue from their name. */
@@ -59,7 +60,7 @@ export function Poster({ destination, country, title, imageUrl, className = "", 
       <div className="poster-bands" />
       {!imageUrl && <div className="poster-halftone" />}
       {route && <div className="poster-route">MCT → {place.iata}</div>}
-      {stamp && <div className="poster-stamp" aria-hidden="true"><span>Departs<b>MCT</b>✈</span></div>}
+      {stamp && <div className="poster-stamp" aria-hidden="true"><span>{tr("Departs")}<b>MCT</b>✈</span></div>}
       {children}
     </div>
   );

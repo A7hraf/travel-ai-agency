@@ -4,7 +4,9 @@ import { ApiError, get } from "../api";
 import { homePath, LoginChoice, useAuth } from "../auth";
 import { GhanjahLockup } from "../components/Brand";
 import { ArrowSquareOut, Buildings, CaretRight, Envelope, Key, ShieldCheck, SignIn, UserCircle } from "../components/Icon";
-import { LangSwitch, useI18n } from "../lang";
+import { currentLocale, LangSwitch, useI18n } from "../lang";
+import { useTheme } from "../themeMode";
+import { ThemeSwitch } from "../components/ThemeSwitch";
 import { ROLE_LABELS } from "../util";
 
 interface DemoAccount {
@@ -15,7 +17,8 @@ interface DemoAccount {
 
 export default function Login() {
   const { user, login } = useAuth();
-  const { t, lang } = useI18n();
+  const { t } = useI18n();
+  const { theme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const state = location.state as { from?: string; expired?: boolean } | null;
@@ -64,11 +67,12 @@ export default function Login() {
     <div className="login-page">
       <div className="gj-orbs" aria-hidden="true" />
       <div className="login-top">
+        <ThemeSwitch className="btn btn-sm lang-switch login-theme" />
         <LangSwitch className="btn btn-sm lang-switch" />
       </div>
       <div className="login-grid">
         <section className="login-hero">
-          <GhanjahLockup dark />
+          <GhanjahLockup dark={theme === "dark"} />
           <div className="login-kicker">{t("Agency workspace")}</div>
           <h1 className="login-title">{t("From Oman to")} <span className="accent-word">{t("the world")}</span></h1>
           <p className="login-text">{t("Your agency's AI travel consultant, on your page and on WhatsApp, with your team one tap away.")}</p>
@@ -128,7 +132,7 @@ export default function Login() {
                 <button type="button" key={a.email} className={`demo-account ${email === a.email ? "active" : ""}`}
                   onClick={() => { setEmail(a.email); setPassword(a.password); setError(null); }}>
                   <UserCircle className="demo-icon" />
-                  <span className="demo-text"><strong>{a.label}</strong><bdi dir="ltr">{a.email}</bdi></span>
+                  <span className="demo-text"><strong>{t(a.label)}</strong><bdi dir="ltr">{a.email}</bdi></span>
                 </button>
               ))}
               <a className="demo-link" href="/c/sunrise-travel" target="_blank" rel="noreferrer">
@@ -138,7 +142,7 @@ export default function Login() {
           )}
         </form>
       </div>
-      <p className="login-version">{t("Version of {date}", { date: new Date(__BUILD_TIME__).toLocaleString(lang === "ar" ? "ar-OM" : "en-GB", { dateStyle: "medium", timeStyle: "short" }) })}</p>
+      <p className="login-version">{t("Version of {date}", { date: new Date(__BUILD_TIME__).toLocaleString(currentLocale(), { dateStyle: "medium", timeStyle: "short" }) })}</p>
     </div>
   );
 }

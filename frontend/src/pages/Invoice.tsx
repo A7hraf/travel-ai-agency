@@ -4,6 +4,7 @@ import { get } from "../api";
 import { GhanjahMark, usePlatformName } from "../components/Brand";
 import { ArrowLeft, Printer } from "../components/Icon";
 import { Money } from "../components/Money";
+import { ErrorBox, Loading } from "../components/ui";
 import { LangSwitch, useI18n } from "../lang";
 import { CYCLE_LABELS, Invoice as InvoiceT, METHOD_LABELS, periodText } from "../plans";
 import "../styles/plans.css";
@@ -16,11 +17,14 @@ export default function Invoice({ owner }: { owner?: boolean }) {
   const platform = usePlatformName();
   const [inv, setInv] = useState<InvoiceT | null>(null);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
+  const load = () => {
+    setError(null);
     const path = owner ? `/api/system/payments/${id}/invoice` : `/api/company/plan/payments/${id}/invoice`;
     get<InvoiceT>(path).then((x) => { setInv(x); document.title = `${x.payment.invoice_number} · ${x.company.name}`; })
       .catch((e) => setError(e.message));
-  }, [id, owner]);
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(load, [id, owner]);
 
   const back = owner ? (inv ? `/system/companies/${inv.payment.company_id}` : "/system") : "/app/plan";
   return (
@@ -31,7 +35,7 @@ export default function Invoice({ owner }: { owner?: boolean }) {
         <LangSwitch className="btn btn-ghost" />
         <button type="button" className="btn btn-primary" onClick={() => window.print()} disabled={!inv}><Printer />{t("Print")}</button>
       </div>
-      {error && <div className="error-box">{error}</div>}
+      {!inv && <div style={{ maxWidth: 820, margin: "0 auto" }}>{error ? <ErrorBox error={error} onRetry={load} /> : <Loading height={320} label={t("Loading the invoice…")} />}</div>}
       {inv && (
         <article className="inv-sheet">
           <header className="inv-head">

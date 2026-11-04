@@ -8,7 +8,7 @@ import {
   Plus, Robot, ShieldCheck, Sparkle, Trash, UploadSimple, User as UserIcon,
 } from "../Icon";
 import { moneyText } from "../Money";
-import { ChatText, ErrorBox, Field } from "../ui";
+import { ChatText, ErrorBox, Field, Loading } from "../ui";
 import "./ai.css";
 import "./i18n";
 
@@ -69,9 +69,9 @@ export default function TrainingWorkspace({ base, tab, onTab, settingsLink }: {
 function HowItWorks({ onTab }: { onTab: (tab: TrainingTab) => void }) {
   const { t } = useI18n();
   return (
-    <section className="ad-card">
-      <h2 className="ad-card-title"><span className="ad-card-icon"><GraduationCap /></span>{t("How AI training works")}</h2>
-      <p className="ad-card-note">{t("Your AI consultant already knows your packages (titles, prices, dates, descriptions). Training teaches it everything else about your company, in plain words. No technical skills needed.")}</p>
+    <section className="gx-card">
+      <h2 className="gx-card-title"><span className="gx-card-icon"><GraduationCap /></span>{t("How AI training works")}</h2>
+      <p className="gx-card-note">{t("Your AI consultant already knows your packages (titles, prices, dates, descriptions). Training teaches it everything else about your company, in plain words. No technical skills needed.")}</p>
       <ol className="ai-how">
         <li><span className="ai-how-num">1</span><div>
           <strong>{t("Teach answers")}</strong>
@@ -150,8 +150,8 @@ function AnswersTab({ base, items, listError, reload }: {
 
   return (
     <>
-      <form ref={formRef} className={`ad-card tr-form ${editing ? "editing" : ""}`} onSubmit={save}>
-        <h2 className="ad-card-title"><span className="ad-card-icon"><GraduationCap /></span>{editing ? t("Edit answer") : t("Teach a new answer")}
+      <form ref={formRef} className={`gx-card tr-form ${editing ? "editing" : ""}`} onSubmit={save}>
+        <h2 className="gx-card-title"><span className="gx-card-icon"><GraduationCap /></span>{editing ? t("Edit answer") : t("Teach a new answer")}
           <span className="spacer" />
           {!editing && <button type="button" className="btn btn-sm btn-ghost" aria-expanded={importOpen} onClick={() => setImportOpen((o) => !o)}><UploadSimple />{t("Import many answers")}</button>}
         </h2>
@@ -162,8 +162,8 @@ function AnswersTab({ base, items, listError, reload }: {
           <textarea rows={4} value={answer} onChange={(e) => setAnswer(e.target.value)} required maxLength={4000} dir="auto" />
         </Field>
         <ErrorBox error={error} />
-        {notice && <div className="ok-box ad-notice" role="status">{notice}</div>}
-        <div className="ad-form-actions">
+        {notice && <div className="ok-box gx-notice" role="status">{notice}</div>}
+        <div className="gx-form-actions">
           <button className="btn btn-primary" disabled={busy}>{busy ? t("Saving…") : editing ? t("Save") : <><Plus weight="bold" />{t("Add to training")}</>}</button>
           {editing && <button type="button" className="btn btn-ghost" onClick={reset}>{t("Cancel")}</button>}
         </div>
@@ -171,15 +171,15 @@ function AnswersTab({ base, items, listError, reload }: {
 
       {importOpen && <ImportCard base={base} onDone={() => { reload(); }} onClose={() => setImportOpen(false)} />}
 
-      <div className="ad-toolbar tr-toolbar">
+      <div className="gx-toolbar tr-toolbar">
         <h2 className="tr-count">{items ? t("{n} answers", { n: items.length }) : t("Answers")}</h2>
-        <div className="ad-search">
+        <div className="gx-search">
           <MagnifyingGlass aria-hidden="true" />
           <input type="search" placeholder={t("Search answers")} aria-label={t("Search answers")} value={filter} onChange={(e) => setFilter(e.target.value)} />
         </div>
       </div>
       <ErrorBox error={listError ?? rowError} onRetry={listError ? reload : undefined} />
-      {items === null ? (listError ? null : <div className="skeleton" style={{ height: 120, borderRadius: 20 }} />) : shown.length === 0 ? (
+      {items === null ? (listError ? null : <Loading height={120} />) : shown.length === 0 ? (
         <div className="empty">
           <ChatsCircle className="empty-icon" />
           <strong>{needle && items.length > 0 ? t("No results for this filter.") : t("No answers yet. Add the questions customers ask you most.")}</strong>
@@ -236,21 +236,21 @@ function ImportCard({ base, onDone, onClose }: { base: string; onDone: () => voi
   };
 
   return (
-    <section className="ad-card ai-import">
-      <h2 className="ad-card-title"><span className="ad-card-icon"><UploadSimple /></span>{t("Import many answers")}</h2>
-      <p className="ad-card-note">{t("Paste one answer per line: the question, a | sign, then the answer. You can also paste two columns copied from Excel or Google Sheets, or a CSV file's text. Up to 200 at a time.")}</p>
+    <section className="gx-card ai-import">
+      <h2 className="gx-card-title"><span className="gx-card-icon"><UploadSimple /></span>{t("Import many answers")}</h2>
+      <p className="gx-card-note">{t("Paste one answer per line: the question, a | sign, then the answer. You can also paste two columns copied from Excel or Google Sheets, or a CSV file's text. Up to 200 at a time.")}</p>
       <Field label={t("Questions and answers")} hint={<>{t("Example:")} <code dir="auto" style={{ whiteSpace: "pre-wrap" }}>{IMPORT_EXAMPLE}</code></>}>
         <textarea rows={7} value={text} dir="auto" maxLength={200000} onChange={(e) => { setText(e.target.value); setPreview(null); setDone(null); }}
           placeholder={"question | answer"} />
       </Field>
       <ErrorBox error={error} />
-      {done !== null && <div className="ok-box ad-notice" role="status">{t("{n} answers added to the training.", { n: done })}</div>}
+      {done !== null && <div className="ok-box gx-notice" role="status">{t("{n} answers added to the training.", { n: done })}</div>}
       {preview && (
         <div aria-live="polite">
           <div className="ai-import-sum">
-            <span className="ad-status on">{t("{n} new answers", { n: preview.rows.length })}</span>
-            {preview.duplicates.length > 0 && <span className="ad-status off">{t("{n} already trained (skipped)", { n: preview.duplicates.length })}</span>}
-            {preview.problems.length > 0 && <span className="ad-status warn">{t("{n} lines with a problem (skipped)", { n: preview.problems.length })}</span>}
+            <span className="gx-status on">{t("{n} new answers", { n: preview.rows.length })}</span>
+            {preview.duplicates.length > 0 && <span className="gx-status off">{t("{n} already trained (skipped)", { n: preview.duplicates.length })}</span>}
+            {preview.problems.length > 0 && <span className="gx-status warn">{t("{n} lines with a problem (skipped)", { n: preview.problems.length })}</span>}
           </div>
           <ul className="ai-import-list">
             {preview.problems.map((p) => <li key={`p${p.line}`} className="bad"><span className="ln">{t("Line {n}", { n: p.line })}</span>{trServer(p.error)}</li>)}
@@ -260,7 +260,7 @@ function ImportCard({ base, onDone, onClose }: { base: string; onDone: () => voi
           </ul>
         </div>
       )}
-      <div className="ad-form-actions">
+      <div className="gx-form-actions">
         {preview && preview.rows.length > 0
           ? <button className="btn btn-primary" disabled={busy} onClick={() => run(true)}>{busy ? t("Saving…") : t("Import {n} answers", { n: preview.rows.length })}</button>
           : <button className="btn btn-primary" disabled={busy || !text.trim()} onClick={() => run(false)}>{busy ? t("Checking…") : t("Check the lines")}</button>}
@@ -282,7 +282,12 @@ function KnowledgeTab({ base, knowledge, onSaved, extra, loadError, onRetry }: {
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   useEffect(() => { if (knowledge && !k) setK(knowledge); }, [knowledge]);
-  if (!k) return loadError ? <ErrorBox error={loadError} onRetry={onRetry} /> : <div className="skeleton" style={{ height: 320, borderRadius: 24 }} />;
+  if (!k) return (
+    <section className="gx-card">
+      <h2 className="gx-card-title"><span className="gx-card-icon"><Books /></span>{t("Company knowledge")}</h2>
+      {loadError ? <ErrorBox error={loadError} onRetry={onRetry} /> : <Loading height={260} />}
+    </section>
+  );
 
   const set = <K extends keyof AIKnowledge>(key: K, v: AIKnowledge[K]) => { setSaved(false); setK({ ...k, [key]: v }); };
   const save = async (e: FormEvent) => {
@@ -306,15 +311,15 @@ function KnowledgeTab({ base, knowledge, onSaved, extra, loadError, onRetry }: {
   };
 
   return (
-    <form className="ad-card" onSubmit={save}>
-      <h2 className="ad-card-title"><span className="ad-card-icon"><Books /></span>{t("Company knowledge")}</h2>
-      <p className="ad-card-note">{t("What the AI should know about your company and how it should behave. It applies to the website chat and WhatsApp.")}</p>
+    <form className="gx-card" onSubmit={save}>
+      <h2 className="gx-card-title"><span className="gx-card-icon"><Books /></span>{t("Company knowledge")}</h2>
+      <p className="gx-card-note">{t("What the AI should know about your company and how it should behave. It applies to the website chat and WhatsApp.")}</p>
       <Field label={t("Knowledge & policies")} hint={t("Payment methods, deposit, cancellation, visas, office hours… The AI uses this to answer and never contradicts it. Arabic or English.")}>
         <textarea rows={10} maxLength={30000} dir="auto" value={k.knowledge_base} onChange={(e) => set("knowledge_base", e.target.value)}
           placeholder={t("e.g. We take a 20% deposit to book. Cancellation is free up to 30 days before departure. Office hours: Sat–Thu 9am–6pm.")} />
       </Field>
       <h3 className="co-form-h">{t("Personality")}</h3>
-      <div className="ad-grid-2">
+      <div className="gx-grid-2">
         <Field label={t("Agent name")} hint={t("How the AI introduces itself to customers.")}>
           <input value={k.ai_agent_name} onChange={(e) => set("ai_agent_name", e.target.value)} required maxLength={80} dir="auto" />
         </Field>
@@ -330,8 +335,8 @@ function KnowledgeTab({ base, knowledge, onSaved, extra, loadError, onRetry }: {
         <textarea rows={4} maxLength={8000} dir="auto" value={k.ai_instructions} onChange={(e) => set("ai_instructions", e.target.value)} />
       </Field>
       <ErrorBox error={error} />
-      {saved && <div className="ok-box ad-notice" role="status">{t("AI settings saved. They apply to the next customer message.")}</div>}
-      <div className="ad-form-actions">
+      {saved && <div className="ok-box gx-notice" role="status">{t("AI settings saved. They apply to the next customer message.")}</div>}
+      <div className="gx-form-actions">
         <button className="btn btn-primary" disabled={busy} aria-busy={busy}>{busy ? t("Saving…") : t("Save knowledge")}</button>
         {extra}
       </div>
@@ -377,14 +382,14 @@ function TryTab({ base, onTaught, agent }: { base: string; onTaught: () => void;
   };
 
   return (
-    <section className="ad-card ai-try">
+    <section className="gx-card ai-try">
       <div className="ai-try-head">
-        <h2 className="ad-card-title" style={{ margin: 0 }}><span className="ad-card-icon"><Sparkle weight="fill" /></span>{t("Try your AI")}</h2>
-        <span className="ad-status cyan">{t("Test mode")}</span>
+        <h2 className="gx-card-title" style={{ margin: 0 }}><span className="gx-card-icon"><Sparkle weight="fill" /></span>{t("Try your AI")}</h2>
+        <span className="gx-status cyan">{t("Test mode")}</span>
         <span className="spacer" />
         {turns.length > 0 && <button className="btn btn-sm btn-ghost" onClick={() => { setTurns([]); setTeaching(null); }}>{t("New test chat")}</button>}
       </div>
-      <p className="ad-card-note">{t("Type a question as if you were a customer, in Arabic or English. You get the real answer with your packages, knowledge and trained answers. Nothing is saved: no chat, customer or booking is created.")}</p>
+      <p className="gx-card-note">{t("Type a question as if you were a customer, in Arabic or English. You get the real answer with your packages, knowledge and trained answers. Nothing is saved: no chat, customer or booking is created.")}</p>
 
       <div className="ai-try-log" aria-live="polite">
         {turns.length === 0 && (
@@ -478,11 +483,11 @@ function TeachForm({ base, question: q0, answer: a0, onClose, onSaved }: {
     }
   };
   if (done) {
-    return <div className="ok-box ad-notice" role="status"><Lightning weight="fill" /> {t("Taught! Ask the question again to see the new answer.")}</div>;
+    return <div className="ok-box gx-notice" role="status"><Lightning weight="fill" /> {t("Taught! Ask the question again to see the new answer.")}</div>;
   }
   return (
     <form className="ai-teach" onSubmit={save}>
-      <p className="ad-card-note" style={{ marginTop: 0 }}>{t("Correct the answer if needed. The AI will answer this way when a customer asks something similar.")}</p>
+      <p className="gx-card-note" style={{ marginTop: 0 }}>{t("Correct the answer if needed. The AI will answer this way when a customer asks something similar.")}</p>
       <Field label={t("Customer question")}>
         <input value={question} onChange={(e) => setQuestion(e.target.value)} required minLength={2} maxLength={1000} dir="auto" />
       </Field>
@@ -490,7 +495,7 @@ function TeachForm({ base, question: q0, answer: a0, onClose, onSaved }: {
         <textarea rows={4} value={answer} onChange={(e) => setAnswer(e.target.value)} required maxLength={4000} dir="auto" />
       </Field>
       <ErrorBox error={error} />
-      <div className="ad-form-actions">
+      <div className="gx-form-actions">
         <button className="btn btn-primary" disabled={busy}>{busy ? t("Saving…") : <><GraduationCap />{t("Save to training")}</>}</button>
         <button type="button" className="btn btn-ghost" onClick={onClose}>{t("Cancel")}</button>
       </div>

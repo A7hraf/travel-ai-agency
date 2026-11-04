@@ -5,7 +5,7 @@ import { PageTitle } from "../../components/admin/AdminUI";
 import {
   ArrowClockwise, Bug, CheckCircle, Copy, Database, Heartbeat, InstagramLogo, WarningCircle, WhatsappLogo,
 } from "../../components/Icon";
-import { ErrorBox } from "../../components/ui";
+import { ErrorBox, Loading } from "../../components/ui";
 import { useI18n } from "../../lang";
 import type { CompanyAdmin, ErrorEventRow, SystemHealth as Health } from "../../types";
 import { dateTime, timeAgo } from "../../util";
@@ -123,13 +123,13 @@ export default function SystemHealth() {
 
   const db = health?.database;
   return (
-    <div className="narrow ad-narrow">
+    <div className="narrow gx-narrow">
       <PageTitle kicker={t("Platform console")} title={t("System health")}
         subtitle={t("What the live site is running, whether the database and AI answer, webhook activity, and the errors people ran into.")}
         actions={<button type="button" className="btn btn-ghost" onClick={refresh}><ArrowClockwise aria-hidden="true" />{t("Refresh")}</button>} />
 
       <ErrorBox error={healthError} onRetry={loadHealth} />
-      {!health && !healthError && <div className="skeleton" style={{ height: 140, borderRadius: 24, marginBottom: 20 }} />}
+      {!health && !healthError && <div style={{ marginBottom: 20 }}><Loading height={140} /></div>}
       {health && db && (
         <div className="bt-facts">
           <div className="bt-fact">
@@ -161,13 +161,13 @@ export default function SystemHealth() {
       <AICheckCard path="/api/system/ai-check" />
 
       {health && (
-        <section className="ad-card">
-          <h2 className="ad-card-title"><span className="ad-card-icon"><Heartbeat /></span>{t("Webhook activity, last 24 hours")}</h2>
-          <p className="ad-card-note">{t("Messages that arrived from WhatsApp and Instagram. Zero while customers are writing means the webhook is not reaching the server.")}</p>
+        <section className="gx-card">
+          <h2 className="gx-card-title"><span className="gx-card-icon"><Heartbeat /></span>{t("Webhook activity, last 24 hours")}</h2>
+          <p className="gx-card-note">{t("Messages that arrived from WhatsApp and Instagram. Zero while customers are writing means the webhook is not reaching the server.")}</p>
           <div className="bt-channels">
             {health.channels.map((c) => (
               <div key={c.channel} className="bt-channel">
-                <h3>{c.channel === "whatsapp" ? <WhatsappLogo weight="fill" color="var(--whatsapp)" /> : <InstagramLogo weight="fill" color="#f08bd0" />}
+                <h3>{c.channel === "whatsapp" ? <WhatsappLogo weight="fill" color="var(--whatsapp)" /> : <InstagramLogo weight="fill" color="var(--ig)" />}
                   {c.channel === "whatsapp" ? t("WhatsApp") : t("Instagram")}</h3>
                 <dl>
                   <dt>{t("Messages from customers")}</dt><dd>{c.incoming_24h}</dd>
@@ -182,13 +182,13 @@ export default function SystemHealth() {
         </section>
       )}
 
-      <section className="ad-card">
-        <h2 className="ad-card-title"><span className="ad-card-icon danger"><WarningCircle /></span>{t("Errors")}
+      <section className="gx-card">
+        <h2 className="gx-card-title"><span className="gx-card-icon danger"><WarningCircle /></span>{t("Errors")}
           <span className="spacer" />
           <button type="button" className="btn btn-sm btn-soft" onClick={copy}><Copy aria-hidden="true" />{t("Copy report")}</button>
         </h2>
-        <p className="ad-card-note">{t("Server errors and errors people's browsers reported (failed pages and requests). Never passwords, tokens or form contents. Kept 30 days.")}</p>
-        {copied && <div className="ok-box ad-notice" role="status">{copied}</div>}
+        <p className="gx-card-note">{t("Server errors and errors people's browsers reported (failed pages and requests). Never passwords, tokens or form contents. Kept 30 days.")}</p>
+        {copied && <div className="ok-box gx-notice" role="status">{copied}</div>}
         <div className="bt-toolbar">
           <div className="chips" role="group" aria-label={t("Period")}>
             {PERIODS.map(([h, label]) => (
@@ -207,7 +207,7 @@ export default function SystemHealth() {
           </select>
         </div>
         <ErrorBox error={listError} onRetry={loadErrors} />
-        {errors === null && !listError && <div className="skeleton" style={{ height: 160, borderRadius: 18 }} />}
+        {errors === null && !listError && <Loading height={160} />}
         {errors && errors.length === 0 && (
           <div className="empty"><CheckCircle className="empty-icon" aria-hidden="true" />{t("No errors in this period.")}</div>
         )}
@@ -230,7 +230,7 @@ export default function SystemHealth() {
             ))}
           </ul>
         )}
-        <div className="ad-form-actions" style={{ marginTop: 14 }}>
+        <div className="gx-form-actions" style={{ marginTop: 14 }}>
           <button type="button" className="btn btn-ghost btn-sm" disabled={testing} onClick={sendTest}>
             <Bug aria-hidden="true" />{testing ? t("Please wait…") : t("Send a test error")}
           </button>

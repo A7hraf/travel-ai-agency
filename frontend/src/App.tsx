@@ -1,17 +1,20 @@
-import { ComponentType, lazy as reactLazy, ReactNode, Suspense } from "react";
+import { ComponentType, lazy as reactLazy, ReactNode, Suspense, useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { homePath, useAuth } from "./auth";
-import { useI18n } from "./lang";
+import { ErrorBox, Loading as LoadingState } from "./components/ui";
+/** The staff pages' code, fetched in the background once someone is signed in, so moving between pages
+ *  never waits for a slow (sleeping) server to send a page's script. */
+const PRELOAD: (() => Promise<unknown>)[] = [];
 const Layout = lazy(() => import("./components/Layout"));
 const Account = lazy(() => import("./pages/Account"));
 const Branding = lazy(() => import("./pages/Branding"));
 const Conversations = lazy(() => import("./pages/Conversations"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
-const Login = lazy(() => import("./pages/Login"));
+const Login = lazy(() => import("./pages/Login"), false);
 const Packages = lazy(() => import("./pages/Packages"));
 const Settings = lazy(() => import("./pages/Settings"));
-const Storefront = lazy(() => import("./pages/Storefront"));
+const Storefront = lazy(() => import("./pages/Storefront"), false);
 const Tickets = lazy(() => import("./pages/Tickets"));
 const Training = lazy(() => import("./pages/Training"));
 const Users = lazy(() => import("./pages/Users"));
@@ -27,9 +30,14 @@ const Plans = lazy(() => import("./pages/system/Plans"));
 const MyPlan = lazy(() => import("./pages/MyPlan"));
 const Invoice = lazy(() => import("./pages/Invoice"));
 
+function preloadPages() {
+  for (const load of PRELOAD) load().catch(() => { /* loaded again (with the reload fallback) when the page is opened */ });
+}
+
 /** After a new release the old script files are gone: a tab opened before it reloads once to get the
  *  new version instead of showing a broken page. */
-function lazy<T extends ComponentType<any>>(load: () => Promise<{ default: T }>) { // eslint-disable-line @typescript-eslint/no-explicit-any
+function lazy<T extends ComponentType<any>>(load: () => Promise<{ default: T }>, preload = true) { // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (preload) PRELOAD.push(load);
   return reactLazy(() => load().then((m) => {
     try { sessionStorage.removeItem("gj_reloaded"); } catch { /* storage blocked */ }
     return m;
@@ -44,11 +52,22 @@ function lazy<T extends ComponentType<any>>(load: () => Promise<{ default: T }>)
   }));
 }
 
+/** Full-screen wait for the session check (a sleeping server can take up to a minute). */
+function SessionWait() {
+  const { loading, loadError, retry } = useAuth();
+  return (
+    <div className="loading-screen">
+      <div style={{ width: "min(460px, 100%)" }}>
+        {loading || !loadError ? <LoadingState height={0} /> : <ErrorBox error={loadError} onRetry={retry} />}
+      </div>
+    </div>
+  );
+}
+
 function RequireUser({ system, permission, children }: { system?: boolean; permission?: string; children: ReactNode }) {
-  const { user, loading, can, sessionEnded } = useAuth();
-  const { t } = useI18n();
+  const { user, loading, can, sessionEnded, loadError } = useAuth();
   const location = useLocation();
-  if (loading) return <div className="loading-screen">{t("Loading…")}</div>;
+  if (loading || (!user && loadError)) return <SessionWait />;
   // After signing in again the person comes back to the page they were on.
   if (!user) return <Navigate to="/login" replace state={{ from: location.pathname + location.search, expired: sessionEnded }} />;
   const isSystem = user.role === "system_admin";
@@ -58,20 +77,25 @@ function RequireUser({ system, permission, children }: { system?: boolean; permi
 }
 
 function Home() {
-  const { user, loading } = useAuth();
-  const { t } = useI18n();
-  if (loading) return <div className="loading-screen">{t("Loading…")}</div>;
+  const { user, loading, loadError } = useAuth();
+  if (loading || (!user && loadError)) return <SessionWait />;
   return <Navigate to={user ? homePath(user) : "/login"} replace />;
 }
 
 /** Each area loads its own code, so a traveller opening /c/<slug> does not download the staff app. */
 function Loading() {
-  const { t } = useI18n();
-  return <div className="loading-screen">{t("Loading…")}</div>;
+  return <div className="loading-screen"><div style={{ width: "min(460px, 100%)" }}><LoadingState height={0} /></div></div>;
 }
 
 export default function App() {
   const location = useLocation();
+  const { user } = useAuth();
+  const signedIn = !!user;
+  useEffect(() => {
+    if (!signedIn) return;
+    const id = window.setTimeout(preloadPages, 1200);
+    return () => window.clearTimeout(id);
+  }, [signedIn]);
   return (
     <ErrorBoundary resetKey={location.pathname}>
     <Suspense fallback={<Loading />}>

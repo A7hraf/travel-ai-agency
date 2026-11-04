@@ -8,10 +8,10 @@ import { useI18n } from "../lang";
 export default function Activity() {
   const { user } = useAuth();
   const { t } = useI18n();
-  if (!user) return null;
+  if (!user) return <PageTitle kicker={t("Agency workspace")} title={t("Activity")} />;
   if (user.role !== "company_admin") return <Navigate to={homePath(user)} replace />;
   return (
-    <div className="narrow ad-narrow">
+    <div className="narrow gx-narrow">
       <PageTitle kicker={t("Agency workspace")} title={t("Activity")}
         subtitle={t("Important changes made by your team: logins, accounts, packages, bookings, the customer page, AI training and channels.")} />
       <ActivityLog path="/api/activity" />

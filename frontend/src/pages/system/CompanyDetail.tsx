@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { del, get, patch } from "../../api";
-import { ConfirmSheet, hueOf, initials } from "../../components/admin/AdminUI";
+import { ConfirmSheet, hueOf, initials, PageTitle } from "../../components/admin/AdminUI";
 import TrainingWorkspace, { type TrainingTab } from "../../components/ai/TrainingWorkspace";
 import InstagramConnect from "../../components/ai/InstagramConnect";
 import WhatsAppConnect from "../../components/ai/WhatsAppConnect";
@@ -9,7 +9,7 @@ import BrandingEditor from "../../components/BrandingEditor";
 import ActivityLog from "../../components/ActivityLog";
 import SubscriptionPanel from "../../components/plans/SubscriptionPanel";
 import { ArrowLeft, ArrowSquareOut, Pause, Play, Trash, WarningOctagon } from "../../components/Icon";
-import { ErrorBox, Field } from "../../components/ui";
+import { ErrorBox, Field, Loading } from "../../components/ui";
 import { useI18n } from "../../lang";
 import type { CompanyAdmin } from "../../types";
 import { shortDate } from "../../util";
@@ -32,8 +32,17 @@ export default function CompanyDetail() {
   const [typed, setTyped] = useState("");
 
   const apply = (x: CompanyAdmin) => { setC(x); setName(x.name); };
-  useEffect(() => { get<CompanyAdmin>(`/api/system/companies/${id}`).then(apply).catch((e) => setError(e.message)); }, [id]);
-  if (!c) return error ? <div className="error-box">{error}</div> : <div className="skeleton" style={{ height: 300, borderRadius: 24 }} />;
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const load = () => { setLoadError(null); get<CompanyAdmin>(`/api/system/companies/${id}`).then(apply).catch((e) => setLoadError(e.message)); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(load, [id]);
+  if (!c) return (
+    <div className="cd">
+      <Link to="/system" className="cd-back"><ArrowLeft className="flip" />{t("All companies")}</Link>
+      <PageTitle kicker={t("Platform console")} title={t("Company")} />
+      {loadError ? <ErrorBox error={loadError} onRetry={load} /> : <Loading height={300} />}
+    </div>
+  );
 
   const update = async (what: string, body: Record<string, unknown>) => {
     if (busy) return;
@@ -75,18 +84,18 @@ export default function CompanyDetail() {
   return (
     <div className="cd">
       <Link to="/system" className="cd-back"><ArrowLeft className="flip" />{t("All companies")}</Link>
-      <header className="ad-head cd-head">
+      <header className="gx-head cd-head">
         <span className="co-avatar big" style={{ ["--h" as string]: hueOf(c.slug) }} aria-hidden="true">{initials(c.name)}</span>
-        <div className="ad-head-text">
-          <div className="ad-kicker">{t("Platform console")}</div>
-          <h1 className="ad-title" dir="auto">{c.name}</h1>
-          <p className="ad-sub cd-meta">
-            {active ? <span className="ad-status on">{t("Active [company]")}</span> : <span className="ad-status bad">{t("Suspended")}</span>}
+        <div className="gx-head-text">
+          <div className="gx-kicker">{t("Platform console")}</div>
+          <h1 className="gx-title" dir="auto">{c.name}</h1>
+          <p className="gx-sub cd-meta">
+            {active ? <span className="gx-status on">{t("Active [company]")}</span> : <span className="gx-status bad">{t("Suspended")}</span>}
             <a href={`/c/${c.slug}`} target="_blank" rel="noreferrer"><bdi dir="ltr">/c/{c.slug}</bdi> <ArrowSquareOut /></a>
             <span>{t("Created")} {shortDate(c.created_at)}</span>
           </p>
         </div>
-        <div className="ad-actions">
+        <div className="gx-actions">
           {active
             ? <button className="btn btn-danger" disabled={!!busy} onClick={() => setSheet("suspend")}><Pause weight="fill" />{busy === "status" ? t("Please wait…") : t("Suspend company")}</button>
             : <button className="btn btn-primary" disabled={!!busy} onClick={() => update("status", { status: "active" })}><Play weight="fill" />{busy === "status" ? t("Please wait…") : t("Reactivate")}</button>}
@@ -117,15 +126,15 @@ export default function CompanyDetail() {
         <BrandingEditor owner loadPath={`/api/system/companies/${c.id}/branding`} name={c.name}
           uploadPath={`/api/system/companies/${c.id}/media`} slug={c.slug} />
       ) : (<>
-        <form className="ad-card" onSubmit={(e: FormEvent) => { e.preventDefault(); update("plan", { name }); }}>
-          <h2 className="ad-card-title">{t("Company")}</h2>
-          <p className="ad-card-note">{t("{a} of {b} accounts used", { a: c.user_count, b: c.max_users })}</p>
+        <form className="gx-card" onSubmit={(e: FormEvent) => { e.preventDefault(); update("plan", { name }); }}>
+          <h2 className="gx-card-title">{t("Company")}</h2>
+          <p className="gx-card-note">{t("{a} of {b} accounts used", { a: c.user_count, b: c.max_users })}</p>
           <div className="pl-name-row">
             <Field label={t("Company name")}><input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={200} dir="auto" /></Field>
             <button className="btn btn-primary" disabled={!!busy}>{busy === "plan" ? t("Saving…") : t("Save")}</button>
           </div>
           <ErrorBox error={error} />
-          {saved && <div className="ok-box ad-notice" role="status">{t("Saved.")}</div>}
+          {saved && <div className="ok-box gx-notice" role="status">{t("Saved.")}</div>}
         </form>
 
         <SubscriptionPanel companyId={c.id} onChanged={() => {
@@ -140,8 +149,8 @@ export default function CompanyDetail() {
             onChanged={() => { get<CompanyAdmin>(`/api/system/companies/${id}`).then(setC).catch(() => {}); }} />
         </section>
 
-        <section className="ad-card cd-danger">
-          <h2 className="ad-card-title"><span className="ad-card-icon danger"><WarningOctagon /></span>{t("Danger zone")}</h2>
+        <section className="gx-card cd-danger">
+          <h2 className="gx-card-title"><span className="gx-card-icon danger"><WarningOctagon /></span>{t("Danger zone")}</h2>
           <div className="cd-danger-row">
             <div>
               <strong>{t("Delete permanently")}</strong>

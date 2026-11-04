@@ -5,7 +5,7 @@ import { useAuth } from "../auth";
 import { PageTitle } from "../components/admin/AdminUI";
 import { AddressBook, ArrowLeft, ChatsCircle, DownloadSimple, MagnifyingGlass, Ticket } from "../components/Icon";
 import { Money } from "../components/Money";
-import { ErrorBox, Field } from "../components/ui";
+import { ErrorBox, Field, Loading } from "../components/ui";
 import { useI18n } from "../lang";
 import type { CustomerDetail, CustomerList, CustomerRow } from "../types";
 import { CONVERSATION_STATUS_LABELS, customerLabel, shortDate, TICKET_STATUS_LABELS, timeAgo } from "../util";
@@ -89,7 +89,7 @@ function CustomerListPage() {
         )} />
       <ErrorBox error={exportError} />
       <div className="bt-toolbar">
-        <label className="ad-search">
+        <label className="gx-search">
           <MagnifyingGlass aria-hidden="true" />
           <input type="search" placeholder={t("Name, phone or email")} aria-label={t("Name, phone or email")} value={q}
             onChange={(e) => setQ(e.target.value)} />
@@ -110,7 +110,7 @@ function CustomerListPage() {
       </div>
 
       <ErrorBox error={error} onRetry={load} />
-      {rows === null && !error && <div className="skeleton" style={{ height: 320, borderRadius: 24 }} />}
+      {rows === null && !error && <Loading height={320} />}
       {rows && rows.length === 0 && (
         <div className="empty">
           <AddressBook className="empty-icon" aria-hidden="true" />
@@ -185,7 +185,13 @@ function CustomerPage({ id }: { id: number }) {
 
   const back = <Link to="/app/customers" className="bt-back"><ArrowLeft className="flip" />{t("All customers")}</Link>;
   if (!c || !form) {
-    return <div className="narrow ad-narrow">{back}{loadError ? <ErrorBox error={loadError} onRetry={load} /> : <div className="skeleton" style={{ height: 320, borderRadius: 24 }} />}</div>;
+    return (
+      <div className="narrow gx-narrow">
+        {back}
+        <PageTitle kicker={t("Customer")} title={t("Customer details")} />
+        {loadError ? <ErrorBox error={loadError} onRetry={load} /> : <Loading height={320} />}
+      </div>
+    );
   }
   const dirty = JSON.stringify(form) !== JSON.stringify(formOf(c));
   const set = (k: keyof FormState, v: string) => { setSaved(false); setForm({ ...form, [k]: v }); };
@@ -211,7 +217,7 @@ function CustomerPage({ id }: { id: number }) {
   };
 
   return (
-    <div className="narrow ad-narrow">
+    <div className="narrow gx-narrow">
       {back}
       <PageTitle kicker={t("Customer")} title={<bdi>{customerLabel(c)}</bdi>}
         subtitle={<Channels list={c.channels} />} />
@@ -223,11 +229,11 @@ function CustomerPage({ id }: { id: number }) {
         <div className="bt-fact"><div className="bt-fact-label">{t("First contact")}</div><div className="bt-fact-value small">{shortDate(c.first_contact)}</div></div>
       </div>
 
-      <form className="ad-card" onSubmit={save}>
-        <h2 className="ad-card-title"><span className="ad-card-icon"><AddressBook /></span>{t("Contact details")}</h2>
-        {!manage && <p className="ad-card-note">{t("Only colleagues with the customers.manage permission can change these details.")}</p>}
+      <form className="gx-card" onSubmit={save}>
+        <h2 className="gx-card-title"><span className="gx-card-icon"><AddressBook /></span>{t("Contact details")}</h2>
+        {!manage && <p className="gx-card-note">{t("Only colleagues with the customers.manage permission can change these details.")}</p>}
         <fieldset disabled={!manage || busy} style={{ border: 0, padding: 0, margin: 0 }}>
-          <div className="ad-grid-2">
+          <div className="gx-grid-2">
             <Field label={t("Name")}><input value={form.name} maxLength={200} dir="auto" onChange={(e) => set("name", e.target.value)} /></Field>
             <Field label={t("Phone")}><input value={form.phone} maxLength={50} dir="ltr" onChange={(e) => set("phone", e.target.value)} /></Field>
             <Field label={t("Email")}><input type="email" value={form.email} maxLength={200} dir="ltr" onChange={(e) => set("email", e.target.value)} /></Field>
@@ -241,12 +247,12 @@ function CustomerPage({ id }: { id: number }) {
         </fieldset>
         {c.whatsapp_id && <p className="bt-muted">{t("WhatsApp:")} <bdi dir="ltr">{c.whatsapp_id}</bdi></p>}
         <ErrorBox error={error} />
-        {saved && <div className="ok-box ad-notice" role="status">{t("Saved.")}</div>}
-        {manage && <div className="ad-form-actions"><button className="btn btn-primary" disabled={busy || !dirty}>{busy ? t("Saving…") : t("Save")}</button></div>}
+        {saved && <div className="ok-box gx-notice" role="status">{t("Saved.")}</div>}
+        {manage && <div className="gx-form-actions"><button className="btn btn-primary" disabled={busy || !dirty}>{busy ? t("Saving…") : t("Save")}</button></div>}
       </form>
 
-      <section className="ad-card">
-        <h2 className="ad-card-title"><span className="ad-card-icon"><ChatsCircle /></span>{t("Conversations")}</h2>
+      <section className="gx-card">
+        <h2 className="gx-card-title"><span className="gx-card-icon"><ChatsCircle /></span>{t("Conversations")}</h2>
         {c.conversation_list.length === 0 ? <p className="bt-muted">{t("No conversations.")}</p> : (
           <ul className="bt-list">
             {c.conversation_list.map((conv) => (
@@ -263,8 +269,8 @@ function CustomerPage({ id }: { id: number }) {
       </section>
 
       {c.can_see_tickets && (
-        <section className="ad-card">
-          <h2 className="ad-card-title"><span className="ad-card-icon"><Ticket /></span>{t("Tickets")}</h2>
+        <section className="gx-card">
+          <h2 className="gx-card-title"><span className="gx-card-icon"><Ticket /></span>{t("Tickets")}</h2>
           {c.ticket_list.length === 0 ? <p className="bt-muted">{t("No bookings yet.")}</p> : (
             <ul className="bt-list">
               {c.ticket_list.map((tk) => (

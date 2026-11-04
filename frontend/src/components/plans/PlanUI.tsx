@@ -8,7 +8,7 @@ import { Money } from "../Money";
 
 export function StateBadge({ state }: { state: SubState }) {
   const { t } = useI18n();
-  return <span className={`ad-status ${STATE_TONES[state] ?? "off"}`}>{t(STATE_LABELS[state] ?? state)}</span>;
+  return <span className={`gx-status ${STATE_TONES[state] ?? "off"}`}>{t(STATE_LABELS[state] ?? state)}</span>;
 }
 
 /** "Renews on …", "Trial ends on …", "Ended on …" for the end date of a subscription. */

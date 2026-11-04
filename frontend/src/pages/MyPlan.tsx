@@ -5,6 +5,7 @@ import { PageTitle } from "../components/admin/AdminUI";
 import { Crown, Headset } from "../components/Icon";
 import { Money } from "../components/Money";
 import { endText, PaymentTable, PlanIncludes, StateBadge, UsageMeters } from "../components/plans/PlanUI";
+import { ErrorBox, Loading } from "../components/ui";
 import { useI18n } from "../lang";
 import { CompanyPlan, CYCLE_LABELS, planDescription, planFeatures, planName } from "../plans";
 import { shortDate } from "../util";
@@ -15,23 +16,27 @@ export default function MyPlan() {
   const { user } = useAuth();
   const [data, setData] = useState<CompanyPlan | null>(null);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => { get<CompanyPlan>("/api/company/plan").then(setData).catch((e) => setError(e.message)); }, []);
+  const load = () => { setError(null); get<CompanyPlan>("/api/company/plan").then(setData).catch((e) => setError(e.message)); };
+  useEffect(load, []);
 
-  if (user?.role !== "company_admin") return <div className="error-box">{t("Only a company admin can see the plan and payments")}</div>;
-  if (!data) return error ? <div className="error-box">{error}</div> : <div className="skeleton" style={{ height: 320, borderRadius: 24 }} />;
+  const title = (
+    <PageTitle kicker={t("Agency workspace")} title={t("My plan")}
+      subtitle={t("Your plan, what it includes and what you use, your renewal date and payments.")} />
+  );
+  if (user?.role !== "company_admin") return <div className="pl-page">{title}<div className="error-box">{t("Only a company admin can see the plan and payments")}</div></div>;
+  if (!data) return <div className="pl-page">{title}{error ? <ErrorBox error={error} onRetry={load} /> : <Loading height={320} />}</div>;
   const p = data.plan;
   const features = planFeatures(p, lang);
 
   return (
     <div className="pl-page">
-      <PageTitle kicker={t("Agency workspace")} title={t("My plan")}
-        subtitle={t("Your plan, what it includes and what you use, your renewal date and payments.")} />
+      {title}
 
-      <section className="ad-card pl-current">
+      <section className="gx-card pl-current">
         <div className="pl-current-head">
           <span className="pl-card-icon" aria-hidden="true"><Crown weight="duotone" /></span>
           <div className="pl-current-name">
-            <div className="ad-kicker">{t("Current plan")}</div>
+            <div className="gx-kicker">{t("Current plan")}</div>
             <h2 dir="auto">{planName(p, lang)}</h2>
           </div>
           <StateBadge state={data.state} />
@@ -49,18 +54,18 @@ export default function MyPlan() {
           <span>{t("To upgrade, renew or change your plan, contact the platform. Your data is always kept.")}</span></div>
       </section>
 
-      <section className="ad-card">
-        <h2 className="ad-card-title">{t("Limits and usage")}</h2>
+      <section className="gx-card">
+        <h2 className="gx-card-title">{t("Limits and usage")}</h2>
         <UsageMeters usage={data.usage} />
       </section>
 
-      <section className="ad-card">
-        <h2 className="ad-card-title">{t("What your plan includes")}</h2>
+      <section className="gx-card">
+        <h2 className="gx-card-title">{t("What your plan includes")}</h2>
         <PlanIncludes plan={p} />
       </section>
 
-      <section className="ad-card">
-        <h2 className="ad-card-title">{t("Payment history")}{data.payments_total > 0 && <span className="pl-sub">{t("Total")}: <Money value={data.payments_total} currency="OMR" /></span>}</h2>
+      <section className="gx-card">
+        <h2 className="gx-card-title">{t("Payment history")}{data.payments_total > 0 && <span className="pl-sub">{t("Total")}: <Money value={data.payments_total} currency="OMR" /></span>}</h2>
         <PaymentTable payments={data.payments} invoiceBase="/app/plan/invoices" />
       </section>
     </div>
