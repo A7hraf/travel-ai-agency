@@ -1,5 +1,5 @@
 # All-in-one image: website + API in one container, for single-service hosts
-# such as Render (see render.yaml and docs/DEPLOY_FREE.md).
+# such as Render (see render.yaml and docs/OPERATIONS.md).
 # The docker-compose setup uses backend/Dockerfile and frontend/Dockerfile instead.
 
 FROM node:22-alpine AS web

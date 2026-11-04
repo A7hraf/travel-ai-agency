@@ -4,21 +4,47 @@ __pycache__/
 .venv/
 venv/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Databases and backups
 *.db
+*.sqlite
+*.sqlite3
+*.db-journal
+/backups/
+*.sql.gz
+*.dump
+
+# Uploaded media (images are stored in the database; these are local fallbacks)
+/uploads/
+/media/
+backend/uploads/
+backend/media/
 
 # Node
 node_modules/
 dist/
+*.tsbuildinfo
 
 # Env / secrets
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+
+# Logs
+logs/
+*.log
+npm-debug.log*
 
 # OS / editors
 .DS_Store
+Thumbs.db
 .idea/
 .vscode/
-
-# Build caches
-*.tsbuildinfo
+*.swp
+*~

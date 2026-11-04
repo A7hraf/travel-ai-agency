@@ -2,11 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..audit import audit
 from ..database import get_db
 from ..deps import require_permission
 from ..models import Ticket, TravelPackage, User
 from ..schemas import PackageIn, PackageOut
-from ..services import seats
+from ..services import plans, seats
 from ..timeutil import local_today
 from .media import media_belongs_to
 
@@ -81,9 +82,12 @@ def get_package(package_id: int, me: User = Depends(require_permission("packages
 @router.post("", response_model=PackageOut, status_code=201)
 def create_package(body: PackageIn, me: User = Depends(require_permission("packages.manage")),
                    db: Session = Depends(get_db)):
+    if body.is_active:
+        plans.check_package_limit(db, me.company_id)
     pkg = TravelPackage(company_id=me.company_id)
     _apply(pkg, body, me.company.currency, db)
     db.add(pkg)
+    audit(db, me, "package.created", target=pkg.title)
     db.commit()
     db.refresh(pkg)
     return _with_seats(db, pkg)
@@ -93,8 +97,11 @@ def create_package(body: PackageIn, me: User = Depends(require_permission("packa
 def update_package(package_id: int, body: PackageIn, me: User = Depends(require_permission("packages.manage")),
                    db: Session = Depends(get_db)):
     pkg = _get(db, me, package_id)
+    if body.is_active and not pkg.is_active:  # a hidden package shown again counts again
+        plans.check_package_limit(db, me.company_id)
     _apply(pkg, body, me.company.currency, db)
     _check_not_below_bookings(db, pkg)
+    audit(db, me, "package.updated", target=pkg.title)
     db.commit()
     db.refresh(pkg)
     return _with_seats(db, pkg)
@@ -107,6 +114,8 @@ def delete_package(package_id: int, me: User = Depends(require_permission("packa
     if db.scalar(select(Ticket.id).where(Ticket.package_id == pkg.id).limit(1)):
         # Keep the history of booked packages; hide it from customers instead.
         pkg.is_active = False
+        audit(db, me, "package.hidden", target=pkg.title)
     else:
+        audit(db, me, "package.deleted", target=pkg.title)
         db.delete(pkg)
     db.commit()

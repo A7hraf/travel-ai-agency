@@ -5,13 +5,14 @@ only ever sees its own data. The only account without a company is the platform
 owner (system admin).
 """
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from enum import StrEnum
 
 from sqlalchemy import (
     JSON,
     Boolean,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -230,6 +231,9 @@ class Customer(Base):
     whatsapp_id: Mapped[str | None] = mapped_column(String(50))
     # Instagram-scoped user id (IGSID) of a customer who wrote to the company's Instagram account.
     instagram_id: Mapped[str | None] = mapped_column(String(64))
+    # Staff notes and labels on the Customers page (business tools).
+    notes: Mapped[str | None] = mapped_column(Text)
+    tags: Mapped[list[str] | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
@@ -253,6 +257,9 @@ class Conversation(Base):
     # The last price the AI quoted in this chat (package, date, travellers, total). A booking must match
     # it, so the customer is never booked at a total they did not see (see ai/tools.py).
     booking_quote: Mapped[dict | None] = mapped_column(JSON)
+    # When the AI first answered this chat in the current month: counts towards the plan's monthly
+    # AI conversation limit (see services/plans.py). Indexed with company_id in migrations.py.
+    ai_started_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
 
     customer: Mapped[Customer] = relationship()
     assigned_to: Mapped[User | None] = relationship()
@@ -376,3 +383,146 @@ class PlatformSetting(Base):
     secret_value: Mapped[str | None] = mapped_column(EncryptedText())
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, onupdate=utcnow)
     updated_by: Mapped[str | None] = mapped_column(String(200))
+
+
+# --- Business tools: error capture (System health) and the staff activity log -------------------
+
+class ErrorEvent(Base):
+    """An unhandled server error, a 5xx answer, or an error a browser reported (System health page).
+
+    Never holds request bodies, headers, tokens or query strings; messages are scrubbed of anything
+    that looks like a secret (see app/diagnostics.py). Repeats within an hour only raise ``count``.
+    """
+
+    __tablename__ = "error_events"
+    __table_args__ = (Index("ix_error_events_fingerprint_seen", "fingerprint", "last_seen_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
+    last_seen_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
+    source: Mapped[str] = mapped_column(String(10))  # "server" or "client"
+    method: Mapped[str | None] = mapped_column(String(10))
+    path: Mapped[str | None] = mapped_column(String(200))
+    # Client errors: the page the person was on (path only).
+    page: Mapped[str | None] = mapped_column(String(200))
+    status: Mapped[int | None] = mapped_column(Integer)
+    error_type: Mapped[str | None] = mapped_column(String(80))
+    message: Mapped[str | None] = mapped_column(String(300))
+    # Plain ids (no foreign keys): an error report must never block deleting a user or company.
+    user_id: Mapped[int | None] = mapped_column(Integer)
+    company_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    release: Mapped[str | None] = mapped_column(String(64))
+    count: Mapped[int] = mapped_column(Integer, default=1)
+    fingerprint: Mapped[str] = mapped_column(String(40))
+
+
+class AuditEvent(Base):
+    """An important staff action (login, accounts, packages, bookings, design, AI, channels).
+    Short texts only, never secrets. Shown on the company's Activity page and in the owner's console."""
+
+    __tablename__ = "audit_events"
+    __table_args__ = (Index("ix_audit_events_company_time", "company_id", "created_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL", onupdate="CASCADE"))
+    actor: Mapped[str] = mapped_column(String(200))
+    action: Mapped[str] = mapped_column(String(40), index=True)
+    target: Mapped[str | None] = mapped_column(String(200))
+    detail: Mapped[str | None] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+
+# --- Subscription plans (platform owner) ------------------------------------------------------------
+
+
+class BillingCycle(StrEnum):
+    MONTHLY = "monthly"
+    YEARLY = "yearly"
+
+
+class SubscriptionStatus(StrEnum):
+    TRIAL = "trial"
+    ACTIVE = "active"
+    PAST_DUE = "past_due"
+    EXPIRED = "expired"
+    CANCELLED = "cancelled"
+
+
+class Plan(Base):
+    """A plan of the platform's catalogue: prices in OMR and what a company on it may use.
+    A limit of None means unlimited. Plans are archived, never deleted (companies keep them)."""
+
+    __tablename__ = "plans"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    name_ar: Mapped[str] = mapped_column(String(100), default="")
+    description: Mapped[str] = mapped_column(Text, default="")
+    description_ar: Mapped[str] = mapped_column(Text, default="")
+    features: Mapped[list[str]] = mapped_column(JSON, default=list)
+    features_ar: Mapped[list[str]] = mapped_column(JSON, default=list)
+    price_monthly: Mapped[Decimal] = mapped_column(Numeric(12, 3), default=Decimal("0"))
+    price_yearly: Mapped[Decimal] = mapped_column(Numeric(12, 3), default=Decimal("0"))
+    trial_days: Mapped[int] = mapped_column(Integer, default=14)
+    max_users: Mapped[int] = mapped_column(Integer, default=5)
+    max_packages: Mapped[int | None] = mapped_column(Integer)
+    max_ai_conversations: Mapped[int | None] = mapped_column(Integer)  # per calendar month
+    allow_whatsapp: Mapped[bool] = mapped_column(Boolean, default=True)
+    allow_instagram: Mapped[bool] = mapped_column(Boolean, default=False)
+    allow_page_editor: Mapped[bool] = mapped_column(Boolean, default=True)
+    allow_remove_powered_by: Mapped[bool] = mapped_column(Boolean, default=False)
+    priority_support: Mapped[bool] = mapped_column(Boolean, default=False)
+    # New companies start on the default plan (exactly one plan has it).
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, onupdate=utcnow)
+
+
+class Subscription(Base):
+    """A company's plan, billing cycle and paid period. Dates are the agency's local days
+    (valid through the end date). Company.max_users follows the plan unless max_users_custom."""
+
+    __tablename__ = "subscriptions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), unique=True, index=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"), index=True)
+    billing_cycle: Mapped[str] = mapped_column(String(10), default=BillingCycle.MONTHLY)
+    status: Mapped[str] = mapped_column(String(20), default=SubscriptionStatus.ACTIVE)
+    current_period_start: Mapped[date | None] = mapped_column(Date)
+    current_period_end: Mapped[date | None] = mapped_column(Date)
+    trial_end: Mapped[date | None] = mapped_column(Date)
+    # Price per billing cycle agreed with this company (None: the plan's price).
+    custom_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
+    max_users_custom: Mapped[bool] = mapped_column(Boolean, default=False)
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, onupdate=utcnow)
+
+    plan: Mapped[Plan] = relationship(lazy="joined")
+
+
+class SubscriptionPayment(Base):
+    """A payment the platform owner received from a company (recorded by hand)."""
+
+    __tablename__ = "subscription_payments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    invoice_number: Mapped[str] = mapped_column(String(30), unique=True)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 3))
+    currency: Mapped[str] = mapped_column(String(3), default="OMR")
+    paid_on: Mapped[date] = mapped_column(Date)
+    method: Mapped[str] = mapped_column(String(20))  # bank_transfer, card, cash
+    reference: Mapped[str] = mapped_column(String(200), default="")
+    period_start: Mapped[date | None] = mapped_column(Date)
+    period_end: Mapped[date | None] = mapped_column(Date)
+    # Plan and cycle at the time of the payment (shown on the invoice even after a plan change).
+    plan_name: Mapped[str] = mapped_column(String(100), default="")
+    billing_cycle: Mapped[str] = mapped_column(String(10), default=BillingCycle.MONTHLY)
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_by: Mapped[str | None] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)

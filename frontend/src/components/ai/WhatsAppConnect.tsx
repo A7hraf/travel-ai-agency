@@ -45,10 +45,15 @@ export default function WhatsAppConnect({ variant, base, companyPath }: {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [choice, setChoice] = useState<"own" | "platform">("own");
 
-  const load = () => get<WhatsAppStatus>(base).then((s) => { setSt(s); setChoice(s.mode === "platform" ? "platform" : "own"); })
+  const load = () => get<WhatsAppStatus>(base).then((s) => { setSt(s); setLoadError(null); setChoice(s.mode === "platform" ? "platform" : "own"); })
     .catch((e) => setLoadError(e.message));
   useEffect(() => { load(); }, [base]);
-  if (!st) return loadError ? <div className="error-box">{loadError}</div> : <div className="skeleton" style={{ height: 260, borderRadius: 24 }} />;
+  if (!st) return loadError ? (
+    <section className="ad-card wa-connect">
+      <h2 className="ad-card-title"><span className="ad-card-icon wa"><WhatsappLogo weight="fill" /></span>{t("Connect WhatsApp")}</h2>
+      <ErrorBox error={t("The WhatsApp connection could not be loaded: {error}", { error: loadError })} onRetry={load} />
+    </section>
+  ) : <div className="skeleton" style={{ height: 260, borderRadius: 24 }} />;
 
   const webhook = st.webhook_path ? `${window.location.origin}${st.webhook_path}` : "";
 

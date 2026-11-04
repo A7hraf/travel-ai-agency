@@ -26,6 +26,7 @@ from ..models import (
     utcnow,
 )
 from ..ratelimit import limiter
+from . import plans
 from .instagram import (
     IncomingDM,
     InstagramError,
@@ -81,6 +82,20 @@ def handle_customer_message(db: Session, conversation: Conversation, text: str,
 
         if conversation.status != ConversationStatus.AI:
             return []
+
+        # The plan: the AI pauses after the subscription's grace period, and once the month's AI
+        # conversations are used up new chats go to the team (chats already running continue).
+        gate = plans.ai_gate(db, conversation)
+        if gate is not None:
+            reason, note = gate
+            conversation.status = ConversationStatus.HUMAN
+            conversation.was_handed_over = True
+            conversation.handover_reason = reason
+            db.add(Message(conversation_id=conversation.id, sender=Sender.SYSTEM, kind=MessageKind.TEXT, content=note))
+            reply = Message(conversation_id=conversation.id, sender=Sender.AI, content=plans.TEAM_WILL_REPLY)
+            db.add(reply)
+            db.commit()
+            return [reply]
 
         hourly_cap = get_settings().ai_max_replies_per_company_per_hour
         if not limiter.allow(f"ai-replies:{conversation.company_id}", hourly_cap, window=3600):
@@ -278,6 +293,9 @@ def _process_whatsapp_message(db: Session, item: IncomingMessage, only_company_i
     if only_company_id is not None and company.id != only_company_id:
         log.warning("Company %s webhook sent a message for another company's number; ignored", only_company_id)
         return
+    if not plans.entitlements(db, company.id).whatsapp:
+        log.info("Ignoring WhatsApp message for company %s: its plan does not include WhatsApp", company.id)
+        return
     if db.scalar(select(Message.id).where(Message.external_id == item.message_id)):
         return  # Meta retried a delivery we already handled
     conversation = _whatsapp_conversation(db, company, item.wa_id, item.profile_name)
@@ -305,6 +323,9 @@ def process_instagram_payload(payload: dict, company_id: int) -> None:
         company = db.get(Company, company_id)
         if company is None or company.status != CompanyStatus.ACTIVE or not company.instagram_account_id:
             log.info("Ignoring Instagram webhook for company %s (unknown, suspended or not connected)", company_id)
+            return
+        if not plans.entitlements(db, company.id).instagram:
+            log.info("Ignoring Instagram webhook for company %s: its plan does not include Instagram", company.id)
             return
         try:
             _apply_instagram_reads(db, company, reads)

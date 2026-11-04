@@ -469,6 +469,9 @@ def create_demo_company(db: Session, name: str, slug: str, admin_email: str | No
     )
     db.add(company)
     db.flush()
+    from .plans import ensure_subscription  # noqa: PLC0415
+
+    ensure_subscription(db, company)  # the default plan, with the demo's account limit
 
     logins: list[DemoLogin] = []
     users: dict[str, User] = {}
@@ -717,7 +720,7 @@ class _Activity:
         self.db.flush()
         conv = Conversation(company_id=self.company.id, customer_id=customer.id, channel=channel,
                             status=ConversationStatus.AI, created_at=start, last_message_at=start,
-                            public_token=random_token() if channel == Channel.WEB else None)
+                            ai_started_at=start, public_token=random_token() if channel == Channel.WEB else None)
         self.db.add(conv)
         self.db.flush()
         return conv, customer

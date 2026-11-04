@@ -5,6 +5,8 @@ export default defineConfig({
   plugins: [react()],
   // Shown on the login page, so anyone can tell at a glance which version the site runs.
   define: { __BUILD_TIME__: JSON.stringify(new Date().toISOString()) },
+  // Never publish source maps in production builds.
+  build: { sourcemap: false },
   server: {
     port: 5173,
     proxy: { "/api": "http://localhost:8000" },

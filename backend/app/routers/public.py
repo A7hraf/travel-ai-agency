@@ -34,6 +34,7 @@ from ..schemas import (
 from ..netutil import client_ip
 from ..security import random_token
 from ..serializers import public_message_out
+from ..services import plans
 from ..services.conversations import handle_customer_message, is_customer_visible
 from ..timeutil import local_today
 
@@ -44,6 +45,9 @@ def _company(db: Session, slug: str) -> Company:
     company = db.scalar(select(Company).where(Company.slug == slug))
     if company is None or company.status != CompanyStatus.ACTIVE:
         raise HTTPException(404, "Travel agency not found")
+    # After the subscription's grace period the page and its chat pause (nothing is deleted).
+    if plans.entitlements(db, company.id).paused:
+        raise HTTPException(423, "This travel agency's page is paused")
     return company
 
 

@@ -130,6 +130,10 @@ def test_sections_and_hidden_elements(client, company_a):
 
 def test_only_the_platform_owner_hides_powered_by(client, owner, company_a):
     company, admin = company_a
+    # Plans: on a plan that lets the company hide it, the company may (see test_plans.py); the
+    # Business plan does not.
+    business = next(p for p in client.get("/api/system/plans", headers=owner).json() if p["name"] == "Business")
+    client.patch(f"/api/system/companies/{company['id']}/subscription", headers=owner, json={"plan_id": business["id"]})
     client.patch("/api/company/branding", headers=admin, json={"elements": {"powered_by": False, "kicker": False}})
     b = public(client, company["slug"])
     assert b["elements"]["powered_by"] is True and b["elements"]["kicker"] is False

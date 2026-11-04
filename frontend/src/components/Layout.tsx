@@ -1,6 +1,7 @@
 import { CSSProperties, ComponentType, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { get } from "../api";
+import { pollWatcher } from "../errorReporter";
 import { useAuth } from "../auth";
 import { LangSwitch, trServer, useI18n } from "../lang";
 import { dashboardVars, GHANJAH, isDark } from "../theme";
@@ -8,18 +9,21 @@ import type { ConversationSummary, Ticket as TicketT } from "../types";
 import { customerLabel, ROLE_LABELS, usePolling } from "../util";
 import { GhanjahMark, usePlatformName } from "./Brand";
 import {
-  ArrowSquareOut, Buildings, ChartLineUp, ChatsCircle, GearSix, GraduationCap, IconProps, List, PaintBrush, SignOut,
+  AddressBook, ArrowSquareOut, Buildings, Crown, ClockCounterClockwise, Heartbeat, ChartLineUp, ChatsCircle, GearSix, GraduationCap, IconProps, List, PaintBrush, SignOut,
   SquaresFour, SuitcaseRolling, Ticket, Translate, UserCircle, UsersThree, WhatsappLogo,
 } from "./Icon";
 import { moneyText } from "./Money";
 import { Sheet } from "./staff/Sheet";
 import { StaffContext, StaffToast } from "./staff/StaffContext";
+import PlanBanner from "./plans/PlanBanner";
 
 interface NavItem {
   to: string;
   label: string;
   icon: ComponentType<IconProps>;
   permission?: string;
+  /** Only for this role (the activity log is for company admins). */
+  role?: string;
   badge?: "needs" | "open";
 }
 
@@ -27,17 +31,22 @@ const COMPANY_NAV: NavItem[] = [
   { to: "/app/dashboard", label: "Dashboard", icon: SquaresFour, permission: "reports.view" },
   { to: "/app/conversations", label: "Conversations", icon: ChatsCircle, permission: "conversations.view", badge: "needs" },
   { to: "/app/tickets", label: "Tickets", icon: Ticket, permission: "tickets.view", badge: "open" },
+  { to: "/app/customers", label: "Customers", icon: AddressBook, permission: "conversations.view" },
   { to: "/app/packages", label: "Packages", icon: SuitcaseRolling, permission: "packages.view" },
   { to: "/app/users", label: "Team & accounts", icon: UsersThree, permission: "users.manage" },
   { to: "/app/branding", label: "Customer page design", icon: PaintBrush, permission: "settings.manage" },
   { to: "/app/training", label: "AI training", icon: GraduationCap, permission: "settings.manage" },
   { to: "/app/settings", label: "AI & channels", icon: WhatsappLogo, permission: "settings.manage" },
+  { to: "/app/activity", label: "Activity", icon: ClockCounterClockwise, role: "company_admin" },
+  { to: "/app/plan", label: "My plan", icon: Crown, role: "company_admin" },
   { to: "/app/account", label: "My account", icon: UserCircle },
 ];
 
 const SYSTEM_NAV: NavItem[] = [
   { to: "/system", label: "Companies", icon: Buildings },
+  { to: "/system/plans", label: "Plans", icon: Crown },
   { to: "/system/settings", label: "Platform settings", icon: GearSix },
+  { to: "/system/health", label: "System health", icon: Heartbeat },
   { to: "/system/account", label: "My account", icon: UserCircle },
 ];
 
@@ -80,10 +89,14 @@ export default function Layout() {
     window.setTimeout(() => setToasts((list) => list.filter((x) => x.id !== id)), TOAST_MS);
   }, []);
 
+  // Badge polling stays quiet on a failure, but tells System health after repeated failures.
+  const chatsPoll = useRef(pollWatcher("/api/conversations (menu badge)"));
+  const ticketsPoll = useRef(pollWatcher("/api/tickets (menu badge)"));
   const pollRef = useRef<() => void>(() => {});
   pollRef.current = () => {
     if (canConvs) {
-      get<ConversationSummary[]>("/api/conversations?status=human&limit=200").then((rows) => {
+      get<ConversationSummary[]>("/api/conversations?status=human&limit=200", { quiet: true }).then((rows) => {
+        chatsPoll.current.ok();
         const waiting = rows.filter((c) => !c.assigned_to);
         setNeedsHuman(waiting.length);
         const before = seenChats.current;
@@ -99,11 +112,12 @@ export default function Layout() {
           }
         }
         seenChats.current = new Set(waiting.map((c) => c.id));
-      }).catch(() => {});
+      }).catch((err) => chatsPoll.current.fail(err));
     }
     if (canTickets) {
-      Promise.all(OPEN_STATUSES.map((s) => get<TicketT[]>(`/api/tickets?status=${s}&limit=1000`)))
+      Promise.all(OPEN_STATUSES.map((s) => get<TicketT[]>(`/api/tickets?status=${s}&limit=1000`, { quiet: true })))
         .then(([a, b]) => {
+          ticketsPoll.current.ok();
           const open = [...a, ...b];
           setOpenTickets(open.length);
           const maxId = open.reduce((m, x) => Math.max(m, x.id), 0);
@@ -121,7 +135,7 @@ export default function Layout() {
           }
           lastTicketId.current = Math.max(before ?? 0, maxId);
         })
-        .catch(() => {});
+        .catch((err) => ticketsPoll.current.fail(err));
     }
   };
   usePolling(() => pollRef.current(), POLL_MS, [canConvs, canTickets]);
@@ -138,7 +152,7 @@ export default function Layout() {
   );
 
   if (!user) return null;
-  const nav = isSystem ? SYSTEM_NAV : COMPANY_NAV.filter((n) => !n.permission || can(n.permission));
+  const nav = isSystem ? SYSTEM_NAV : COMPANY_NAV.filter((n) => (!n.permission || can(n.permission)) && (!n.role || n.role === user.role));
   const tabs = isSystem ? [] : TAB_PATHS.map((p) => nav.find((n) => n.to === p)).filter((n): n is NavItem => !!n);
   const menuItems = nav.filter((n) => !tabs.includes(n));
   const branding = user.company?.branding;
@@ -220,6 +234,7 @@ export default function Layout() {
         </aside>
 
         <main className="content" id="main">
+          {!isSystem && <PlanBanner />}
           <Outlet />
         </main>
 

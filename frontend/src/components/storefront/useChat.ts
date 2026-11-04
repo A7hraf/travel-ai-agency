@@ -3,6 +3,7 @@ import { ApiError, get, post } from "../../api";
 import type { Lang } from "../Money";
 import type { StorefrontText } from "../../i18n";
 import type { PublicCompany, PublicMessage } from "../../types";
+import { pollWatcher } from "../../errorReporter";
 
 interface ChatReply { status: string; messages: PublicMessage[] }
 interface StartReply extends ChatReply { token: string }
@@ -112,12 +113,13 @@ export function useChat({ slug, company, lang, t, active, offline = false }: {
   // Pick up replies written by employees, every 5 s while the page is visible.
   useEffect(() => {
     if (!token || !active) return;
+    const watch = pollWatcher("Customer chat replies");
     const id = window.setInterval(() => {
       if (busy.current || document.visibilityState !== "visible") return;
       const last = messagesRef.current.filter((m) => m.id > 0).slice(-1)[0]?.id ?? 0;
-      get<ChatReply>(`${base}/${token}/messages?after_id=${last}`)
-        .then((r) => { setStatus(r.status); if (r.messages.length) merge(r.messages); })
-        .catch(() => {});
+      get<ChatReply>(`${base}/${token}/messages?after_id=${last}`, { quiet: true })
+        .then((r) => { watch.ok(); setStatus(r.status); if (r.messages.length) merge(r.messages); })
+        .catch((e) => watch.fail(e));
     }, 5000);
     return () => window.clearInterval(id);
   }, [token, active, base, merge]);

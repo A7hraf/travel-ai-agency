@@ -102,11 +102,13 @@ export default function PlatformSettings() {
     setWaToken("");
   };
 
-  useEffect(() => {
+  const loadSettings = () => {
+    setLoadError(null);
     get<Settings>("/api/system/platform-settings").then(fill).catch((e) => setLoadError((e as Error).message));
-  }, []);
+  };
+  useEffect(loadSettings, []);
 
-  if (loadError) return <div className="narrow ad-narrow"><PageTitle kicker={t("Platform console")} title={t("Platform settings")} /><ErrorBox error={loadError} /></div>;
+  if (loadError) return <div className="narrow ad-narrow"><PageTitle kicker={t("Platform console")} title={t("Platform settings")} /><ErrorBox error={t("The platform settings could not be loaded: {error}", { error: loadError })} onRetry={loadSettings} /></div>;
   if (!data) return <div className="narrow ad-narrow"><PageTitle kicker={t("Platform console")} title={t("Platform settings")} /><div className="skeleton" style={{ height: 320, borderRadius: 24 }} /></div>;
 
   const A = data.ai;

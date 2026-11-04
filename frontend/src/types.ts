@@ -464,3 +464,96 @@ export interface InstagramTestResult {
   username: string | null;
   status: InstagramStatus;
 }
+
+// --- Business tools: Customers, activity log, System health ------------------------------------
+
+export interface CustomerRow {
+  id: number;
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+  channels: string[];
+  first_contact: string | null;
+  last_contact: string | null;
+  conversations: number;
+  bookings: number;
+  total_booked: number;
+  total_paid: number;
+  tags: string[];
+}
+
+export interface CustomerList {
+  customers: CustomerRow[];
+  total: number;
+  currency: string;
+}
+
+export interface CustomerDetail extends CustomerRow {
+  notes: string;
+  whatsapp_id: string | null;
+  instagram: boolean;
+  created_at: string;
+  conversation_list: { id: number; channel: string; status: string; created_at: string; last_message_at: string }[];
+  ticket_list: {
+    id: number; reference: string; package_title: string; departure_date: string | null; status: string;
+    total_price: number; currency: string; created_at: string;
+  }[];
+  can_see_tickets: boolean;
+  currency: string;
+}
+
+export interface ActivityItem {
+  id: number;
+  created_at: string;
+  user_id: number | null;
+  actor: string;
+  action: string;
+  label: string;
+  target: string | null;
+  detail: string | null;
+}
+
+export interface ActivityPage {
+  items: ActivityItem[];
+  actions: Record<string, string>;
+  people: { user_id: number | null; actor: string }[];
+  has_more: boolean;
+}
+
+export interface ChannelActivity {
+  channel: "whatsapp" | "instagram";
+  incoming_24h: number;
+  replies_24h: number;
+  failed_24h: number;
+  last_incoming_at: string | null;
+  companies_connected: number;
+}
+
+export interface SystemHealth {
+  version: string;
+  release: string;
+  environment: string;
+  started_at: string;
+  server_time: string;
+  database: { ok: boolean; latency_ms: number; dialect: string | null; error: string | null };
+  channels: ChannelActivity[];
+  errors_24h: { server: number; client: number };
+}
+
+export interface ErrorEventRow {
+  id: number;
+  created_at: string;
+  last_seen_at: string;
+  source: "server" | "client";
+  method: string | null;
+  path: string | null;
+  page: string | null;
+  status: number | null;
+  error_type: string | null;
+  message: string | null;
+  user_id: number | null;
+  company_id: number | null;
+  company_name: string | null;
+  release: string | null;
+  count: number;
+}

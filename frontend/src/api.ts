@@ -1,13 +1,50 @@
+import { reportClientError } from "./errorReporter";
 import { tr, trServer } from "./lang";
 
 const TOKEN_KEY = "travel_ai_token";
 
 export class ApiError extends Error {
   status: number;
+  /** Already sent to System health (the global handler does not send it again). */
+  reported = false;
   constructor(status: number, message: string) {
     super(message);
     this.status = status;
   }
+}
+
+export interface ApiOptions {
+  /** Background polling: failures are not reported one by one (see pollWatcher in errorReporter.ts). */
+  quiet?: boolean;
+}
+
+/** Failed requests the owner should see on System health: server errors, the server not answering,
+ *  and failed page loads (GET 4xx such as 403/404 loops; 401 is just an ended session). */
+function shouldReport(method: string, status: number): boolean {
+  if (status === 0 || status >= 500) return true;
+  // 401 = signed out, 423 = a customer page paused by its plan: both expected, not faults.
+  return method === "GET" && status >= 400 && status !== 401 && status !== 423;
+}
+
+/** The server's own (English) text, so the same error reads the same in every language. */
+function rawDetail(data: unknown): string | undefined {
+  if (data && typeof data === "object" && "detail" in data) {
+    const detail = (data as { detail: unknown }).detail;
+    if (typeof detail === "string") return detail;
+    try { return JSON.stringify(detail).slice(0, 400); } catch { return undefined; }
+  }
+  return undefined;
+}
+
+function report(err: ApiError, method: string, path: string, opts?: ApiOptions, raw?: string): ApiError {
+  if (!opts?.quiet && shouldReport(method, err.status)) {
+    const kind = err.status === 0 ? "network" : err.status === 200 ? "bad_response" : "api";
+    const fallback = kind === "network" ? "No answer from the server (network error)"
+      : kind === "bad_response" ? "Answer was not JSON (an HTML page or an old version?)" : `HTTP ${err.status}`;
+    reportClientError({ kind, message: raw ?? fallback, apiPath: path, method, status: err.status });
+    err.reported = true;
+  }
+  return err;
 }
 
 export function getToken(): string | null {
@@ -143,7 +180,7 @@ function errorMessage(status: number, body: unknown): string {
   return tr("Request failed ({status})", { status });
 }
 
-export async function api<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
+export async function api<T = unknown>(method: string, path: string, body?: unknown, opts?: ApiOptions): Promise<T> {
   const headers: Record<string, string> = {};
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -153,18 +190,56 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
   try {
     res = await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   } catch {
-    throw new ApiError(0, tr("Could not reach the server. Check your internet connection and try again."));
+    throw report(new ApiError(0, tr("Could not reach the server. Check your internet connection and try again.")), method, path, opts);
   }
   if (res.status === 204) return undefined as T;
-  const data = await res.json().catch(() => null);
+  const raw = await res.text().catch(() => "");
+  let data: unknown = null;
+  let parsed = raw.trim() === "";
+  if (!parsed) {
+    try { data = JSON.parse(raw); parsed = true; } catch { data = null; }
+  }
   if (!res.ok) {
     if (res.status === 401 && token) onUnauthorized();
-    throw new ApiError(res.status, errorMessage(res.status, data));
+    throw report(new ApiError(res.status, errorMessage(res.status, data)), method, path, opts, rawDetail(data));
+  }
+  if (!parsed) {
+    // A web page instead of data (for example a proxy or an old version answering): never show it as
+    // an empty page.
+    throw report(new ApiError(200, tr("The server sent an unexpected answer. Reload the page; if it happens again, the platform owner can see it on System health.")), method, path, opts);
   }
   return data as T;
 }
 
-export const get = <T>(path: string) => api<T>("GET", path);
+/** Downloads a file of the API (CSV exports) with the login, and saves it under `filename`. */
+export async function download(path: string, filename: string): Promise<void> {
+  const headers: Record<string, string> = {};
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  let res: Response;
+  try {
+    res = await fetch(path, { headers });
+  } catch {
+    throw report(new ApiError(0, tr("Could not reach the server. Check your internet connection and try again.")), "GET", path);
+  }
+  if (!res.ok) {
+    if (res.status === 401 && token) onUnauthorized();
+    const data = await res.json().catch(() => null);
+    throw report(new ApiError(res.status, errorMessage(res.status, data)), "GET", path, undefined, rawDetail(data));
+  }
+  const blob = await res.blob();
+  const match = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "");
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = match?.[1] ?? filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export const get = <T>(path: string, opts?: ApiOptions) => api<T>("GET", path, undefined, opts);
 export const post = <T>(path: string, body?: unknown) => api<T>("POST", path, body ?? {});
 export const patch = <T>(path: string, body: unknown) => api<T>("PATCH", path, body);
 export const put = <T>(path: string, body: unknown) => api<T>("PUT", path, body);

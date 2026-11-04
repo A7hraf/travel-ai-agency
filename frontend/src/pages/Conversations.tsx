@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ApiError, get, post } from "../api";
+import { pollWatcher } from "../errorReporter";
 import { useAuth } from "../auth";
 import {
   ArrowLeft, Check, Checks, ClockCountdown, Coffee, Globe, HandGrabbing, Headset, InstagramLogo, MagnifyingGlass,
@@ -100,12 +101,17 @@ export default function Conversations() {
   const [search, setSearch] = useState("");
   const [all, setAll] = useState<ConversationSummary[] | null>(null);
   const pill = usePill(user?.id);
+  const [listError, setListError] = useState<string | null>(null);
+  const listPoll = useRef(pollWatcher("Conversations list"));
 
-  usePolling(() => {
+  const loadList = () => {
     const q = new URLSearchParams({ limit: "500" });
     if (search.trim()) q.set("q", search.trim());
-    get<ConversationSummary[]>(`/api/conversations?${q}`).then(setAll).catch(() => {});
-  }, 5000, [search]);
+    get<ConversationSummary[]>(`/api/conversations?${q}`, { quiet: true })
+      .then((rows) => { setAll(rows); setListError(null); listPoll.current.ok(); })
+      .catch((e) => { setListError((e as Error).message); listPoll.current.fail(e); });
+  };
+  usePolling(loadList, 5000, [search]);
 
   const counts: Record<Filter, number> = {
     human: all?.filter((c) => c.status === "human").length ?? 0,
@@ -136,7 +142,8 @@ export default function Conversations() {
             value={search} onChange={(e) => setSearch(e.target.value)} />
         </label>
         <div className="cv-rows">
-          {list === null && [0, 1, 2].map((i) => <div key={i} className="skeleton cv-skel" />)}
+          {list === null && listError && <ErrorBox error={listError} onRetry={loadList} />}
+          {list === null && !listError && [0, 1, 2].map((i) => <div key={i} className="skeleton cv-skel" />)}
           {list?.length === 0 && (
             <div className="empty">
               <Coffee className="empty-icon" aria-hidden="true" />
@@ -212,9 +219,16 @@ function ConversationView({ id, backTo }: { id: number; backTo: string }) {
     writeDraft(id, value);
   };
 
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const chatPoll = useRef(pollWatcher("Conversation"));
   const load = () =>
-    get<ConversationDetail>(`/api/conversations/${id}`).then(setConv).catch((e) => {
+    get<ConversationDetail>(`/api/conversations/${id}`, { quiet: true }).then((x) => {
+      setConv(x);
+      setLoadError(null);
+      chatPoll.current.ok();
+    }).catch((e) => {
       if (e.status === 404) navigate("/app/conversations");
+      else { setLoadError((e as Error).message); chatPoll.current.fail(e); }
     });
   usePolling(load, 4000, [id]);
 
@@ -230,7 +244,8 @@ function ConversationView({ id, backTo }: { id: number; backTo: string }) {
   if (!conv) {
     return (
       <div className="chat-screen">
-        <div className="chat-loading">{[0, 1, 2].map((i) => <div key={i} className="skeleton cv-skel" />)}</div>
+        <div className="chat-loading">{loadError ? <ErrorBox error={loadError} onRetry={load} />
+          : [0, 1, 2].map((i) => <div key={i} className="skeleton cv-skel" />)}</div>
       </div>
     );
   }

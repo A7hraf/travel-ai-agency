@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ..audit import audit
 from ..models import Company, Role, User
 from ..permissions import (
     COMPANY_ROLES,
@@ -113,6 +114,7 @@ def create_company_user(db: Session, company: Company, data: UserCreate, acting_
     except IntegrityError as exc:  # the same email created at the same moment
         db.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, "An account with this email already exists") from exc
+    audit(db, acting_user, "user.created", target=user.full_name, detail=str(data.role), company_id=company.id)
     if commit:
         db.commit()
         db.refresh(user)
@@ -156,6 +158,7 @@ def update_company_user(db: Session, user: User, data: UserUpdate, acting_user: 
     if data.is_active and not user.is_active:
         _check_seat(db, user.company)
 
+    changes = _account_changes(user, data, bool(password_hash), is_self)  # activity log, before applying
     if data.email is not None:
         email = data.email.lower()
         _check_email_free(db, user.company_id, email, exclude_user_id=user.id)
@@ -175,6 +178,8 @@ def update_company_user(db: Session, user: User, data: UserUpdate, acting_user: 
         user.is_active = data.is_active
         if not data.is_active:
             user.tokens_valid_after = revoke_sessions_now()  # old logins stay dead after re-enabling
+    for action, detail in changes:
+        audit(db, acting_user, action, target=user.full_name, detail=detail, company_id=user.company_id)
     db.commit()
     db.refresh(user)
     return user
@@ -190,5 +195,29 @@ def delete_company_user(db: Session, user: User, acting_user: User) -> None:
     db.refresh(user)
     if user.role == Role.COMPANY_ADMIN and user.is_active and _active_admins(db, user.company_id) <= 1:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "The company must keep at least one active admin")
+    audit(db, acting_user, "user.deleted", target=user.full_name, company_id=user.company_id)
     db.delete(user)
     db.commit()
+
+
+def _account_changes(user: User, data: UserUpdate, password_reset: bool, is_self: bool) -> list[tuple[str, str]]:
+    """Activity log entries for an account update, compared with the account before the change
+    (field names only, never a password)."""
+    out: list[tuple[str, str]] = []
+    if data.is_active is not None and data.is_active != user.is_active:
+        out.append(("user.disabled" if not data.is_active else "user.enabled", ""))
+    changed = []
+    if data.full_name is not None and " ".join(data.full_name.split()) != user.full_name:
+        changed.append("name")
+    if data.email is not None and data.email.lower() != user.email:
+        changed.append("email")
+    if data.role is not None and data.role != user.role:
+        changed.append(f"role: {user.role} → {data.role}")
+    if data.permissions is not None and not is_self and \
+            set(clean_permissions(data.permissions)) != set(clean_permissions(user.permissions or [])):
+        changed.append("permissions")
+    if password_reset:
+        changed.append("password reset")
+    if changed:
+        out.append(("user.updated", ", ".join(changed)))
+    return out

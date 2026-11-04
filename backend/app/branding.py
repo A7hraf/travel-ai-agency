@@ -358,8 +358,11 @@ def get_branding(company: Company) -> Branding:
         return Branding.model_validate(kept)
 
 
-def apply_update(company: Company, update: BrandingUpdate, allow_dashboard: bool) -> Branding:
-    """`allow_dashboard` is True for the platform owner: dashboard colours and "Powered by"."""
+def apply_update(company: Company, update: BrandingUpdate, allow_dashboard: bool,
+                 allow_powered_by: bool | None = None) -> Branding:
+    """`allow_dashboard` is True for the platform owner: dashboard colours and "Powered by".
+    `allow_powered_by`: a company whose plan lets it hide "Powered by" may switch it itself."""
+    allow_powered_by = allow_dashboard if allow_powered_by is None else allow_powered_by or allow_dashboard
     data = update.model_dump(exclude_unset=True)
     current = get_branding(company)
     if not allow_dashboard:
@@ -368,7 +371,7 @@ def apply_update(company: Company, update: BrandingUpdate, allow_dashboard: bool
     merged = current.model_dump() | data
     if "elements" in data:
         merged["elements"] = current.elements.model_dump() | (data["elements"] or {})
-        if not allow_dashboard:
+        if not allow_powered_by:
             merged["elements"]["powered_by"] = current.elements.powered_by
     if "cards" in data:
         merged["cards"] = current.cards.model_dump() | (data["cards"] or {})
