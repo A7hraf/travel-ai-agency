@@ -295,3 +295,33 @@ def test_package_language(client, owner, language):
     titles = [p["title"] for p in client.get("/api/packages", headers=admin).json()]
     arabic = [any("؀" <= ch <= "ۿ" for ch in t) for t in titles]
     assert all(arabic) if language == "ar" else not any(arabic)
+
+
+def test_luxury_concierge_demo_company(client, owner):
+    set_whatsapp_sender(FakeWhatsApp())
+    demo = create_demo(client, owner, name="Escape", slug="werescape", profile="luxury")
+    assert demo["customer_page"] == "/c/werescape" and demo["company"]["package_count"] == 12
+    assert demo["counts"]["tickets"] >= 10 and demo["counts"]["conversations"] >= 20
+
+    admin = login_as(client, demo)
+    settings = client.get("/api/company", headers=admin).json()
+    assert "concierge" in settings["ai_welcome_message"] and "Escape" in settings["ai_welcome_message"]
+    assert "concierge" in settings["knowledge_base"].lower()
+    assert client.get("/api/company/branding", headers=admin).json()["bg_color"] == "#222a20"
+    packages = client.get("/api/packages", headers=admin).json()
+    assert any("VIP Umrah" in p["title"] for p in packages)
+    assert min(float(p["price_per_person"]) for p in packages) >= 300
+
+    # The sample answers follow the luxury catalogue, not the family one.
+    with SessionLocal() as db:
+        company = db.scalar(select(Company).where(Company.slug == "werescape"))
+        texts = [m.content for m in db.scalars(select(Message)) if m.content]
+        assert company is not None
+    joined = "\n".join(texts)
+    assert "Tbilisi & Batumi" not in joined and "Georgia: Tbilisi & Kazbegi is 7 days from 845.000 OMR" in joined
+    assert "{" + "budget}" not in joined
+
+
+def test_unknown_profile_is_refused(client, owner):
+    r = client.post(URL, headers=owner, json={"name": "Demo", "profile": "space"})
+    assert r.status_code == 422

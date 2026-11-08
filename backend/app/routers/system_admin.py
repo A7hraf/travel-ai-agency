@@ -394,6 +394,8 @@ class DemoCompanyIn(_DemoBase):
     include_activity: bool = True
     # Language of the package texts: both (English · Arabic), en or ar.
     language: Literal["both", "en", "ar"] = "both"
+    # Kind of agency: a family travel agency, or a luxury travel & private concierge brand.
+    profile: Literal["family", "luxury"] = "family"
     # Optional: the admin login uses this email instead of admin@<web address>.example.
     admin_email: _DemoEmail | None = None
 
@@ -451,7 +453,8 @@ def create_demo_company(body: DemoCompanyIn, me: User = Depends(require_system_a
     try:
         result = demo_service.create_demo_company(
             db, body.name, slug, admin_email=str(body.admin_email) if body.admin_email else None,
-            language=body.language, include_activity=body.include_activity)
+            language=body.language, include_activity=body.include_activity,
+            profile=body.profile)
         db.commit()
         limiter.hit(limit_key)
     except IntegrityError as exc:

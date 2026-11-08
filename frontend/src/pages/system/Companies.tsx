@@ -279,7 +279,7 @@ interface DemoCompany { company: CompanyAdmin; logins: DemoLogin[]; customer_pag
 /** A ready-made Omani travel agency with packages, staff, trained answers and sample activity, to present the system. */
 function CreateDemo({ onClose, onCreated }: { onClose: () => void; onCreated: (d: DemoCompany) => void }) {
   const { t } = useI18n();
-  const [f, setF] = useState({ name: "Muscat Horizons Travel", slug: "", admin_email: "", language: "both", include_activity: true });
+  const [f, setF] = useState({ name: "Muscat Horizons Travel", slug: "", admin_email: "", language: "both", profile: "family", include_activity: true });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const preview = slugify(f.name);
@@ -299,7 +299,7 @@ function CreateDemo({ onClose, onCreated }: { onClose: () => void; onCreated: (d
     try {
       onCreated(await post<DemoCompany>("/api/system/demo-company", {
         name: f.name, slug: slug || null, admin_email: f.admin_email.trim() || null,
-        language: f.language, include_activity: f.include_activity,
+        language: f.language, profile: f.profile, include_activity: f.include_activity,
       }));
     } catch (err) {
       setError((err as Error).message);
@@ -332,6 +332,12 @@ function CreateDemo({ onClose, onCreated }: { onClose: () => void; onCreated: (d
               <option value="both">{t("English and Arabic")}</option>
               <option value="en">{t("English")}</option>
               <option value="ar">{t("Arabic")}</option>
+            </select>
+          </Field>
+          <Field label={t("Kind of agency")}>
+            <select value={f.profile} onChange={(e) => setF({ ...f, profile: e.target.value })}>
+              <option value="family">{t("Family travel agency")}</option>
+              <option value="luxury">{t("Luxury travel & private concierge")}</option>
             </select>
           </Field>
           <Field label={t("Admin login email (optional)")} hint={t("Empty: admin@{address}.example", { address })}>

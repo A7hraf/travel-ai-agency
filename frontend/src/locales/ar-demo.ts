@@ -4,6 +4,9 @@ export const AR_DEMO: Record<string, string> = {
   "A ready-made travel agency in Muscat to present the system: 12 packages, 4 staff logins, trained answers, a designed customer page and, if you like, a month of sample chats and bookings. Sample customers are fictional and no WhatsApp message is sent.":
     "وكالة سفر جاهزة في مسقط لعرض النظام: 12 باقة، 4 حسابات موظفين، إجابات مدرَّبة، صفحة عملاء مصمَّمة، ومحادثات وحجوزات تجريبية لشهر كامل إن أردت. العملاء التجريبيون وهميون ولا تُرسل أي رسالة واتساب.",
   "Package texts": "لغة نصوص الباقات",
+  "Kind of agency": "نوع الوكالة",
+  "Family travel agency": "وكالة سفر عائلية",
+  "Luxury travel & private concierge": "سفر فاخر وكونسيرج خاص",
   "English and Arabic": "الإنجليزية والعربية",
   "English": "الإنجليزية",
   "Arabic": "العربية",

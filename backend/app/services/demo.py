@@ -54,6 +54,7 @@ from .users import create_company_user
 log = logging.getLogger(__name__)
 
 LANGUAGES = ("both", "en", "ar")
+PROFILES = ("family", "luxury")  # family agency (default) or luxury travel & concierge brand
 DEMO_MAX_USERS = 10
 
 # --- Passwords --------------------------------------------------------------------------------
@@ -387,6 +388,33 @@ PACKAGES: list[PackageDef] = [
 PACKAGE_BY_KEY = {p.key: p for p in PACKAGES}
 
 
+@dataclass(frozen=True)
+class Profile:
+    """The content of one kind of demo agency. All profiles use the same package keys (the sample chats need them)."""
+    packages: list[PackageDef]
+    knowledge: str
+    instructions: str
+    welcome_en: str
+    welcome_ar: str
+    training: list[tuple[str, str]]
+    branding: object  # (company name) -> branding dict
+    budget: int  # the "trips for N OMR per person" sample chat
+
+    @property
+    def by_key(self) -> dict[str, PackageDef]:
+        return {p.key: p for p in self.packages}
+
+
+def get_profile(name: str) -> Profile:
+    if name == "luxury":
+        from . import demo_luxury as lx  # noqa: PLC0415  (it imports PackageDef from here)
+
+        return Profile(lx.PACKAGES, lx.KNOWLEDGE + "\n" + lx.KNOWLEDGE_AR, lx.INSTRUCTIONS, lx.WELCOME_EN,
+                       lx.WELCOME_AR, lx.TRAINING, lx.branding_for, 900)
+    return Profile(PACKAGES, KNOWLEDGE + "\n" + KNOWLEDGE_AR, INSTRUCTIONS, WELCOME_EN, WELCOME_AR, TRAINING,
+                   branding_for, 300)
+
+
 def _title(p: PackageDef, language: str) -> str:
     return {"en": p.en, "ar": p.ar}.get(language, f"{p.en} · {p.ar}")
 
@@ -448,24 +476,27 @@ class DemoResult:
 
 def create_demo_company(db: Session, name: str, slug: str, admin_email: str | None = None,
                         language: str = "both", include_activity: bool = True,
-                        today: date | None = None) -> DemoResult:
+                        today: date | None = None, profile: str = "family") -> DemoResult:
     """Build the whole demo agency in the caller's transaction (the caller commits).
 
     ``slug`` must already be valid and free (the router checks it like a normal company).
     """
     if language not in LANGUAGES:
         raise ValueError(f"language must be one of {LANGUAGES}")
+    if profile not in PROFILES:
+        raise ValueError(f"profile must be one of {PROFILES}")
+    content = get_profile(profile)
     today = today or local_today()
     domain = f"{slug}.example"
     company = Company(
         name=name, slug=slug, max_users=DEMO_MAX_USERS, currency="OMR",
         contact_email=f"hello@{domain}", contact_phone="+968 2400 0000",
         ai_agent_name="Sara",
-        ai_welcome_message=WELCOME_EN.format(company=name),
-        ai_welcome_message_ar=WELCOME_AR.format(company=name),
-        ai_instructions=INSTRUCTIONS,
-        knowledge_base=KNOWLEDGE + "\n" + KNOWLEDGE_AR,
-        branding=branding_for(name),
+        ai_welcome_message=content.welcome_en.format(company=name),
+        ai_welcome_message_ar=content.welcome_ar.format(company=name),
+        ai_instructions=content.instructions,
+        knowledge_base=content.knowledge,
+        branding=content.branding(name),
     )
     db.add(company)
     db.flush()
@@ -484,22 +515,22 @@ def create_demo_company(db: Session, name: str, slug: str, admin_email: str | No
         logins.append(DemoLogin(role=str(role), label=label, full_name=full_name, email=email, password=password))
 
     packages: dict[str, TravelPackage] = {}
-    for p in PACKAGES:
+    for p in content.packages:
         pkg = _make_package(company, p, language, today)
         db.add(pkg)
         packages[p.key] = pkg
-    for question, answer in TRAINING:
+    for question, answer in content.training:
         db.add(TrainingExample(company_id=company.id, question=question, answer=answer))
     db.flush()
 
     if include_activity:
-        _Activity(db, company, users, packages, language, today).build()
+        _Activity(db, company, users, packages, language, today, content).build()
         db.flush()
 
     counts = {
         "users": len(users),
         "packages": len(packages),
-        "training": len(TRAINING),
+        "training": len(content.training),
         "conversations": len(db.scalars(select(Conversation.id).where(Conversation.company_id == company.id)).all()),
         "tickets": len(db.scalars(select(Ticket.id).where(Ticket.company_id == company.id)).all()),
     }
@@ -622,13 +653,13 @@ INFO_CHATS = [
     ("en", Channel.WHATSAPP, 0.4, False, "Hi, what's your office address?", None,
      "Our office is in Al Khuwair, Muscat, open Sunday to Thursday 8:30-17:30 and Saturday 10:00-14:00. "
      "You can also book everything right here with me 😊", None, None),
-    ("ar", Channel.WHATSAPP, 1.2, False, "عندكم رحلات عائلية بميزانية 300 ريال للشخص؟",
-     {"query": "family", "max_price_per_person": 300}, None,
-     "والأطفال كم سعرهم؟", "الأطفال من سنتين إلى 11 سنة لهم سعر الطفل في الباقة، مثلاً دبي للعائلة 155 ريال للطفل."),
+    ("ar", Channel.WHATSAPP, 1.2, False, "عندكم رحلات عائلية بميزانية {budget} ريال للشخص؟",
+     {"query": "family", "max_price_per_person": "{budget}"}, None,
+     "والأطفال كم سعرهم؟", "الأطفال من سنتين إلى 11 سنة لهم سعر الطفل في الباقة، مثلاً {dubai_ar} {dubai_child} ريال للطفل."),
     ("en", Channel.WEB, 1.9, False, "Do I need a visa for Georgia? I have an Omani passport", None,
      "Good news: Omani citizens don't need a visa for Georgia (stays up to 1 year). Your passport must be valid for "
-     "at least 6 months. Would you like to see our Georgia trip, Tbilisi & Batumi?", "Yes please",
-     "Georgia: Tbilisi & Batumi is 7 days from 365.000 OMR per person, with a private car and an Arabic-speaking "
+     "at least 6 months. Would you like to see our Georgia trip?", "Yes please",
+     "{georgia_en} is {georgia_days} days from {georgia_price} OMR per person, with a private car and an Arabic-speaking "
      "driver. The next departures have seats left. Shall I check a date for you?"),
     ("ar", Channel.WEB, 2.7, True, "كم العربون عشان أثبت الحجز؟", None,
      "العربون 30% من قيمة الحجز ويثبت لك المقاعد، والباقي قبل السفر بـ 21 يوماً. تحب أساعدك تختار رحلة؟", None, None),
@@ -692,8 +723,9 @@ class _Activity:
     """30 days of sample chats and bookings, made through the real AI tools."""
 
     def __init__(self, db: Session, company: Company, users: dict[str, User], packages: dict[str, TravelPackage],
-                 language: str, today: date):
+                 language: str, today: date, content: Profile | None = None):
         self.db, self.company, self.users, self.packages = db, company, users, packages
+        self.content = content or get_profile("family")
         self.language, self.today = language, today
         self.now = datetime.now(timezone.utc)
         self.customer_no = 0
@@ -763,7 +795,7 @@ class _Activity:
         return self._add(conv, Sender.AI, text, at, meta={"cards": cards} if cards else None)
 
     def _title(self, key: str, lang: str) -> str:
-        p = PACKAGE_BY_KEY[key]
+        p = self.content.by_key[key]
         return p.ar if lang == "ar" else p.en
 
     def _list_text(self, results: dict, lang: str) -> str:
@@ -955,10 +987,22 @@ class _Activity:
         conv.status = ConversationStatus.CLOSED
         conv.assigned_to_id = None
 
+    def _fill(self, text: str | None) -> str | None:
+        """Sample answers that quote a package or the budget follow the profile's catalogue."""
+        if not text or "{" not in text:
+            return text
+        pk = self.content.by_key
+        return text.format(budget=self.content.budget, dubai_ar=pk["dubai"].ar,
+                           dubai_child=f"{Decimal(pk['dubai'].child or 0):.0f}", georgia_en=pk["georgia"].en,
+                           georgia_days=pk["georgia"].days, georgia_price=pk["georgia"].price)
+
     def _info(self, lang, channel, days_ago, closed, text, query, answer, follow, follow_answer) -> None:
         start = self.now - timedelta(days=days_ago)
         conv, customer = self._conversation(channel, start, lang)
         ctx = self._ctx(conv, customer)
+        text, answer, follow_answer = self._fill(text), self._fill(answer), self._fill(follow_answer)
+        if isinstance(query, dict):
+            query = {k: int(self._fill(v)) if v == "{budget}" else v for k, v in query.items()}
         t = start
         self._add(conv, Sender.CUSTOMER, text, t)
         t = self._gap(t, 0.4)
