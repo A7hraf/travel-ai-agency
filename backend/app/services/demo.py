@@ -45,6 +45,7 @@ from ..models import (
     User,
 )
 from ..schemas import UserCreate
+from ..addons import AddonSettings
 from ..security import random_token, strong_password
 from ..timeutil import local_today
 from . import seats
@@ -526,6 +527,7 @@ def create_demo_company(db: Session, name: str, slug: str, admin_email: str | No
         _add_members(db, company, content.members, include_activity)
     if include_activity:
         _add_quotation_samples(db, company, today)
+        _add_suppliers(db, company)
 
     counts = {
         "users": len(users),
@@ -547,7 +549,7 @@ def _add_members(db: Session, company: Company, members: tuple, with_people: boo
 
     config, requests = members
     # The luxury demo shows every advanced feature: members, the AI trip planner and AI insights.
-    company.addons = {**(company.addons or {}), "members": True, "trip_planner": True, "insights": True}
+    company.addons = {**(company.addons or {}), **{k: True for k in AddonSettings.model_fields}}
     company.membership = config
     if not with_people:
         return
@@ -575,6 +577,27 @@ def _add_members(db: Session, company: Company, members: tuple, with_people: boo
             "full_name": customers[0].name, "phone": customers[0].phone or "+96890000000"},
             "Family safari in Kenya", None, actor="Demo")
     db.flush()
+
+
+DEMO_SUPPLIERS = [
+    ("hotel", "Atlantis The Palm", "Dubai", 5, "https://www.atlantis.com/dubai", "700", "900", True),
+    ("hotel", "Shangri-La Barr Al Jissah", "Muscat", 5, "https://www.shangri-la.com/muscat", "420", "480", True),
+    ("hotel", "Alila Jabal Akhdar", "Jabal Akhdar, Oman", 5, "https://www.alilahotels.com/jabalakhdar", "540", "610", False),
+    ("hotel", "Swissôtel Istanbul", "Istanbul", 5, None, "300", "360", False),
+    ("flight", "Oman Air", "", None, "https://www.omanair.com", None, None, True),
+    ("flight", "Qatar Airways", "", None, "https://www.qatarairways.com", None, None, False),
+    ("transport", "Muscat private driver (full day)", "Muscat", None, None, "45", "60", False),
+    ("activity", "Wahiba Sands desert safari", "Oman", None, None, "60", "85", True),
+]
+
+
+def _add_suppliers(db: Session, company: Company) -> None:
+    from ..models import Supplier  # noqa: PLC0415
+
+    for cat, name, place, stars, link, cost, price, preferred in DEMO_SUPPLIERS:
+        db.add(Supplier(company_id=company.id, category=cat, name=name, place=place, stars=stars, link=link,
+                        usual_cost=Decimal(cost) if cost else None, usual_price=Decimal(price) if price else None,
+                        preferred=preferred))
 
 
 def _add_quotation_samples(db: Session, company: Company, today: date) -> None:

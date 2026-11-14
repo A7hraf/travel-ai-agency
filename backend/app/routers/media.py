@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..deps import get_company_user, require_system_admin
-from ..models import Company, CompanyStatus, MediaFile, TravelPackage, User, utcnow
+from ..models import Company, CompanyStatus, MediaFile, Supplier, TravelPackage, TripOption, User, utcnow
 from ..permissions import effective_permissions
 from ..security import random_token
 from ..branding import branding_image_urls
@@ -83,6 +83,8 @@ def remove_unused_media(db: Session, company_id: int, min_age: timedelta = timed
     are kept: they may belong to a form that is still open."""
     company = db.get(Company, company_id)
     used = {p.image_url for p in db.scalars(select(TravelPackage).where(TravelPackage.company_id == company_id))}
+    used |= set(db.scalars(select(Supplier.image_url).where(Supplier.company_id == company_id)))
+    used |= set(db.scalars(select(TripOption.image_url).where(TripOption.company_id == company_id)))
     branding = (company.branding or {}) if company else {}
     used |= branding_image_urls(branding)
     keys = {u.removeprefix("/api/media/") for u in used if u and u.startswith("/api/media/")}
@@ -109,7 +111,7 @@ def media_belongs_to(db: Session, url: str | None, company_id: int) -> bool:
 @router.post("/api/media", response_model=UploadOut, status_code=201)
 def upload(body: UploadIn, me: User = Depends(get_company_user), db: Session = Depends(get_db)):
     perms = effective_permissions(me)
-    if "packages.manage" not in perms and "settings.manage" not in perms:
+    if not set(perms) & {"packages.manage", "settings.manage", "tickets.manage"}:
         raise HTTPException(403, "Missing permission: packages.manage or settings.manage")
     return store_image(db, me.company, body)
 

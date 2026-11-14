@@ -71,6 +71,7 @@ class CompanyBrief(ORM):
     addons: list[str] = []
     # Members community: level key → name in both languages and whether their chats are priority.
     member_levels: dict[str, dict] | None = None
+    currency: str = "OMR"
 
 
 class PartnerBrief(BaseModel):
@@ -417,6 +418,8 @@ class TicketOptionOut(ORM):
     estimate_price: float | None
     ai_reason: str | None
     added_by: str
+    supplier_id: int | None = None
+    image_url: str | None = None
     sent_to_client: bool
     chosen: bool
 

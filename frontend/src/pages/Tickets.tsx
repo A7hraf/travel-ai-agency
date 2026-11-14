@@ -599,6 +599,8 @@ function TicketHistory({ events, currency, lang }: { events: TicketEvent[] | nul
         return t("{who} ticked: {new}", { who, new: ev.new_value ?? "" });
       case "step_undone":
         return t("{who} unticked: {new}", { who, new: ev.new_value ?? "" });
+      case "saved_to_library":
+        return t("{who} saved {new} to the library", { who, new: ev.new_value ?? "" });
       case "documents_sent":
         return t("{who} sent the documents: {new}", { who, new: ev.new_value ?? "" });
       default:

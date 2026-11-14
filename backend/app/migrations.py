@@ -69,6 +69,8 @@ NEW_COLUMNS = [
     ("tickets", "last_client_at", "TIMESTAMP WITH TIME ZONE"),
     ("tickets", "legacy_ref", "VARCHAR(60)"),
     ("tickets", "checklist", "JSON"),
+    ("trip_options", "supplier_id", "INTEGER REFERENCES suppliers(id) ON DELETE SET NULL"),
+    ("trip_options", "image_url", "VARCHAR(500)"),
     ("tickets", "documents_sent_at", "TIMESTAMP WITH TIME ZONE"),
     ("trip_options", "ticket_id", "INTEGER REFERENCES tickets(id) ON DELETE CASCADE"),
     ("trip_options", "link", "VARCHAR(500)"),
@@ -188,6 +190,7 @@ def upgrade(engine: Engine) -> None:
                 conn.execute(text(ddl))
         if "trip_requests" in tables:
             conn.execute(text("CREATE INDEX IF NOT EXISTS ix_trip_options_ticket_id ON trip_options (ticket_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_trip_options_supplier_id ON trip_options (supplier_id)"))
             conn.execute(text("CREATE INDEX IF NOT EXISTS ix_tickets_service_id ON tickets (service_id)"))
             conn.execute(text("CREATE INDEX IF NOT EXISTS ix_tickets_legacy_ref ON tickets (legacy_ref)"))
             if engine.dialect.name == "postgresql":

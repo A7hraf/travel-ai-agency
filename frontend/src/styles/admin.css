@@ -913,3 +913,22 @@ a.now-waiting:hover { background: color-mix(in srgb, var(--st-waiting-tint) 18%,
 @media (max-width: 640px) {
   .gx-svc-row, .gx-svc-row.gx-svc-step { grid-template-columns: 1fr 1fr; }
 }
+
+.gx-addon-part { margin-inline-start: 28px; padding-inline-start: 12px; box-shadow: inset 2px 0 0 var(--line); }
+[dir="rtl"] .gx-addon-part { box-shadow: inset -2px 0 0 var(--line); }
+
+/* Supplier library */
+.gx-lib-search { margin: 12px 0 16px; max-width: 420px; }
+.gx-lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.gx-lib-grid > .gx-svc-editor { grid-column: 1 / -1; }
+.gx-lib-card { display: flex; gap: 12px; text-align: start; border: 0; cursor: pointer; margin: 0; font: inherit; color: var(--text); padding: 14px; }
+.gx-lib-card:disabled { cursor: default; }
+.gx-lib-card.off { opacity: .55; }
+.gx-lib-img { width: 64px; height: 64px; flex: none; border-radius: 12px; object-fit: cover; background: var(--surface-2); }
+.gx-lib-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; overflow-wrap: anywhere; }
+.gx-lib-star { color: var(--accent); flex: none; }
+.gx-lib-link { margin-inline-start: 6px; vertical-align: -2px; color: var(--text-muted); }
+.gx-lib-table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 12px; }
+.gx-lib-table th { text-align: start; font-weight: 600; color: var(--text-muted); font-size: 12px; padding: 6px 8px; }
+.gx-lib-table td { padding: 8px; box-shadow: inset 0 1px 0 var(--line); }
+.gx-lib-body .gx-row-between { flex-wrap: nowrap; align-items: flex-start; }

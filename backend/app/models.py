@@ -430,6 +430,29 @@ class Ticket(Base):
                                                       order_by="RequestFile.id", back_populates="ticket")
 
 
+class Supplier(Base):
+    """A hotel, airline, transport company, activity… the company works with: saved once, suggested again for
+    similar requests, and counted in the spending figures."""
+
+    __tablename__ = "suppliers"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    category: Mapped[str] = mapped_column(String(20), index=True)  # flight, hotel, transport, activity…
+    name: Mapped[str] = mapped_column(String(200))
+    place: Mapped[str] = mapped_column(String(120), default="")  # city or country ("" = anywhere)
+    stars: Mapped[int | None] = mapped_column(Integer)  # hotels
+    link: Mapped[str | None] = mapped_column(String(500))
+    image_url: Mapped[str | None] = mapped_column(String(500))
+    description: Mapped[str] = mapped_column(Text, default="")  # shown to clients in quotations
+    notes: Mapped[str] = mapped_column(Text, default="")  # for the team only (contacts, contract rates…)
+    usual_cost: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
+    usual_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
+    preferred: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+
 class RequestFile(Base):
     """A private file of a request: the client's payment proof or papers (passport copy…), or a travel document
     the team sends (tickets, vouchers, plan). Never public: only the company's staff and that client can open it."""
@@ -726,6 +749,8 @@ class TripOption(Base):
     request_id: Mapped[int | None] = mapped_column(ForeignKey("trip_requests.id", ondelete="CASCADE"), index=True)
     ticket_id: Mapped[int | None] = mapped_column(ForeignKey("tickets.id", ondelete="CASCADE"), index=True)
     link: Mapped[str | None] = mapped_column(String(500))  # the hotel / airline / activity page
+    supplier_id: Mapped[int | None] = mapped_column(ForeignKey("suppliers.id", ondelete="SET NULL"), index=True)
+    image_url: Mapped[str | None] = mapped_column(String(500))  # a photo for the quotation (uploaded, /api/media/…)
     # The vendor who proposed it (None: added by the travel company). A vendor sees only its own options.
     vendor_id: Mapped[int | None] = mapped_column(ForeignKey("partners.id", ondelete="SET NULL"), index=True)
     category: Mapped[str] = mapped_column(String(20))

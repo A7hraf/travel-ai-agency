@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..addons import ADDONS, AddonSettings, addon_settings, has_addon
+from ..addons import ADDONS, PARTS, AddonSettings, addon_settings, has_addon
 from ..audit import audit
 from ..database import get_db
 from ..deps import require_permission, require_system_admin
@@ -26,6 +26,7 @@ router = APIRouter(tags=["members"])
 class AddonsOut(BaseModel):
     addons: AddonSettings
     catalog: dict[str, str]
+    parts: dict[str, dict[str, str]] = PARTS
 
 
 def _company(db: Session, company_id: int) -> Company:

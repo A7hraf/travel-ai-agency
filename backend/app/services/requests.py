@@ -23,6 +23,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..catalog import check_answers
+from ..addons import has_addon
 from ..members import level_of
 from ..models import (
     Company,
@@ -158,6 +159,25 @@ def ai_draft(db: Session, ticket: Ticket, company: Company, user: User) -> None:
             "depart": ticket.departure_date, "return": ticket.return_date, "travellers": ticket.adults + ticket.children,
             "parts": parts, "budget": answers.get("budget"), "preferences": answers.get("preferences") or answers.get("details"),
             "notes": ticket.client_note}
+    # The company's own saved suppliers for this place come first.
+    saved = 0
+    if has_addon(company, "library"):
+        from . import library  # noqa: PLC0415
+
+        have = {(o.category, (o.provider or o.title).lower()) for o in ticket.options}
+        for part in parts:
+            for s in library.matches(db, company.id, part, ticket.destination, limit=3):
+                if room <= 0 or (part, s.name.lower()) in have:
+                    continue
+                data = library.option_from(s)
+                ticket.options.append(TripOption(company_id=ticket.company_id, added_by="ai", estimate_price=s.usual_price,
+                                                 ai_reason="From your library" + (" (preferred)" if s.preferred else ""),
+                                                 **{k: v for k, v in data.items() if k != "price"}))
+                room -= 1
+                saved += 1
+    if room <= 0:
+        event(db, ticket, user.full_name, "ai_drafted", None, f"{saved} options from the library", user)
+        return
     cleaned, searched = planner.suggest(db, company, case, room)
     for opt in cleaned:
         option = TripOption(company_id=ticket.company_id, category=opt["category"], title=opt["title"],
@@ -165,7 +185,8 @@ def ai_draft(db: Session, ticket: Ticket, company: Company, user: User) -> None:
                             ai_reason=opt["reason"], added_by="ai")
         ticket.options.append(option)
         shared.signal(db, ticket, option, "suggested")
-    event(db, ticket, user.full_name, "ai_drafted", None, f"{len(cleaned)} options" + (" · web search" if searched else ""), user)
+    event(db, ticket, user.full_name, "ai_drafted", None, f"{len(cleaned) + saved} options" + (" · web search" if searched else "")
+          + (f" · {saved} from the library" if saved else ""), user)
 
 
 def send_choices(db: Session, company: Company, ticket: Ticket, option_ids: list[int], user: User) -> None:

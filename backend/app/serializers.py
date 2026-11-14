@@ -58,7 +58,7 @@ def me_out(user: User) -> MeOut:
         c = user.company
         company = CompanyBrief(id=c.id, name=c.name, slug=c.slug, status=c.status, branding=dashboard_branding(c),
                                b2b_enabled=b2b_settings(c).enabled, addons=enabled_addons(c),
-                               member_levels=staff_member_levels(c))
+                               member_levels=staff_member_levels(c), currency=c.currency or "OMR")
     partner = None
     if user.partner is not None:
         partner = PartnerBrief(id=user.partner.id, name=user.partner.name, kind=user.partner.kind)

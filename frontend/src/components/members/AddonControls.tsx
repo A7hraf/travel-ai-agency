@@ -4,7 +4,7 @@ import { useI18n } from "../../lang";
 import { Switch } from "../admin/AdminUI";
 import { ErrorBox, Loading } from "../ui";
 
-interface Addons { addons: Record<string, boolean>; catalog: Record<string, string> }
+interface Addons { addons: Record<string, boolean>; catalog: Record<string, string>; parts?: Record<string, Record<string, string>> }
 
 /** Platform owner: advanced features of one travel company, each switched on or off. */
 export default function AddonControls({ companyId }: { companyId: number }) {
@@ -25,7 +25,14 @@ export default function AddonControls({ companyId }: { companyId: number }) {
       <h2 className="gx-card-title">{t("Advanced features")}</h2>
       <p className="gx-card-note">{t("Switch features on or off for this company only. Its staff see them after their next page load.")}</p>
       {Object.entries(data.catalog).map(([key, label]) => (
-        <Switch key={key} checked={!!data.addons[key]} disabled={busy} onChange={(v) => toggle(key, v)} label={t(label)} />
+        <div key={key}>
+          <Switch checked={!!data.addons[key]} disabled={busy} onChange={(v) => toggle(key, v)} label={t(label)} />
+          {data.addons[key] && Object.entries(data.parts?.[key] ?? {}).map(([part, partLabel]) => (
+            <div key={part} className="gx-addon-part">
+              <Switch checked={!!data.addons[part]} disabled={busy} onChange={(v) => toggle(part, v)} label={t(partLabel)} />
+            </div>
+          ))}
+        </div>
       ))}
       <ErrorBox error={error} />
     </section>

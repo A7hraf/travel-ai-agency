@@ -18,6 +18,7 @@ export interface CompanyBrief {
   addons?: string[];
   /** Members community levels (when switched on): key → names and whether their chats are priority. */
   member_levels?: Record<MemberLevel, { name_en: string; name_ar: string; priority: boolean }> | null;
+  currency?: string;
 }
 
 export type MemberLevel = "level1" | "level2" | "level3" | "vip";
@@ -377,6 +378,13 @@ export interface TicketOption {
   id: number; category: ServicePart; title: string; provider: string | null; link: string | null; details: string | null;
   cost_price: number | null; price: number | null; estimate_price: number | null; ai_reason: string | null;
   added_by: "staff" | "ai" | "vendor"; sent_to_client: boolean; chosen: boolean;
+  supplier_id: number | null; image_url: string | null;
+}
+
+export interface Supplier {
+  id: number; category: ServicePart; name: string; place: string; stars: number | null; link: string | null; image_url: string | null;
+  description: string; notes: string; usual_cost: string | number | null; usual_price: string | number | null;
+  preferred: boolean; is_active: boolean; bookings: number;
 }
 
 export interface ServiceField { key: string; label_en: string; label_ar: string; type: string; required: boolean; choices: string[] }

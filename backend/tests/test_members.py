@@ -27,8 +27,17 @@ def test_off_until_the_owner_switches_it_on(client, owner, company_a):
     switch_members(client, owner, company["id"])
     me = client.get("/api/auth/me", headers=admin).json()["company"]
     assert me["addons"] == ["members"] and me["member_levels"]["vip"]["priority"] is True
-    assert client.get(f"/api/system/companies/{company['id']}/addons", headers=owner).json()["addons"] == {
-        "members": True, "trip_planner": False, "insights": False}
+    got = client.get(f"/api/system/companies/{company['id']}/addons", headers=owner).json()
+    assert got["addons"]["members"] is True and not any(v for k, v in got["addons"].items() if k != "members")
+    assert "library_analytics" in got["parts"]["library"]
+    # A part works only while its feature is on.
+    client.put(f"/api/system/companies/{company['id']}/addons", headers=owner,
+               json={**got["addons"], "library_analytics": True})
+    assert "library_analytics" not in client.get("/api/auth/me", headers=admin).json()["company"]["addons"]
+    client.put(f"/api/system/companies/{company['id']}/addons", headers=owner,
+               json={**got["addons"], "library": True, "library_analytics": True})
+    assert {"library", "library_analytics"} <= set(client.get("/api/auth/me", headers=admin).json()["company"]["addons"])
+    client.put(f"/api/system/companies/{company['id']}/addons", headers=owner, json=got["addons"])
     page = client.get(f"/api/public/companies/{company['slug']}").json()["members"]
     assert [lv["key"] for lv in page] == ["level1", "level2", "level3", "vip"]
     assert page[0]["name_ar"] == "فضي" and page[0]["perks_en"] == ["Priority replies", "Member-only offers"]
@@ -126,7 +135,7 @@ def test_luxury_demo_has_members(client, owner):
     page = client.get("/api/public/companies/werescape").json()["members"]
     assert [lv["name_en"] for lv in page] == ["Explorer", "Voyager", "Elite", "VIP"]
     me = client.get("/api/auth/me", headers=h).json()["company"]
-    assert set(me["addons"]) == {"members", "trip_planner", "insights"}
+    assert {"members", "trip_planner", "insights", "library", "library_analytics", "quotes", "calendar", "advisor"} <= set(me["addons"])
     safari = next(t for t in client.get("/api/tickets", headers=h).json() if t["destination"] == "Masai Mara, Kenya")
     assert safari["status"] == "new" and safari["children"] == 2
     # Without an AI server the planner still drafts (well-known names), so the demo can show it.

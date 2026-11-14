@@ -17,6 +17,7 @@ from ..models import (
     MessageKind,
     RequestFile,
     Role,
+    Supplier,
     Sender,
     Ticket,
     TicketEvent,
@@ -25,12 +26,14 @@ from ..models import (
 )
 from ..permissions import effective_permissions
 from ..schemas import TicketEventOut, TicketOut, TicketUpdate
+from ..services import library
 from ..services import request_files as files
+from .media import media_belongs_to
 from ..services.request_files import file_response
 from ..services import requests as flow
 from ..services import seats
 from ..timeutil import local_today
-from ..addons import has_addon
+from ..addons import has_addon, require_addon
 from ..ratelimit import limiter
 from pydantic import BaseModel, Field, field_validator
 from typing import Literal
@@ -242,6 +245,8 @@ class OptionIn(BaseModel):
     details: str | None = Field(default=None, max_length=2000)
     cost_price: Decimal | None = Field(default=None, ge=0, le=Decimal("100000000"), decimal_places=3)
     price: Decimal | None = Field(default=None, ge=0, le=Decimal("100000000"), decimal_places=3)
+    supplier_id: int | None = None
+    image_url: str | None = Field(default=None, max_length=500)
 
     @field_validator("title", "provider")
     @classmethod
@@ -286,10 +291,65 @@ def _done(db: Session, ticket: Ticket, me: User) -> TicketOut:
     return ticket_out(ticket, me, detail=True)
 
 
+def _option_data(db: Session, me: User, body: OptionIn) -> dict:
+    """The option's fields, with its supplier and photo checked to be the company's own."""
+    data = body.model_dump()
+    if data["supplier_id"] is not None:
+        s = db.get(Supplier, data["supplier_id"])
+        if s is None or s.company_id != me.company_id:
+            raise HTTPException(404, "Supplier not found")
+    if data["image_url"] and not (data["image_url"].startswith("/api/media/")
+                                  and media_belongs_to(db, data["image_url"], me.company_id)):
+        raise HTTPException(422, "Upload the photo (photos from other websites can't be used)")
+    return data
+
+
 @router.post("/{ticket_id}/options", response_model=TicketOut)
 def add_option(ticket_id: int, body: OptionIn, me: User = Depends(manage), db: Session = Depends(get_db)):
     ticket = _get(db, me, ticket_id, lock=True)
-    flow.add_option(db, ticket, body.model_dump(), me)
+    flow.add_option(db, ticket, _option_data(db, me, body), me)
+    return _done(db, ticket, me)
+
+
+@router.get("/{ticket_id}/library")
+def library_suggestions(ticket_id: int, me: User = Depends(require_permission("tickets.view")),
+                        db: Session = Depends(get_db)):
+    """Saved suppliers for each part of this request, for its place: one click adds them as a choice."""
+    if not has_addon(me.company, "library"):
+        return {}
+    ticket = _get(db, me, ticket_id)
+    parts = ticket.parts or list(flow.CATEGORIES)
+    out = {}
+    for part in parts:
+        rows = library.matches(db, me.company_id, part, ticket.destination, limit=6)
+        if rows:
+            out[part] = [{"id": s.id, "name": s.name, "place": s.place, "stars": s.stars, "usual_price": s.usual_price,
+                          "usual_cost": s.usual_cost, "preferred": s.preferred, "image_url": s.image_url} for s in rows]
+    return out
+
+
+class FromLibraryIn(BaseModel):
+    supplier_id: int
+
+
+@router.post("/{ticket_id}/options/from-library", response_model=TicketOut)
+def add_from_library(ticket_id: int, body: FromLibraryIn, me: User = Depends(manage), db: Session = Depends(get_db)):
+    require_addon(me.company, "library")
+    ticket = _get(db, me, ticket_id, lock=True)
+    s = db.get(Supplier, body.supplier_id)
+    if s is None or s.company_id != me.company_id:
+        raise HTTPException(404, "Supplier not found")
+    flow.add_option(db, ticket, library.option_from(s), me)
+    return _done(db, ticket, me)
+
+
+@router.post("/{ticket_id}/options/{option_id}/save-to-library", response_model=TicketOut)
+def save_to_library(ticket_id: int, option_id: int, me: User = Depends(manage), db: Session = Depends(get_db)):
+    require_addon(me.company, "library")
+    ticket = _get(db, me, ticket_id, lock=True)
+    option = flow._option(ticket, option_id)
+    s = library.save_option(db, ticket, option, me)
+    flow.event(db, ticket, me.full_name, "saved_to_library", None, s.name, me)
     return _done(db, ticket, me)
 
 
@@ -297,7 +357,7 @@ def add_option(ticket_id: int, body: OptionIn, me: User = Depends(manage), db: S
 def update_option(ticket_id: int, option_id: int, body: OptionIn, me: User = Depends(manage),
                   db: Session = Depends(get_db)):
     ticket = _get(db, me, ticket_id, lock=True)
-    flow.update_option(db, ticket, option_id, body.model_dump(), me)
+    flow.update_option(db, ticket, option_id, _option_data(db, me, body), me)
     return _done(db, ticket, me)
 
 
