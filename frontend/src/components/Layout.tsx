@@ -12,7 +12,7 @@ import { customerLabel, ROLE_LABELS, usePolling } from "../util";
 import { GhanjahMark, usePlatformName } from "./Brand";
 import {
   AddressBook, ArrowSquareOut, Buildings, Crown, ClockCounterClockwise, Heartbeat, ChartLineUp, ChatsCircle, GearSix, GraduationCap, IconProps, List, PaintBrush, SignOut,
-  Briefcase, BookBookmark, CalendarDots, FileText, ListChecks, Handshake, Star, SquaresFour, SuitcaseRolling, Ticket, Translate, UserCircle, UsersThree, WhatsappLogo,
+  Briefcase, BookBookmark, CalendarDots, FileText, Lightbulb, ListChecks, Handshake, Star, SquaresFour, SuitcaseRolling, Ticket, Translate, UserCircle, UsersThree, WhatsappLogo,
 } from "./Icon";
 import { moneyText } from "./Money";
 import { Sheet } from "./staff/Sheet";
@@ -43,6 +43,7 @@ const COMPANY_NAV: NavItem[] = [
   { to: "/app/customers", label: "Customers", icon: AddressBook, permission: "conversations.view" },
   { to: "/app/library", label: "Supplier library", icon: BookBookmark, permission: "tickets.view", addon: "library" },
   { to: "/app/packages", label: "Packages", icon: SuitcaseRolling, permission: "packages.view" },
+  { to: "/app/advisor", label: "AI advisor", icon: Lightbulb, permission: "reports.view", addon: "advisor" },
   { to: "/app/reports", label: "Reports", icon: FileText, permission: "reports.view", addon: "reports" },
   { to: "/app/insights", label: "AI insights", icon: ChartLineUp, permission: "reports.view", addon: "insights" },
   { to: "/app/feedback", label: "Trip feedback", icon: Star, permission: "reports.view" },
@@ -62,6 +63,7 @@ const COMPANY_NAV: NavItem[] = [
 const SYSTEM_NAV: NavItem[] = [
   { to: "/system", label: "Companies", icon: Buildings },
   { to: "/system/insights", label: "Insights", icon: ChartLineUp },
+  { to: "/system/advisor", label: "AI advisor", icon: Lightbulb },
   { to: "/system/plans", label: "Plans", icon: Crown },
   { to: "/system/settings", label: "Platform settings", icon: GearSix },
   { to: "/system/health", label: "System health", icon: Heartbeat },

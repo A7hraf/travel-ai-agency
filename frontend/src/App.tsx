@@ -38,6 +38,7 @@ const Library = lazy(() => import("./pages/Library"));
 const QuotationPage = lazy(() => import("./pages/QuotationPage"));
 const Reports = lazy(() => import("./pages/Reports"));
 const Calendar = lazy(() => import("./pages/Calendar"));
+const Advisor = lazy(() => import("./pages/Advisor"));
 const Members = lazy(() => import("./pages/Members"));
 const Feedback = lazy(() => import("./pages/Feedback"));
 const Insights = lazy(() => import("./pages/Insights"));
@@ -135,6 +136,7 @@ export default function App() {
 
       <Route path="/system" element={<RequireUser system><Layout /></RequireUser>}>
         <Route path="insights" element={<OwnerInsights />} />
+        <Route path="advisor" element={<Advisor platform />} />
         <Route index element={<Companies />} />
         <Route path="companies/:id" element={<CompanyDetail />} />
         <Route path="account" element={<Account />} />
@@ -157,6 +159,7 @@ export default function App() {
         <Route path="services" element={<RequireUser permission="settings.manage"><Services /></RequireUser>} />
         <Route path="library" element={<RequireUser permission="tickets.view"><Library /></RequireUser>} />
         <Route path="calendar" element={<RequireUser permission="tickets.view"><Calendar /></RequireUser>} />
+        <Route path="advisor" element={<RequireUser permission="reports.view"><Advisor /></RequireUser>} />
         <Route path="customers" element={<RequireUser permission="conversations.view"><Customers /></RequireUser>} />
         <Route path="customers/:id" element={<RequireUser permission="conversations.view"><Customers /></RequireUser>} />
         <Route path="partners" element={<RequireUser permission="partners.manage"><Partners /></RequireUser>} />

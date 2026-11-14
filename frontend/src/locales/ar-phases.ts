@@ -156,6 +156,28 @@ export const AR_PHASES: Record<string, string> = {
   "Team member not found": "عضو الفريق غير موجود",
   "Choose a period of up to 120 days": "اختر فترة حتى 120 يوماً",
   "Appointment not found": "الموعد غير موجود",
+  // AI advisor
+  "AI advisor": "المستشار الذكي",
+  "Platform": "المنصة",
+  "Ask about your agencies, the platform's figures, errors and what to build next. The advisor also raises findings by itself every day.":
+    "اسأل عن وكالاتك وأرقام المنصة والأخطاء وما يجب بناؤه لاحقاً. ويرفع المستشار ملاحظاته بنفسه كل يوم.",
+  "Ask about your business: it answers from your own figures (requests, quotations, suppliers, team). It also raises findings by itself every day.":
+    "اسأل عن عملك: يجيب من أرقامك أنت (الطلبات، عروض الأسعار، الموردين، الفريق). ويرفع ملاحظاته بنفسه كل يوم.",
+  "Look for findings now": "ابحث عن ملاحظات الآن",
+  "Clear": "مسح",
+  "Ask your first question, or pick one below.": "اطرح سؤالك الأول، أو اختر أحد الأسئلة أدناه.",
+  "The advisor noticed": "لاحظ المستشار",
+  "Reading your figures…": "يقرأ أرقامك…",
+  "Ask the advisor…": "اسأل المستشار…",
+  "What should I do first today?": "ما الذي أبدأ به اليوم؟",
+  "Which services and suppliers earn me the most?": "أي الخدمات والموردين يحققون لي أكثر ربح؟",
+  "How can I get more quotations approved?": "كيف أزيد عروض الأسعار المعتمدة؟",
+  "What do my customers ask for that I don't offer?": "ماذا يطلب عملائي مما لا أقدمه؟",
+  "Which agencies need my help this week?": "أي الوكالات تحتاج مساعدتي هذا الأسبوع؟",
+  "Which features should I build or improve next?": "ما الميزات التي يجب بناؤها أو تحسينها لاحقاً؟",
+  "Are there errors or weak spots to fix in the system?": "هل توجد أخطاء أو نقاط ضعف يجب إصلاحها في النظام؟",
+  "Which agencies could upgrade their plan?": "أي الوكالات يمكنها ترقية خطتها؟",
+  "The advisor is busy: please try again in a few minutes": "المستشار مشغول: حاول مرة أخرى بعد دقائق",
 };
 
 export const AR_PHASES_PATTERNS: [RegExp, string][] = [];

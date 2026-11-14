@@ -121,7 +121,17 @@ Each agency connects its own channels from the dashboard (**AI & channels**). At
 To serve several agencies from one platform-owned Meta app, set `WHATSAPP_APP_SECRET` and
 `WHATSAPP_VERIFY_TOKEN` and configure the shared webhook shown in **Platform settings**.
 
-WhatsApp only allows free-form replies within 24 hours of the customer's last message.
+WhatsApp only allows free-form replies within 24 hours of the customer's last message. Calendar
+reminders to people outside that window need a message template approved by Meta (one body
+variable for the reminder text); the agency enters its name and language under **Calendar**.
+
+Photos and PDFs clients send on WhatsApp (payment receipts, papers) and the travel documents the
+team sends are kept in the database with their request, like uploaded images.
+
+Background jobs (after-trip feedback, calendar reminders every 5 minutes, the AI advisor's daily
+findings) run inside the web service while it is awake; a sleeping instance catches up when it wakes.
+Advanced features (members, trip planner, insights, supplier library, quotations, reports, calendar,
+advisor) and their parts are switched on per company from the company page in the platform console.
 
 ## 6. Backups
 

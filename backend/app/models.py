@@ -488,6 +488,21 @@ class Appointment(Base):
     assigned_to: Mapped["User | None"] = relationship()
 
 
+class AdvisorMessage(Base):
+    """The AI advisor's chat: with a company's owner (company_id set) or with the platform owner (company_id None).
+    role "note" is a finding the system raised by itself (for example many requests waiting)."""
+
+    __tablename__ = "advisor_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    role: Mapped[str] = mapped_column(String(10))  # user, assistant, note
+    content: Mapped[str] = mapped_column(Text)
+    topic: Mapped[str | None] = mapped_column(String(60))  # notes: what it is about (one open note per topic)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
+
+
 class RequestFile(Base):
     """A private file of a request: the client's payment proof or papers (passport copy…), or a travel document
     the team sends (tickets, vouchers, plan). Never public: only the company's staff and that client can open it."""

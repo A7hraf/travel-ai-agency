@@ -9,6 +9,7 @@ from .timeutil import local_today
 log = logging.getLogger(__name__)
 
 EVERY_SECONDS = 5 * 60  # calendar reminders need a short step
+_last_findings = None  # the AI advisor's findings run once a day
 
 
 def run_once() -> None:
@@ -23,6 +24,15 @@ def run_once() -> None:
         reminded = send_reminders(db)
         if reminded:
             log.info("Sent %s calendar reminders", reminded)
+    global _last_findings
+    if _last_findings != local_today():
+        from .services.advisor import daily_findings  # noqa: PLC0415
+
+        _last_findings = local_today()
+        with SessionLocal() as db:
+            found = daily_findings(db)
+            if found:
+                log.info("The AI advisor raised %s findings", found)
 
 
 async def loop() -> None:
