@@ -87,6 +87,17 @@ class Settings(BaseSettings):
     public_chat_max_message_length: int = 2000
     # Bookings not paid within this many hours give their seats back (see services/seats.py).
     seat_hold_hours: int = 48
+    # Address of the live site, for links sent to customers (Render sets RENDER_EXTERNAL_URL itself).
+    public_url: str = ""
+    render_external_url: str = ""
+    # Days a customer stays signed in to their private trips page.
+    customer_session_days: int = 7
+    # Periodic jobs (the "how was your trip?" messages). Off in tests.
+    background_jobs: bool = True
+
+    @property
+    def site_url(self) -> str:
+        return (self.public_url or self.render_external_url).rstrip("/")
 
     @field_validator("environment")
     @classmethod

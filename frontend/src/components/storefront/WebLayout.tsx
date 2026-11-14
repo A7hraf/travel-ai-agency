@@ -120,6 +120,7 @@ export function WebLayout({ ctx, pkg, closePackage, widgetOpen, closeWidget, her
             if (x === "about" && hasAbout) return <a key="about" className="sf-wlink" href="#about">{t.navAbout}</a>;
             return null;
           })}</div>}
+          <a className="sf-wlink" href={`/c/${ctx.slug}/me`}>{t.myTrips}</a>
           {el.nav_phone && company.contact_phone && <a className="sf-wphone" href={telLink(company.contact_phone)}><bdi dir="ltr">{company.contact_phone}</bdi></a>}
           {el.lang_switch && <button type="button" className="sf-lang" onClick={ctx.toggleLang} lang={lang === "ar" ? "en" : "ar"}>{t.switchTo}</button>}
           <button type="button" className="sf-cta sf-sm" onClick={ctx.openChat}><Sparkle />{t.chatWith(agent)}</button>

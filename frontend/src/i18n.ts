@@ -154,6 +154,7 @@ export const STOREFRONT_TEXT = {
     storyAskMsg: (title: string) => `Hi! I'd like to know more about "${title}".`,
     joinCommunity: "Ask to join",
     joinMsg: "Hi! I'd like to join the community. How do I become a member?",
+    myTrips: "My trips",
   },
   ar: {
     switchTo: "English",
@@ -283,6 +284,7 @@ export const STOREFRONT_TEXT = {
     storyAskMsg: (title: string) => `مرحباً! أبغى أعرف أكثر عن "${title}".`,
     joinCommunity: "اطلب الانضمام",
     joinMsg: "مرحباً! أبغى أنضم للمجتمع. كيف أصير عضو؟",
+    myTrips: "رحلاتي",
   },
 };
 

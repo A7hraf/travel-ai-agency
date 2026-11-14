@@ -10,6 +10,7 @@ os.environ["WHATSAPP_APP_SECRET"] = ""
 os.environ["SYSTEM_ADMIN_EMAIL"] = "owner@example.com"
 os.environ["SYSTEM_ADMIN_PASSWORD"] = "OwnerPass123!"
 os.environ["BCRYPT_ROUNDS"] = "4"
+os.environ["BACKGROUND_JOBS"] = "false"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

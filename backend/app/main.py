@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -72,7 +73,14 @@ async def lifespan(_: FastAPI):
         if PRODUCTION:
             protect_demo_accounts(db)
     log.info("AI brain: provider=%s model=%s", settings.llm_provider, settings.llm_model)
+    task = None
+    if settings.background_jobs:
+        from . import jobs  # noqa: PLC0415
+
+        task = asyncio.create_task(jobs.loop())
     yield
+    if task:
+        task.cancel()
 
 
 CONTENT_SECURITY_POLICY = (
@@ -150,10 +158,12 @@ _diagnostics.install_log_handler()
 app.include_router(plans_router.router)
 
 # --- Business accounts (clients and vendors) ---
+from .routers import customer_portal as _customer_portal  # noqa: E402
 from .routers import members as _members, partners as _partners, trip_requests as _trip_requests  # noqa: E402
 
 app.include_router(_partners.router)
 app.include_router(_members.router)
+app.include_router(_customer_portal.router)
 app.include_router(_trip_requests.router)
 
 

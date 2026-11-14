@@ -296,6 +296,8 @@ class Customer(Base):
     member_level: Mapped[str | None] = mapped_column(String(10), index=True)
     member_since: Mapped[datetime | None] = mapped_column(UTCDateTime())
     member_note: Mapped[str | None] = mapped_column(String(500))
+    # The customer's private trips page: sessions started before this moment no longer work.
+    portal_valid_after: Mapped[datetime | None] = mapped_column(UTCDateTime())
     # The business client this customer writes for (their WhatsApp number is linked to it).
     partner_id: Mapped[int | None] = mapped_column(ForeignKey("partners.id", ondelete="SET NULL"), index=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
@@ -385,6 +387,8 @@ class Ticket(Base):
     # When the seats were last taken. Unpaid bookings give them back after SEAT_HOLD_HOURS.
     seats_held_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     created_by: Mapped[str] = mapped_column(String(20), default="ai")
+    # When the "how was your trip?" message was sent on WhatsApp (once per booking).
+    feedback_requested_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, onupdate=utcnow)
 
@@ -733,3 +737,39 @@ class MemberRequest(Base):
 
     customer: Mapped["Customer"] = relationship()
     handled_by: Mapped["User | None"] = relationship()
+
+
+class CustomerAccessCode(Base):
+    """A one-time way into a customer's private trips page: a 6-digit code sent to their WhatsApp, or a link
+    the AI sends in their WhatsApp chat. Only a hash is stored; each is short-lived and used once."""
+
+    __tablename__ = "customer_access_codes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(10))  # code or link
+    secret_hash: Mapped[str] = mapped_column(String(64), index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    used_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+
+class TripFeedback(Base):
+    """The customer's rating of a trip (1 to 5) and comment, once per booking."""
+
+    __tablename__ = "trip_feedback"
+    __table_args__ = (UniqueConstraint("ticket_id", name="uq_trip_feedback_ticket"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id", ondelete="CASCADE"), index=True)
+    ticket_id: Mapped[int] = mapped_column(ForeignKey("tickets.id", ondelete="CASCADE"))
+    rating: Mapped[int] = mapped_column(Integer)
+    comment: Mapped[str | None] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(String(20), default="portal")  # portal or chat
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+    ticket: Mapped["Ticket"] = relationship()
+    customer: Mapped["Customer"] = relationship()

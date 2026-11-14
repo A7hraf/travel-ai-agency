@@ -49,6 +49,9 @@ NEW_COLUMNS = [
     ("customers", "member_level", "VARCHAR(10)"),
     ("customers", "member_since", "TIMESTAMP WITH TIME ZONE"),
     ("customers", "member_note", "VARCHAR(500)"),
+    # Private trips page and feedback
+    ("customers", "portal_valid_after", "TIMESTAMP WITH TIME ZONE"),
+    ("tickets", "feedback_requested_at", "TIMESTAMP WITH TIME ZONE"),
 ]
 
 # Unique indexes of the Instagram columns (same names create_all gives them on a new database).

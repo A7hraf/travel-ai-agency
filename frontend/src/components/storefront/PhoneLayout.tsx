@@ -1,5 +1,5 @@
 import { ReactNode, RefObject, useEffect, useRef, useState } from "react";
-import { ArrowRight, MagnifyingGlass, SlidersHorizontal, WhatsappLogo } from "../Icon";
+import { ArrowRight, MagnifyingGlass, SlidersHorizontal, SuitcaseRolling, WhatsappLogo } from "../Icon";
 import { OmrSign } from "../Money";
 import type { TravelPackage } from "../../types";
 import { ChatHeader, ChatView } from "./ChatView";
@@ -127,6 +127,7 @@ export function PhoneLayout({ ctx, pkg, pkgOnTop, closePackage, chatOpen, closeC
               <AgencyMark ctx={ctx} />
               <span className="sf-p-name">{company.name}</span>
               {el.lang_switch && <button type="button" className="sf-lang" onClick={ctx.toggleLang} lang={lang === "ar" ? "en" : "ar"}>{t.switchTo}</button>}
+              <a className="sf-wa-icon sf-mytrips-icon" href={`/c/${ctx.slug}/me`} aria-label={t.myTrips} title={t.myTrips}><SuitcaseRolling /></a>
               {el.whatsapp_icon && ctx.whatsapp && (
                 <a className="sf-wa-icon" href={ctx.whatsapp} target="_blank" rel="noreferrer" aria-label={t.whatsapp}><WhatsappLogo weight="fill" /></a>
               )}

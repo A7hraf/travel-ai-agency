@@ -16,6 +16,8 @@ export class ApiError extends Error {
 export interface ApiOptions {
   /** Background polling: failures are not reported one by one (see pollWatcher in errorReporter.ts). */
   quiet?: boolean;
+  /** A customer's private trips page: their own session (sent instead of the staff login). */
+  customerToken?: string | null;
 }
 
 /** Failed requests the owner should see on System health: server errors, the server not answering,
@@ -191,8 +193,10 @@ function errorMessage(status: number, body: unknown): string {
 
 export async function api<T = unknown>(method: string, path: string, body?: unknown, opts?: ApiOptions): Promise<T> {
   const headers: Record<string, string> = {};
-  const token = getToken();
+  // The trips page of a customer never sends the staff login, even when staff use the same browser.
+  const token = opts?.customerToken !== undefined ? null : getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
+  if (opts?.customerToken) headers["X-Customer-Token"] = opts.customerToken;
   if (body !== undefined) headers["Content-Type"] = "application/json";
 
   let res: Response;
@@ -252,7 +256,7 @@ export async function download(path: string, filename: string): Promise<void> {
 }
 
 export const get = <T>(path: string, opts?: ApiOptions) => api<T>("GET", path, undefined, opts);
-export const post = <T>(path: string, body?: unknown) => api<T>("POST", path, body ?? {});
+export const post = <T>(path: string, body?: unknown, opts?: ApiOptions) => api<T>("POST", path, body ?? {}, opts);
 export const patch = <T>(path: string, body: unknown) => api<T>("PATCH", path, body);
 export const put = <T>(path: string, body: unknown) => api<T>("PUT", path, body);
 export const del = (path: string) => api<void>("DELETE", path);

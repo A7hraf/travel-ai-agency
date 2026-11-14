@@ -34,6 +34,8 @@ const Partners = lazy(() => import("./pages/Partners"));
 const PartnerPortal = lazy(() => import("./pages/PartnerPortal"));
 const Requests = lazy(() => import("./pages/Requests"));
 const Members = lazy(() => import("./pages/Members"));
+const Feedback = lazy(() => import("./pages/Feedback"));
+const MyTrips = lazy(() => import("./pages/MyTrips"), false);
 
 function preloadPages() {
   for (const load of PRELOAD) load().catch(() => { /* loaded again (with the reload fallback) when the page is opened */ });
@@ -115,6 +117,7 @@ export default function App() {
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
       <Route path="/c/:slug" element={<Storefront />} />
+      <Route path="/c/:slug/me" element={<MyTrips />} />
       <Route path="/system/invoices/:id" element={<RequireUser system><Invoice owner /></RequireUser>} />
       <Route path="/app/plan/invoices/:id" element={<RequireUser system={false}><Invoice /></RequireUser>} />
 
@@ -146,6 +149,7 @@ export default function App() {
         <Route path="requests" element={<RequireUser permission="requests.manage"><Requests /></RequireUser>} />
         <Route path="requests/:id" element={<RequireUser permission="requests.manage"><Requests /></RequireUser>} />
         <Route path="members" element={<RequireUser permission="members.manage"><Members /></RequireUser>} />
+        <Route path="feedback" element={<RequireUser permission="reports.view"><Feedback /></RequireUser>} />
         <Route path="activity" element={<Activity />} />
         <Route path="plan" element={<MyPlan />} />
         <Route path="account" element={<Account />} />
