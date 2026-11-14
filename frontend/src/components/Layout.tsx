@@ -12,7 +12,7 @@ import { customerLabel, ROLE_LABELS, usePolling } from "../util";
 import { GhanjahMark, usePlatformName } from "./Brand";
 import {
   AddressBook, ArrowSquareOut, Buildings, Crown, ClockCounterClockwise, Heartbeat, ChartLineUp, ChatsCircle, GearSix, GraduationCap, IconProps, List, PaintBrush, SignOut,
-  SquaresFour, SuitcaseRolling, Ticket, Translate, UserCircle, UsersThree, WhatsappLogo,
+  Handshake, SquaresFour, SuitcaseRolling, Ticket, Translate, UserCircle, UsersThree, WhatsappLogo,
 } from "./Icon";
 import { moneyText } from "./Money";
 import { Sheet } from "./staff/Sheet";
@@ -28,6 +28,8 @@ interface NavItem {
   /** Only for this role (the activity log is for company admins). */
   role?: string;
   badge?: "needs" | "open";
+  /** Shown only when the platform owner switched business accounts on for the company. */
+  b2b?: boolean;
 }
 
 const COMPANY_NAV: NavItem[] = [
@@ -37,6 +39,7 @@ const COMPANY_NAV: NavItem[] = [
   { to: "/app/customers", label: "Customers", icon: AddressBook, permission: "conversations.view" },
   { to: "/app/packages", label: "Packages", icon: SuitcaseRolling, permission: "packages.view" },
   { to: "/app/users", label: "Team & accounts", icon: UsersThree, permission: "users.manage" },
+  { to: "/app/partners", label: "Business accounts", icon: Handshake, permission: "partners.manage", b2b: true },
   { to: "/app/branding", label: "Customer page design", icon: PaintBrush, permission: "settings.manage" },
   { to: "/app/training", label: "AI training", icon: GraduationCap, permission: "settings.manage" },
   { to: "/app/settings", label: "AI & channels", icon: WhatsappLogo, permission: "settings.manage" },
@@ -156,7 +159,8 @@ export default function Layout() {
   );
 
   if (!user) return null;
-  const nav = isSystem ? SYSTEM_NAV : COMPANY_NAV.filter((n) => (!n.permission || can(n.permission)) && (!n.role || n.role === user.role));
+  const nav = isSystem ? SYSTEM_NAV : COMPANY_NAV.filter((n) => (!n.permission || can(n.permission)) && (!n.role || n.role === user.role)
+    && (!n.b2b || !!user.company?.b2b_enabled));
   const tabs = isSystem ? [] : TAB_PATHS.map((p) => nav.find((n) => n.to === p)).filter((n): n is NavItem => !!n);
   const menuItems = nav.filter((n) => !tabs.includes(n));
   const branding = user.company?.branding;

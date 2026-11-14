@@ -65,6 +65,14 @@ class CompanyBrief(ORM):
     slug: str
     status: str
     branding: DashboardBranding | None = None
+    # Business accounts (clients and vendors) switched on by the platform owner.
+    b2b_enabled: bool = False
+
+
+class PartnerBrief(BaseModel):
+    id: int
+    name: str
+    kind: str
 
 
 class UserOut(ORM):
@@ -81,6 +89,8 @@ class UserOut(ORM):
 
 class MeOut(UserOut):
     company: CompanyBrief | None
+    # Set for the logins of a business client or vendor.
+    partner: PartnerBrief | None = None
 
 
 class TokenOut(BaseModel):

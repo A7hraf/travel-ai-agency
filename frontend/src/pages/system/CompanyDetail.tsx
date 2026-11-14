@@ -7,6 +7,7 @@ import InstagramConnect from "../../components/ai/InstagramConnect";
 import WhatsAppConnect from "../../components/ai/WhatsAppConnect";
 import BrandingEditor from "../../components/BrandingEditor";
 import ActivityLog from "../../components/ActivityLog";
+import B2BControls from "../../components/b2b/B2BControls";
 import SubscriptionPanel from "../../components/plans/SubscriptionPanel";
 import { ArrowLeft, ArrowSquareOut, Pause, Play, Trash, WarningOctagon } from "../../components/Icon";
 import { ErrorBox, Field, Loading } from "../../components/ui";
@@ -19,7 +20,7 @@ export default function CompanyDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { t } = useI18n();
-  const [tab, setTab] = useState<"plan" | "design" | "ai" | "whatsapp" | "instagram" | "activity">("plan");
+  const [tab, setTab] = useState<"plan" | "design" | "ai" | "whatsapp" | "instagram" | "b2b" | "activity">("plan");
   const [aiTab, setAiTab] = useState<TrainingTab>("answers");
   const [c, setC] = useState<CompanyAdmin | null>(null);
   const [name, setName] = useState("");
@@ -111,6 +112,7 @@ export default function CompanyDetail() {
         <button role="tab" aria-selected={tab === "ai"} className={tab === "ai" ? "active" : ""} onClick={() => setTab("ai")}>{t("AI training")}</button>
         <button role="tab" aria-selected={tab === "whatsapp"} className={tab === "whatsapp" ? "active" : ""} onClick={() => setTab("whatsapp")}>{t("WhatsApp")}</button>
         <button role="tab" aria-selected={tab === "instagram"} className={tab === "instagram" ? "active" : ""} onClick={() => setTab("instagram")}>{t("Instagram")}</button>
+        <button role="tab" aria-selected={tab === "b2b"} className={tab === "b2b" ? "active" : ""} onClick={() => setTab("b2b")}>{t("Business accounts")}</button>
         <button role="tab" aria-selected={tab === "activity"} className={tab === "activity" ? "active" : ""} onClick={() => setTab("activity")}>{t("Activity")}</button>
       </div>
 
@@ -118,6 +120,8 @@ export default function CompanyDetail() {
         <TrainingWorkspace base={`/api/system/companies/${c.id}/training`} tab={aiTab} onTab={setAiTab} />
       ) : tab === "whatsapp" ? (
         <WhatsAppConnect variant="owner" base={`/api/system/companies/${c.id}/whatsapp`} companyPath={`/api/system/companies/${c.id}`} />
+      ) : tab === "b2b" ? (
+        <B2BControls companyId={c.id} />
       ) : tab === "activity" ? (
         <ActivityLog path={`/api/system/companies/${c.id}/activity`} />
       ) : tab === "instagram" ? (

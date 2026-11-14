@@ -77,6 +77,8 @@ def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "This account is disabled")
     if user.company is not None and user.company.status != CompanyStatus.ACTIVE:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Your company account is suspended")
+    if user.partner is not None and not user.partner.is_active:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Your business account is paused")
     user.last_login_at = utcnow()
     audit(db, user, "auth.login")
     db.commit()

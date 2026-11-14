@@ -745,3 +745,34 @@ a.now-waiting:hover { background: color-mix(in srgb, var(--st-waiting-tint) 18%,
 .gx-story-item { padding: 14px; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line, rgba(0,0,0,.12)); }
 .gx-story-item-head { display: flex; align-items: center; gap: 4px; margin-bottom: 8px; }
 .gx-muted { font-weight: 400; opacity: .6; font-size: .85em; }
+
+/* Business accounts (clients and vendors) */
+.gx-b2b-meters { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.gx-b2b-meter { padding: 14px 16px; border-radius: 14px; background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--line); display: flex; flex-direction: column; gap: 6px; }
+.gx-b2b-num { font-size: 26px; font-weight: 600; }
+.gx-b2b-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 6px; }
+.gx-logins { margin-top: 18px; padding-top: 16px; box-shadow: inset 0 1px 0 var(--line); display: flex; flex-direction: column; gap: 10px; }
+.gx-login-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.gx-login-list li { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px 12px; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line); }
+.gx-login-list li.off { opacity: .65; }
+.gx-login-who { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 180px; }
+.gx-login-add { display: flex; flex-wrap: wrap; gap: 8px; }
+.gx-login-add input { flex: 1; min-width: 160px; }
+.gx-once { padding: 14px; border-radius: 12px; background: color-mix(in srgb, var(--brand) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 40%, transparent); display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.gx-once-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.gx-once code { font-size: 17px; padding: 4px 8px; border-radius: 8px; background: color-mix(in srgb, var(--text) 8%, transparent); user-select: all; }
+
+/* Business portal */
+.gx-portal { min-height: 100vh; background: var(--bg); color: var(--text); }
+.gx-portal-top { display: flex; align-items: center; gap: 10px; padding: 16px clamp(16px, 4vw, 48px); box-shadow: inset 0 -1px 0 var(--line); }
+.gx-portal-brand { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 600; min-width: 0; }
+.gx-portal-brand img { height: 36px; max-width: 140px; object-fit: contain; }
+.gx-portal-main { max-width: 1100px; margin: 0 auto; padding: 32px clamp(16px, 4vw, 48px) 60px; display: flex; flex-direction: column; gap: 18px; }
+.gx-portal-hello h1 { font-size: clamp(28px, 4vw, 40px); margin: 8px 0 6px; }
+.gx-portal-h2 { font-size: 18px; margin: 10px 0 0; }
+.gx-portal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+.gx-portal-card { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin: 0; }
+.gx-portal-icon { font-size: 28px; color: var(--brand); }
+.gx-portal-card-title { font-weight: 600; font-size: 16px; }
+.gx-portal-wa .gx-card-title { display: flex; align-items: center; gap: 8px; }
+.gx-portal-num { display: inline-block; margin-inline-end: 8px; padding: 2px 8px; border-radius: 8px; background: color-mix(in srgb, var(--text) 7%, transparent); }

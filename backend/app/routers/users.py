@@ -29,7 +29,8 @@ def permission_catalog(_: User = Depends(get_current_user)):
 
 @router.get("/users", response_model=UserListOut)
 def list_users(me: User = Depends(manage_users), db: Session = Depends(get_db)):
-    users = db.scalars(select(User).where(User.company_id == me.company_id).order_by(User.id)).all()
+    users = db.scalars(select(User).where(User.company_id == me.company_id, User.partner_id.is_(None))
+                       .order_by(User.id)).all()
     return UserListOut(
         users=[user_out(u) for u in users], max_users=me.company.max_users, used=seats_used(db, me.company_id)
     )
@@ -37,7 +38,7 @@ def list_users(me: User = Depends(manage_users), db: Session = Depends(get_db)):
 
 def _company_user(db: Session, me: User, user_id: int) -> User:
     user = db.get(User, user_id)
-    if user is None or user.company_id != me.company_id:
+    if user is None or user.company_id != me.company_id or user.partner_id is not None:
         raise HTTPException(404, "User not found")
     return user
 
@@ -61,6 +62,7 @@ def delete_user(user_id: int, me: User = Depends(manage_users), db: Session = De
 def team(me: User = Depends(get_company_user), db: Session = Depends(get_db)):
     """Active colleagues, for assigning tickets and conversations."""
     users = db.scalars(
-        select(User).where(User.company_id == me.company_id, User.is_active.is_(True)).order_by(User.full_name)
+        select(User).where(User.company_id == me.company_id, User.is_active.is_(True), User.partner_id.is_(None))
+        .order_by(User.full_name)
     ).all()
     return [user_out(u) for u in users]

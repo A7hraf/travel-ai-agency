@@ -39,6 +39,10 @@ NEW_COLUMNS = [
     # Business tools: staff notes and labels on customers
     ("customers", "notes", "TEXT"),
     ("customers", "tags", "JSON"),
+    # Business accounts (clients and vendors)
+    ("companies", "b2b", "JSON"),
+    ("users", "partner_id", "INTEGER REFERENCES partners(id) ON DELETE CASCADE"),
+    ("customers", "partner_id", "INTEGER REFERENCES partners(id) ON DELETE SET NULL"),
 ]
 
 # Unique indexes of the Instagram columns (same names create_all gives them on a new database).
@@ -46,6 +50,12 @@ INSTAGRAM_INDEXES = [
     "CREATE UNIQUE INDEX IF NOT EXISTS ix_companies_instagram_account_id ON companies (instagram_account_id)",
     "CREATE UNIQUE INDEX IF NOT EXISTS ix_companies_instagram_webhook_key ON companies (instagram_webhook_key)",
     "CREATE UNIQUE INDEX IF NOT EXISTS uq_customers_company_instagram ON customers (company_id, instagram_id)",
+]
+
+# Indexes of the business-account columns (same names create_all gives them on a new database).
+PARTNER_INDEXES = [
+    "CREATE INDEX IF NOT EXISTS ix_users_partner_id ON users (partner_id)",
+    "CREATE INDEX IF NOT EXISTS ix_customers_partner_id ON customers (partner_id)",
 ]
 
 # Filled once, right after the column is added.
@@ -142,6 +152,9 @@ def upgrade(engine: Engine) -> None:
                               "WHERE company_id IS NULL"))
         if {"companies", "customers"} <= tables:
             for ddl in INSTAGRAM_INDEXES:
+                conn.execute(text(ddl))
+        if {"users", "customers"} <= tables:
+            for ddl in PARTNER_INDEXES:
                 conn.execute(text(ddl))
         # WhatsApp tokens saved before encryption existed are encrypted now.
         rows = conn.execute(

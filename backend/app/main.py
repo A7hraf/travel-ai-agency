@@ -149,6 +149,11 @@ app.add_middleware(_diagnostics.ErrorCapture)
 _diagnostics.install_log_handler()
 app.include_router(plans_router.router)
 
+# --- Business accounts (clients and vendors) ---
+from .routers import partners as _partners  # noqa: E402
+
+app.include_router(_partners.router)
+
 
 @app.get("/api/health", tags=["health"])
 def health():

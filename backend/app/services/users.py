@@ -28,7 +28,8 @@ from ..security import hash_password, revoke_sessions_now
 def seats_used(db: Session, company_id: int) -> int:
     """Active accounts; disabled accounts don't use a seat."""
     return db.scalar(
-        select(func.count(User.id)).where(User.company_id == company_id, User.is_active.is_(True))
+        select(func.count(User.id)).where(User.company_id == company_id, User.is_active.is_(True),
+                                          User.partner_id.is_(None))
     ) or 0
 
 

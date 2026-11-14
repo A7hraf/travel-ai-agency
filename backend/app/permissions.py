@@ -17,6 +17,7 @@ PERMISSIONS: dict[str, str] = {
     "tickets.assign": "Assign tickets to other employees",
     "users.manage": "Create, edit and delete employee accounts",
     "settings.manage": "Manage company settings (AI persona, knowledge, WhatsApp)",
+    "partners.manage": "Manage business clients and vendors, and their logins",
     "reports.view": "View the dashboard and statistics",
 }
 
@@ -49,7 +50,7 @@ def clean_permissions(perms: list[str]) -> list[str]:
 
 
 def effective_permissions(user: User) -> list[str]:
-    if user.role == Role.SYSTEM_ADMIN:
+    if user.role in (Role.SYSTEM_ADMIN, Role.PARTNER) or user.partner_id is not None:
         return []
     if user.role == Role.COMPANY_ADMIN:
         return list(PERMISSIONS)

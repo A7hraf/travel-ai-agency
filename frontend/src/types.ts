@@ -1,4 +1,4 @@
-export type Role = "system_admin" | "company_admin" | "support" | "ticket_agent";
+export type Role = "system_admin" | "company_admin" | "support" | "ticket_agent" | "partner";
 
 export interface DashboardBranding {
   logo: string | null;
@@ -12,6 +12,68 @@ export interface CompanyBrief {
   slug: string;
   status: string;
   branding?: DashboardBranding | null;
+  /** Business accounts (clients and vendors) switched on by the platform owner. */
+  b2b_enabled?: boolean;
+}
+
+export type PartnerKind = "client" | "vendor";
+
+/** What the platform owner allows a travel company for its business accounts. */
+export interface B2BSettings {
+  enabled: boolean;
+  max_clients: number;
+  max_vendors: number;
+  max_users_per_partner: number;
+  features: string[];
+}
+
+export interface B2BOverview {
+  settings: B2BSettings;
+  usage: { clients: number; vendors: number };
+  /** Feature key ("client.requests") → English label. */
+  catalog: Record<string, string>;
+}
+
+export interface PartnerLogin {
+  id: number;
+  email: string;
+  full_name: string;
+  is_active: boolean;
+  created_at: string;
+  last_login_at: string | null;
+}
+
+export interface Partner {
+  id: number;
+  kind: PartnerKind;
+  name: string;
+  contact_name: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  notes: string | null;
+  features: string[];
+  active_features: string[];
+  whatsapp_numbers: string[];
+  is_active: boolean;
+  created_at: string;
+  logins: PartnerLogin[];
+}
+
+export interface PartnerList extends B2BOverview {
+  partners: Partner[];
+}
+
+export interface PartnerHome {
+  partner_id: number;
+  partner_name: string;
+  kind: PartnerKind;
+  company_name: string;
+  company_slug: string;
+  logo: string | null;
+  features: string[];
+  catalog: Record<string, string>;
+  whatsapp_numbers: string[];
+  company_whatsapp: string | null;
 }
 
 export type Section = "search" | "featured" | "offers" | "how" | "about" | "contact"
@@ -135,6 +197,8 @@ export interface User {
 
 export interface Me extends User {
   company: CompanyBrief | null;
+  /** Set for the logins of a business client or vendor. */
+  partner?: { id: number; name: string; kind: PartnerKind } | null;
 }
 
 export interface UserList {

@@ -90,6 +90,7 @@ export function useAuth(): AuthState {
 
 export function homePath(user: Me): string {
   if (user.role === "system_admin") return "/system";
+  if (user.role === "partner") return "/partner";
   if (user.permissions.includes("reports.view")) return "/app/dashboard";
   if (user.permissions.includes("conversations.view")) return "/app/conversations";
   if (user.permissions.includes("tickets.view")) return "/app/tickets";

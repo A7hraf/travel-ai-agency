@@ -8,6 +8,7 @@ export const ROLE_LABELS: Record<string, string> = {
   company_admin: "Company admin",
   support: "Support",
   ticket_agent: "Ticket employee",
+  partner: "Business account",
 };
 
 /** Same texts as the server's permission catalog (backend/app/permissions.py). */

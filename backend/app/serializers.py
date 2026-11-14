@@ -3,6 +3,7 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from .b2b import b2b_settings
 from .branding import dashboard_branding
 from .models import (
     Company,
@@ -19,6 +20,7 @@ from .permissions import effective_permissions
 from .schemas import (
     CompanyAdminOut,
     CompanyBrief,
+    PartnerBrief,
     CompanySettingsOut,
     ConversationDetail,
     ConversationSummary,
@@ -52,8 +54,12 @@ def me_out(user: User) -> MeOut:
     company = None
     if user.company:
         c = user.company
-        company = CompanyBrief(id=c.id, name=c.name, slug=c.slug, status=c.status, branding=dashboard_branding(c))
-    return MeOut(**user_out(user).model_dump(), company=company)
+        company = CompanyBrief(id=c.id, name=c.name, slug=c.slug, status=c.status, branding=dashboard_branding(c),
+                               b2b_enabled=b2b_settings(c).enabled)
+    partner = None
+    if user.partner is not None:
+        partner = PartnerBrief(id=user.partner.id, name=user.partner.name, kind=user.partner.kind)
+    return MeOut(**user_out(user).model_dump(), company=company, partner=partner)
 
 
 def company_admin_out(db: Session, company: Company) -> CompanyAdminOut:
@@ -66,7 +72,8 @@ def company_admin_out(db: Session, company: Company) -> CompanyAdminOut:
         slug=company.slug,
         status=company.status,
         max_users=company.max_users,
-        user_count=count(select(func.count(User.id)).where(User.company_id == company.id, User.is_active.is_(True))),
+        user_count=count(select(func.count(User.id)).where(User.company_id == company.id, User.is_active.is_(True),
+                                                        User.partner_id.is_(None))),
         currency=company.currency,
         contact_email=company.contact_email,
         contact_phone=company.contact_phone,

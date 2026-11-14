@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import json
 import logging
-import secrets
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
@@ -46,7 +45,7 @@ from ..models import (
     User,
 )
 from ..schemas import UserCreate
-from ..security import random_token
+from ..security import random_token, strong_password
 from ..timeutil import local_today
 from . import seats
 from .users import create_company_user
@@ -59,16 +58,8 @@ DEMO_MAX_USERS = 10
 
 # --- Passwords --------------------------------------------------------------------------------
 
-_PW_ALPHABET = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O, 1/l/I
 
 
-def strong_password() -> str:
-    """Easy to read out and type, e.g. "Kp7m-Qr4t-Wx9z-Hb3n" (about 90 bits)."""
-    while True:
-        groups = ["".join(secrets.choice(_PW_ALPHABET) for _ in range(4)) for _ in range(4)]
-        pw = "-".join(groups)
-        if any(c.isupper() for c in pw) and any(c.islower() for c in pw) and any(c.isdigit() for c in pw):
-            return pw
 
 
 # --- Company content --------------------------------------------------------------------------

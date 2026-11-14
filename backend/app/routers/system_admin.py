@@ -58,7 +58,7 @@ def _get_company(db: Session, company_id: int) -> Company:
 
 def _get_company_user(db: Session, user_id: int) -> User:
     user = db.get(User, user_id)
-    if user is None or user.company_id is None:
+    if user is None or user.company_id is None or user.partner_id is not None:
         raise HTTPException(404, "User not found")
     return user
 
@@ -68,7 +68,8 @@ def stats(_: User = Depends(require_system_admin), db: Session = Depends(get_db)
     return PlatformStats(
         companies=db.scalar(select(func.count(Company.id))) or 0,
         active_companies=db.scalar(select(func.count(Company.id)).where(Company.status == CompanyStatus.ACTIVE)) or 0,
-        users=db.scalar(select(func.count(User.id)).where(User.company_id.is_not(None))) or 0,
+        users=db.scalar(select(func.count(User.id)).where(User.company_id.is_not(None),
+                                                          User.partner_id.is_(None))) or 0,
         conversations=db.scalar(select(func.count(Conversation.id))) or 0,
         tickets=db.scalar(select(func.count(Ticket.id))) or 0,
     )
@@ -197,7 +198,8 @@ def delete_company(company_id: int, _: User = Depends(require_system_admin), db:
 @router.get("/companies/{company_id}/users", response_model=UserListOut)
 def company_users(company_id: int, _: User = Depends(require_system_admin), db: Session = Depends(get_db)):
     company = _get_company(db, company_id)
-    users = db.scalars(select(User).where(User.company_id == company.id).order_by(User.id)).all()
+    users = db.scalars(select(User).where(User.company_id == company.id, User.partner_id.is_(None))
+                       .order_by(User.id)).all()
     return UserListOut(users=[user_out(u) for u in users], max_users=company.max_users,
                        used=seats_used(db, company.id))
 

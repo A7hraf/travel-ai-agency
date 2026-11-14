@@ -188,6 +188,12 @@ def _whatsapp_customer(db: Session, company: Company, wa_id: str, profile_name: 
                                  whatsapp_id=wa_id, phone=f"+{wa_id}", name=profile_name)
     if profile_name and not customer.name:
         customer.name = profile_name
+    # A number linked to one of the company's business clients: the team sees which business writes.
+    from .partners import partner_for_whatsapp  # noqa: PLC0415
+
+    partner_id = partner_for_whatsapp(db, company.id, wa_id)
+    if partner_id != customer.partner_id:
+        customer.partner_id = partner_id
     return customer
 
 

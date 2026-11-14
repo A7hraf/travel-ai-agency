@@ -31,6 +31,8 @@ def get_current_user(
     # Suspension first: suspending also ends every session, but "suspended" says why.
     if user.company is not None and user.company.status != CompanyStatus.ACTIVE:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Your company account is suspended")
+    if user.partner is not None and not user.partner.is_active:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Your business account is paused")
     if user.tokens_valid_after is not None and issued_ms < int(user.tokens_valid_after.timestamp() * 1000):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Your session has ended, please log in again")
     return user
@@ -43,8 +45,26 @@ def require_system_admin(user: User = Depends(get_current_user)) -> User:
 
 
 def get_company_user(user: User = Depends(get_current_user)) -> User:
+    """Staff of a travel company. Logins of business clients and vendors never pass here, so no staff
+    area (inbox, customers, tickets, settings, uploads…) is open to them."""
     if user.company_id is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "This area is for travel company accounts")
+    if user.partner_id is not None or user.role == Role.PARTNER:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "This area is for travel company staff")
+    return user
+
+
+def get_partner_user(user: User = Depends(get_current_user)) -> User:
+    """A login of a business client or vendor whose account is on and whose travel company still has
+    business accounts switched on."""
+    from .b2b import b2b_settings  # noqa: PLC0415
+
+    if user.partner_id is None or user.role != Role.PARTNER or user.partner is None:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "This area is for business accounts")
+    if user.partner.company_id != user.company_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "This area is for business accounts")
+    if not b2b_settings(user.company).enabled:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Business accounts are switched off for this travel company")
     return user
 
 

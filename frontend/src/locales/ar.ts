@@ -12,6 +12,7 @@ import { AR_STAFF } from "./ar-staff";
 import { AR_TOOLS, AR_TOOLS_PATTERNS } from "./ar-tools";
 import { AR_THEME } from "./ar-theme";
 import { AR_STORIES } from "./ar-stories";
+import { AR_B2B, AR_B2B_PATTERNS } from "./ar-b2b";
 import { AR_POLISH, AR_POLISH_PATTERNS, AR_POLISH_PLURALS } from "./ar-polish";
 
 /** Arabic texts of the staff dashboard. The English text is the key. Placeholders like {name} must stay as they are. */
@@ -586,7 +587,7 @@ export const AR: Record<string, string> = {
  * status label, {1:adults} / {1:children} a counted text.
  */
 // Texts of the redesigned screens live in their own files (merged here).
-Object.assign(AR, AR_STAFF, AR_ADMIN, AR_PROCESS, AR_PLATFORM, AR_AI, AR_EDITOR, AR_SECURITY2, AR_DEMO, AR_INSTAGRAM, AR_PLANS, AR_TOOLS, AR_RELEASE, AR_THEME, AR_POLISH, AR_STORIES);
+Object.assign(AR, AR_STAFF, AR_ADMIN, AR_PROCESS, AR_PLATFORM, AR_AI, AR_EDITOR, AR_SECURITY2, AR_DEMO, AR_INSTAGRAM, AR_PLANS, AR_TOOLS, AR_RELEASE, AR_THEME, AR_POLISH, AR_STORIES, AR_B2B);
 
 export const AR_PATTERNS: [RegExp, string][] = [
   [/^(.+) took over the conversation$/, "تولّى {1} المحادثة"],
@@ -616,6 +617,7 @@ AR_PATTERNS.push(...AR_SECURITY2_PATTERNS);
 AR_PATTERNS.push(...AR_DEMO_PATTERNS);
 AR_PATTERNS.push(...AR_TOOLS_PATTERNS);
 AR_PATTERNS.push(...AR_POLISH_PATTERNS);
+AR_PATTERNS.push(...AR_B2B_PATTERNS);
 // Before the general patterns: the monthly-limit message also starts with "Handed over to the team".
 AR_PATTERNS.unshift(...AR_PLANS_PATTERNS);
 

@@ -59,6 +59,14 @@ class Role(StrEnum):
     COMPANY_ADMIN = "company_admin"
     SUPPORT = "support"
     TICKET_AGENT = "ticket_agent"
+    # A login of a business client or vendor of a travel company (User.partner_id). Never staff: the
+    # staff areas refuse it (deps.get_company_user) and it has no staff permissions.
+    PARTNER = "partner"
+
+
+class PartnerKind(StrEnum):
+    CLIENT = "client"  # a business that requests travel for its people
+    VENDOR = "vendor"  # a supplier agency that arranges flights, hotels, transport…
 
 
 class CompanyStatus(StrEnum):
@@ -145,6 +153,9 @@ class Company(Base):
 
     # Logo, colours and customer-page content (see app/branding.py).
     branding: Mapped[dict | None] = mapped_column(JSON)
+    # Business accounts (clients and vendors), set by the platform owner only: on/off, limits and the
+    # features the company may give (see app/b2b.py).
+    b2b: Mapped[dict | None] = mapped_column(JSON)
 
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
@@ -158,6 +169,8 @@ class Company(Base):
     training_examples: Mapped[list["TrainingExample"]] = relationship(cascade="all, delete-orphan",
                                                                       passive_deletes=True)
     media: Mapped[list["MediaFile"]] = relationship(cascade="all, delete-orphan", passive_deletes=True)
+    partners: Mapped[list["Partner"]] = relationship(back_populates="company", cascade="all, delete-orphan",
+                                                     passive_deletes=True)
 
 
 class User(Base):
@@ -183,8 +196,48 @@ class User(Base):
     last_login_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     # Login tokens issued before this moment are rejected (set on password change).
     tokens_valid_after: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    # Set for the logins of a business client or vendor (role "partner"); None for staff and the owner.
+    partner_id: Mapped[int | None] = mapped_column(ForeignKey("partners.id", ondelete="CASCADE"), index=True)
 
     company: Mapped[Company | None] = relationship(back_populates="users")
+    partner: Mapped["Partner | None"] = relationship(back_populates="users")
+
+
+class Partner(Base):
+    """A business client or a vendor of one travel company. Belongs to that company only."""
+
+    __tablename__ = "partners"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(20))
+    name: Mapped[str] = mapped_column(String(200))
+    contact_name: Mapped[str | None] = mapped_column(String(200))
+    contact_email: Mapped[str | None] = mapped_column(String(200))
+    contact_phone: Mapped[str | None] = mapped_column(String(50))
+    notes: Mapped[str | None] = mapped_column(Text)
+    # Features the travel company gives this account (only those the platform owner allows count).
+    features: Mapped[list[str]] = mapped_column(JSON, default=list)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+    company: Mapped[Company] = relationship(back_populates="partners")
+    users: Mapped[list["User"]] = relationship(back_populates="partner", passive_deletes=True)
+    phones: Mapped[list["PartnerPhone"]] = relationship(cascade="all, delete-orphan", passive_deletes=True,
+                                                        order_by="PartnerPhone.id")
+
+
+class PartnerPhone(Base):
+    """A WhatsApp number of a business client: messages from it are known to come from that business.
+    One number belongs to one account per travel company."""
+
+    __tablename__ = "partner_phones"
+    __table_args__ = (UniqueConstraint("company_id", "phone", name="uq_partner_phones_company_phone"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    partner_id: Mapped[int] = mapped_column(ForeignKey("partners.id", ondelete="CASCADE"), index=True)
+    phone: Mapped[str] = mapped_column(String(20))  # digits only, country code first (as WhatsApp sends it)
 
 
 class TravelPackage(Base):
@@ -234,7 +287,11 @@ class Customer(Base):
     # Staff notes and labels on the Customers page (business tools).
     notes: Mapped[str | None] = mapped_column(Text)
     tags: Mapped[list[str] | None] = mapped_column(JSON)
+    # The business client this customer writes for (their WhatsApp number is linked to it).
+    partner_id: Mapped[int | None] = mapped_column(ForeignKey("partners.id", ondelete="SET NULL"), index=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+    partner: Mapped["Partner | None"] = relationship()
 
 
 class Conversation(Base):
