@@ -10,7 +10,7 @@ from .models import Company
 
 ADDONS: dict[str, str] = {
     "members": "Members community: ranks, VIP, perks and special requests",
-    "trip_planner": "AI trip planner: custom trips for individual travellers, AI-drafted options that learn",
+    "trip_planner": "AI trip planner: drafts up to 3 choices per part (with web search) and learns from your team",
     "insights": "AI insights: business analysis, customer needs and growth plan",
 }
 

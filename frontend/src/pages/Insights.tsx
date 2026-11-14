@@ -15,7 +15,8 @@ interface Metrics {
   packages: { active: number; top_booked: [string, number][]; never_booked: string[] };
   feedback: { average: number | null; count: number };
   members: Record<string, number>;
-  trip_requests: { total: number; business: number; individual: number; margin: number };
+  business_requests: { total: number; by_status: Record<string, number>; margin: number };
+  quotations: { requests_quoted: number; approved: number; rejected: number; approval_rate: number | null; average_rounds: number | null };
   ai_learned: Record<string, Learned[]>;
   customers_searched_for?: [string, number][];
   low_ratings?: { rating: number; comment: string | null }[];
@@ -31,8 +32,12 @@ export function MetricCards({ m }: { m: Metrics }) {
     [t("Paid bookings"), String(m.bookings.paid_or_confirmed), t("{n} cancelled", { n: m.bookings.cancelled })],
     [t("Revenue"), moneyText(m.bookings.revenue, m.currency, lang), m.bookings.average_value !== null ? t("Average {v}", { v: moneyText(m.bookings.average_value, m.currency, lang) }) : undefined],
     [t("Rating"), m.feedback.average !== null ? `${m.feedback.average} / 5` : "—", t("{n} ratings", { n: m.feedback.count })],
-    [t("Trip requests"), String(m.trip_requests.total), t("Margin {v}", { v: moneyText(m.trip_requests.margin, m.currency, lang) })],
+    [t("Quotations approved"), `${m.quotations.approved} / ${m.quotations.requests_quoted}`,
+      m.quotations.average_rounds !== null ? t("Approval {p} · {n} rounds on average", { p: pct(m.quotations.approval_rate), n: m.quotations.average_rounds }) : undefined],
   ];
+  if (m.business_requests.total > 0) {
+    cards.push([t("Business requests"), String(m.business_requests.total), t("Margin {v}", { v: moneyText(m.business_requests.margin, m.currency, lang) })]);
+  }
   return (
     <div className="gx-b2b-meters gx-insight-cards">
       {cards.map(([label, value, sub]) => (

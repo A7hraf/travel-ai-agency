@@ -100,10 +100,19 @@ class MessageKind(StrEnum):
 
 
 class TicketStatus(StrEnum):
-    PENDING_PAYMENT = "pending_payment"  # created by the AI, waiting for an employee
-    IN_PROGRESS = "in_progress"  # an employee is handling the payment
-    PAID = "paid"
-    CONFIRMED = "confirmed"
+    """Stages of a client's request. A ready-made package starts at PENDING_PAYMENT (its price is known);
+    any other service starts at NEW and goes through the quotation loop first."""
+
+    NEW = "new"  # the AI sent the request card: staff prepare choices
+    QUOTED = "quoted"  # up to 3 choices per part sent: waiting for the client
+    CHANGES = "changes"  # the client asked for changes: staff revise and send again
+    CHOSEN = "chosen"  # the client picked: staff send the final quotation
+    FINAL = "final"  # final quotation sent: waiting for the client's approval
+    PENDING_PAYMENT = "pending_payment"  # approved (or a package booked): waiting for the payment
+    IN_PROGRESS = "in_progress"  # the client says they paid: staff check the payment
+    PAID = "paid"  # payment checked: staff book every part
+    CONFIRMED = "confirmed"  # everything booked and sent to the client
+    REJECTED = "rejected"  # the client turned the final quotation down
     CANCELLED = "cancelled"
 
 
@@ -160,6 +169,8 @@ class Company(Base):
     addons: Mapped[dict | None] = mapped_column(JSON)
     # Members community: level names, perks and what each level can do (app/members.py), set by the company.
     membership: Mapped[dict | None] = mapped_column(JSON)
+    # How clients pay (bank details…), sent when they approve a quotation: {"en": "...", "ar": "..."}.
+    payment_info: Mapped[dict | None] = mapped_column(JSON)
 
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
@@ -357,7 +368,8 @@ class Message(Base):
 
 
 class Ticket(Base):
-    """A booking request. The AI fills it in; an employee takes the payment."""
+    """A client's request, from the AI's request card to the quotation loop, the payment, the booking and the
+    travel documents. (Called "Request" in the apps; the table keeps its first name, "tickets".)"""
 
     __tablename__ = "tickets"
 
@@ -367,7 +379,19 @@ class Ticket(Base):
     conversation_id: Mapped[int | None] = mapped_column(ForeignKey("conversations.id", ondelete="SET NULL"))
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id", ondelete="CASCADE"))
     package_id: Mapped[int | None] = mapped_column(ForeignKey("travel_packages.id", ondelete="SET NULL"))
-    package_title: Mapped[str] = mapped_column(String(200))
+    package_title: Mapped[str] = mapped_column(String(200))  # the request's title
+    # The service asked for, and the client's answers to that service's questions (field key → value).
+    service_id: Mapped[int | None] = mapped_column(ForeignKey("services.id", ondelete="SET NULL"), index=True)
+    answers: Mapped[dict | None] = mapped_column(JSON)
+    parts: Mapped[list[str] | None] = mapped_column(JSON)  # parts the quotation covers (flight, hotel…)
+    destination: Mapped[str | None] = mapped_column(String(120))
+    origin: Mapped[str | None] = mapped_column(String(120))
+    return_date: Mapped[str | None] = mapped_column(String(20))
+    quote_round: Mapped[int] = mapped_column(Integer, default=0)  # how many times choices were sent
+    client_note: Mapped[str | None] = mapped_column(Text)  # the client's last change request
+    last_client_at: Mapped[datetime | None] = mapped_column(UTCDateTime())  # waiting since (for urgency)
+    # Requests moved from the old custom trips and member requests ("member_request:12"), so it runs once.
+    legacy_ref: Mapped[str | None] = mapped_column(String(60), index=True)
     departure_date: Mapped[str | None] = mapped_column(String(20))
     adults: Mapped[int] = mapped_column(Integer, default=1)
     children: Mapped[int] = mapped_column(Integer, default=0)
@@ -394,6 +418,9 @@ class Ticket(Base):
 
     customer: Mapped[Customer] = relationship()
     package: Mapped[TravelPackage | None] = relationship()
+    service: Mapped["Service | None"] = relationship()
+    options: Mapped[list["TripOption"]] = relationship(cascade="all, delete-orphan", passive_deletes=True,
+                                                       order_by="TripOption.id", back_populates="ticket")
     assigned_to: Mapped[User | None] = relationship()
     conversation: Mapped[Conversation | None] = relationship()
 
@@ -623,9 +650,7 @@ class TripRequest(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
     reference: Mapped[str] = mapped_column(String(20))
-    # A business client's request (client_id), or an individual traveller's custom trip (customer_id only).
-    client_id: Mapped[int | None] = mapped_column(ForeignKey("partners.id", ondelete="CASCADE"), index=True)
-    customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id", ondelete="SET NULL"), index=True)
+    client_id: Mapped[int] = mapped_column(ForeignKey("partners.id", ondelete="CASCADE"), index=True)
     vendor_id: Mapped[int | None] = mapped_column(ForeignKey("partners.id", ondelete="SET NULL"), index=True)
     status: Mapped[str] = mapped_column(String(20), default=TripRequestStatus.NEW, index=True)
     source: Mapped[str] = mapped_column(String(20), default="portal")  # portal, whatsapp, staff
@@ -652,20 +677,8 @@ class TripRequest(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, onupdate=utcnow)
 
-    client: Mapped["Partner | None"] = relationship(foreign_keys=[client_id])
-    customer: Mapped["Customer | None"] = relationship(foreign_keys=[customer_id])
+    client: Mapped["Partner"] = relationship(foreign_keys=[client_id])
     vendor: Mapped["Partner | None"] = relationship(foreign_keys=[vendor_id])
-
-    @property
-    def is_business(self) -> bool:
-        return self.client_id is not None
-
-    @property
-    def requester_name(self) -> str:
-        if self.client is not None:
-            return self.client.name
-        c = self.customer
-        return (c.name or (f"+{c.whatsapp_id}" if c.whatsapp_id else c.phone) or f"#{c.id}") if c else "—"
     options: Mapped[list["TripOption"]] = relationship(cascade="all, delete-orphan", passive_deletes=True,
                                                        order_by="TripOption.id")
     events: Mapped[list["TripRequestEvent"]] = relationship(cascade="all, delete-orphan", passive_deletes=True,
@@ -682,7 +695,10 @@ class TripOption(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
-    request_id: Mapped[int] = mapped_column(ForeignKey("trip_requests.id", ondelete="CASCADE"), index=True)
+    # An option belongs to a business trip request (request_id) or to a client's request (ticket_id).
+    request_id: Mapped[int | None] = mapped_column(ForeignKey("trip_requests.id", ondelete="CASCADE"), index=True)
+    ticket_id: Mapped[int | None] = mapped_column(ForeignKey("tickets.id", ondelete="CASCADE"), index=True)
+    link: Mapped[str | None] = mapped_column(String(500))  # the hotel / airline / activity page
     # The vendor who proposed it (None: added by the travel company). A vendor sees only its own options.
     vendor_id: Mapped[int | None] = mapped_column(ForeignKey("partners.id", ondelete="SET NULL"), index=True)
     category: Mapped[str] = mapped_column(String(20))
@@ -699,6 +715,8 @@ class TripOption(Base):
     sent_to_client: Mapped[bool] = mapped_column(Boolean, default=False)
     chosen: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+    ticket: Mapped["Ticket | None"] = relationship(back_populates="options")
 
 
 class TripRequestEvent(Base):
@@ -730,30 +748,6 @@ class TripRequestMessage(Base):
     author_name: Mapped[str | None] = mapped_column(String(200))
     text: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
-
-
-class MemberRequest(Base):
-    """A member's special request (beyond the packages), or someone asking to join the community.
-    Taken by the AI in the chat or added by staff; handled by the team."""
-
-    __tablename__ = "member_requests"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
-    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id", ondelete="CASCADE"), index=True)
-    conversation_id: Mapped[int | None] = mapped_column(ForeignKey("conversations.id", ondelete="SET NULL"))
-    kind: Mapped[str] = mapped_column(String(10))  # special or join
-    level: Mapped[str | None] = mapped_column(String(10))  # the member's level when asked
-    title: Mapped[str] = mapped_column(String(200))
-    details: Mapped[str | None] = mapped_column(Text)
-    status: Mapped[str] = mapped_column(String(15), default="open", index=True)  # open, in_progress, done, declined
-    staff_note: Mapped[str | None] = mapped_column(Text)
-    handled_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
-    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
-    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, onupdate=utcnow)
-
-    customer: Mapped["Customer"] = relationship()
-    handled_by: Mapped["User | None"] = relationship()
 
 
 class CustomerAccessCode(Base):
@@ -823,3 +817,30 @@ class InsightReport(Base):
     metrics: Mapped[dict | None] = mapped_column(JSON)
     created_by: Mapped[str | None] = mapped_column(String(200))
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+
+class Service(Base):
+    """A service a travel company offers (tailor-made trip, flights, hotel, visa…): its price (fixed or
+    dynamic), the questions the AI must ask the client, the parts of its quotation, its booking steps and
+    its rules. Built with the AI from the owner's own words, and edited by the company (app/catalog.py)."""
+
+    __tablename__ = "services"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    key: Mapped[str | None] = mapped_column(String(40))  # built-in services: packages, custom_trip, concierge…
+    name_en: Mapped[str] = mapped_column(String(120))
+    name_ar: Mapped[str] = mapped_column(String(120))
+    description_en: Mapped[str] = mapped_column(Text, default="")
+    description_ar: Mapped[str] = mapped_column(Text, default="")
+    pricing: Mapped[str] = mapped_column(String(10), default="dynamic")  # fixed, dynamic or packages
+    price: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))  # fixed price per request
+    price_note: Mapped[str] = mapped_column(Text, default="")  # how the price is set (for the AI and staff)
+    parts: Mapped[list[str]] = mapped_column(JSON, default=list)
+    fields: Mapped[list[dict]] = mapped_column(JSON, default=list)
+    steps: Mapped[list[dict]] = mapped_column(JSON, default=list)
+    rules: Mapped[str] = mapped_column(Text, default="")  # conditions and exceptions, for the AI
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, onupdate=utcnow)

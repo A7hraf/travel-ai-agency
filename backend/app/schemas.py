@@ -403,12 +403,50 @@ class AgentMessageIn(BaseModel):
 # --- Tickets ------------------------------------------------------------------------------
 
 
+class TicketOptionOut(ORM):
+    """One choice of a request (flight, hotel…). Cost and estimate are for staff only."""
+
+    id: int
+    category: str
+    title: str
+    provider: str | None
+    link: str | None
+    details: str | None
+    cost_price: float | None
+    price: float | None
+    estimate_price: float | None
+    ai_reason: str | None
+    added_by: str
+    sent_to_client: bool
+    chosen: bool
+
+
+class ServiceBrief(ORM):
+    id: int
+    key: str | None
+    name_en: str
+    name_ar: str
+    pricing: str
+    steps: list[dict] = []
+
+
 class TicketOut(ORM):
     id: int
     reference: str
     status: str
     package_id: int | None
     package_title: str
+    service: ServiceBrief | None = None
+    answers: dict | None = None
+    parts: list[str] | None = None
+    destination: str | None = None
+    origin: str | None = None
+    return_date: str | None = None
+    quote_round: int = 0
+    client_note: str | None = None
+    options: list[TicketOptionOut] = []
+    # Which request to work on first (0-100) and why; set by the request list and page.
+    urgency: dict = {}
     departure_date: str | None
     adults: int
     children: int

@@ -10,7 +10,10 @@ import { ErrorBox, Field, Loading } from "../components/ui";
 import ExportCsv from "../components/ExportCsv";
 import { pollWatcher } from "../errorReporter";
 import { trServer, useI18n } from "../lang";
-import type { Ticket, TicketEvent, TicketStatus, User } from "../types";
+import type { Service, Ticket, TicketEvent, TicketStatus, User } from "../types";
+import MemberBadge from "../components/members/MemberBadge";
+import QuotePanel from "../components/requests/QuotePanel";
+import RequestCard from "../components/requests/RequestCard";
 import {
   customerLabel, dateTime, NEEDS_PAYMENT_REFERENCE, NEXT_TICKET_STATUSES, shortDate, TICKET_STATUS_LABELS,
   todayIso, travelersText, usePolling,
@@ -19,17 +22,27 @@ import {
 /** An unpaid booking gives its seats back after the hold time; marking it paid takes them again. */
 const seatsReleased = (tk: Ticket) => tk.seats_released;
 
-type Filter = "open" | "paid" | "confirmed" | "all";
+type Filter = "us" | "client" | "confirmed" | "all";
+// Requests waiting for the team, and requests waiting for the client.
+const FOR_US = ["new", "changes", "chosen", "in_progress", "paid"];
+const FOR_CLIENT = ["quoted", "final", "pending_payment"];
 const OPEN = ["pending_payment", "in_progress"];
+const QUOTING = ["new", "quoted", "changes", "chosen", "rejected"];
 const FILTERS: { value: Filter; label: string; match: (s: string) => boolean }[] = [
-  { value: "open", label: "Open", match: (s) => OPEN.includes(s) },
-  { value: "paid", label: "Paid", match: (s) => s === "paid" },
+  { value: "us", label: "Waiting for us", match: (s) => FOR_US.includes(s) },
+  { value: "client", label: "Waiting for the client", match: (s) => FOR_CLIENT.includes(s) },
   { value: "confirmed", label: "Confirmed", match: (s) => s === "confirmed" },
   { value: "all", label: "All", match: () => true },
 ];
 
 /** Status colours of the design (always shown with a text label). */
 const STATUS_COLOR: Record<string, string> = {
+  new: "var(--st-progress)",
+  quoted: "var(--st-paid)",
+  changes: "var(--st-waiting)",
+  chosen: "var(--st-progress)",
+  final: "var(--st-paid)",
+  rejected: "var(--st-cancelled)",
   pending_payment: "var(--st-waiting)",
   in_progress: "var(--st-progress)",
   paid: "var(--st-paid)",
@@ -56,23 +69,23 @@ function markSeen(id: number) {
   }
 }
 const isNew = (tk: Ticket, seen: Set<number>) =>
-  tk.status === "pending_payment" && !seen.has(tk.id) && Date.now() - new Date(tk.created_at).getTime() < 24 * 3600 * 1000;
+  (tk.status === "new" || tk.status === "pending_payment") && !seen.has(tk.id) && Date.now() - new Date(tk.created_at).getTime() < 24 * 3600 * 1000;
 
 export default function Tickets() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [params, setParams] = useSearchParams();
-  const [filter, setFilter] = useState<Filter>("open");
+  const [filter, setFilter] = useState<Filter>("us");
   const [mine, setMine] = useState(false);
   const [search, setSearch] = useState("");
   const [tickets, setTickets] = useState<Ticket[] | null>(null);
   const [seen, setSeen] = useState(readSeen);
   const openId = params.get("open");
-  const { can } = useAuth();
+  const { user, can } = useAuth();
   const [listError, setListError] = useState<string | null>(null);
   const listPoll = useRef(pollWatcher("Tickets list"));
 
   const load = () => {
-    const q = new URLSearchParams({ limit: "1000" });
+    const q = new URLSearchParams({ limit: "1000", sort: "urgency" });
     if (mine) q.set("mine", "true");
     if (search.trim()) q.set("q", search.trim());
     get<Ticket[]>(`/api/tickets?${q}`, { quiet: true })
@@ -96,7 +109,7 @@ export default function Tickets() {
     <div className="tk-page">
       <div className="tk-head">
         <div className="bt-title-row">
-          <h1 className="screen-title">{t("Tickets")}</h1>
+          <h1 className="screen-title">{t("Requests")}</h1>
           {can("reports.view") && <ExportCsv className="btn btn-sm btn-ghost" />}
         </div>
         {toCollect.size > 0 && (
@@ -134,7 +147,7 @@ export default function Tickets() {
         <div className="empty">
           <Binoculars className="empty-icon" aria-hidden="true" />
           {tickets && tickets.length === 0 && !mine && !search.trim() ? (
-            t("No tickets yet. They appear here when the AI closes a booking.")
+            t("No requests yet. They appear here when the AI sends a request card or books a package.")
           ) : (
             <>
               <strong>{t("No tickets match")}</strong>
@@ -157,9 +170,15 @@ export default function Tickets() {
                 <span className="pill" style={{ alignSelf: "flex-start", background: "color-mix(in srgb, var(--st-cancelled) 18%, transparent)" }}>{t("Seats released")}</span>
               )}
               <span className="tk-who"><bdi>{tk.lead_traveler_name || customerLabel(tk.customer)}</bdi> · {tk.package_title}</span>
+              {((tk.urgency?.score ?? 0) >= 20 || tk.customer.member_level) && (
+                <span className="gx-rq-tags">
+                  {(tk.urgency?.score ?? 0) >= 20 && <span className={`gx-rq-urgent ${(tk.urgency.score ?? 0) >= 45 ? "high" : ""}`}>{t((tk.urgency.score ?? 0) >= 45 ? "Urgent" : "Soon")} · {urgencyText(tk.urgency.reasons ?? [], t, user?.company?.member_levels, lang)}</span>}
+                  <MemberBadge level={tk.customer.member_level} />
+                </span>
+              )}
               <span className="tk-card-foot">
                 <span>{shortDate(tk.departure_date)} · {travelersText(tk.adults, tk.children)}</span>
-                <span className="tk-total"><Money value={tk.total_price} currency={tk.currency} /></span>
+                <span className="tk-total">{tk.total_price > 0 || !QUOTING.includes(tk.status) ? <Money value={tk.total_price} currency={tk.currency} /> : t("Quotation")}</span>
               </span>
               <span className="tk-assignee">{tk.assigned_to ? tk.assigned_to.full_name : t("Unassigned")}</span>
             </Link>
@@ -184,13 +203,34 @@ function formFrom(tk: Ticket): TicketForm {
 }
 
 const STEPS: TicketStatus[] = ["pending_payment", "in_progress", "paid", "confirmed"];
+// A service request goes through the quotation first.
+const QUOTE_STEPS: TicketStatus[] = ["new", "quoted", "final", "pending_payment", "paid", "confirmed"];
+const QUOTE_STAGE: Record<string, number> = { new: 0, quoted: 1, changes: 1, chosen: 1, final: 2, pending_payment: 3, in_progress: 3, paid: 4, confirmed: 5 };
+
+/** "trip in 2 days · VIP member" in the staff's language. */
+function urgencyText(reasons: string[], t: (k: string, v?: Record<string, string | number>) => string,
+  levels?: Record<string, { name_en: string; name_ar: string }> | null, lang?: string): string {
+  return reasons.map((r) => {
+    let m = /^trip in (\d+) days?$/.exec(r);
+    if (m) return t("trip in {n} days", { n: m[1] });
+    m = /^waiting (\d+) (days?|hours?)$/.exec(r);
+    if (m) return t(m[2].startsWith("day") ? "waiting {n} days" : "waiting {n} hours", { n: m[1] });
+    m = /^(.+) member$/.exec(r);
+    if (m) {
+      const l = Object.values(levels ?? {}).find((x) => x.name_en === m![1]);
+      return t("{level} member", { level: l && lang === "ar" ? l.name_ar : m[1] });
+    }
+    return t(r);
+  }).join(" · ");
+}
 
 /** Button text for a move to a status. */
 function actionLabel(from: string, to: string): string {
   if (to === "in_progress") return "Start working on it";
   if (to === "paid") return "Mark as paid";
   if (to === "confirmed") return "Confirm the trip";
-  if (to === "cancelled") return "Cancel booking";
+  if (to === "cancelled") return "Cancel request";
+  if (to === "new") return "Reopen request";
   return from === "cancelled" ? "Reopen booking" : "Back to waiting for payment";
 }
 
@@ -209,6 +249,7 @@ function TicketPanel({ id, onClose, onSaved }: { id: number; onClose: () => void
   const [refError, setRefError] = useState(0);
   const [confirmReq, setConfirmReq] = useState<ConfirmRequest | null>(null);
   const [grown, setGrown] = useState(false);
+  const [services, setServices] = useState<Service[]>([]);
 
   const [eventsError, setEventsError] = useState<string | null>(null);
   const [teamError, setTeamError] = useState<string | null>(null);
@@ -224,6 +265,7 @@ function TicketPanel({ id, onClose, onSaved }: { id: number; onClose: () => void
     }).catch((e) => setError(e.message));
     loadTeam();
     loadEvents();
+    get<Service[]>("/api/services").then(setServices).catch(() => {});
     // The stepper line grows in once the ticket is shown.
     const timer = window.setTimeout(() => setGrown(true), 120);
     return () => window.clearTimeout(timer);
@@ -248,7 +290,9 @@ function TicketPanel({ id, onClose, onSaved }: { id: number; onClose: () => void
   // After the departure date a booking can only be cancelled.
   const departed = !!ticket?.departure_date && ticket.departure_date < todayIso();
   const nexts = ticket
-    ? (NEXT_TICKET_STATUSES[ticket.status] ?? []).filter((s) => (ticket.status !== "cancelled" || isAdmin)
+    ? (NEXT_TICKET_STATUSES[ticket.status] ?? []).filter((s) => (!["cancelled", "rejected"].includes(ticket.status) || isAdmin)
+      // A cancelled package booking reopens to "waiting for payment", a cancelled service request to "new".
+      && (ticket.status !== "cancelled" || (s === "new") === (!!ticket.service && ticket.service.key !== "packages"))
       && !(departed && NEEDS_PAYMENT_REFERENCE.includes(s)))
     : [];
   // Mark as paid comes first when waiting for payment; Cancel always last.
@@ -305,10 +349,12 @@ function TicketPanel({ id, onClose, onSaved }: { id: number; onClose: () => void
 
   const onAction = (to: string) => {
     if (to === "cancelled") {
+      const request = !!ticket?.service && ticket.service.key !== "packages";
       setConfirmReq({
-        title: t("Cancel this booking?"),
-        text: t("The seats go back to the package and the payment reference is cleared. Only a company admin can reopen it."),
-        okLabel: t("Cancel booking"),
+        title: request ? t("Cancel this request?") : t("Cancel this booking?"),
+        text: request ? t("The client is told in the chat. Only a company admin can reopen it.")
+          : t("The seats go back to the package and the payment reference is cleared. Only a company admin can reopen it."),
+        okLabel: request ? t("Cancel request") : t("Cancel booking"),
         onConfirm: () => move(to),
       });
     } else {
@@ -354,14 +400,17 @@ function TicketPanel({ id, onClose, onSaved }: { id: number; onClose: () => void
     }
   };
 
-  const idx = ticket ? STEPS.indexOf(ticket.status) : -1;
-  const cancelled = ticket?.status === "cancelled";
+  const quoting = !!ticket?.service && ticket.service.key !== "packages";
+  const steps = quoting ? QUOTE_STEPS : STEPS;
+  const idx = ticket ? (quoting ? QUOTE_STAGE[ticket.status] ?? -1 : STEPS.indexOf(ticket.status)) : -1;
+  const cancelled = ticket?.status === "cancelled" || ticket?.status === "rejected";
   const statusColor = ticket ? STATUS_COLOR[ticket.status] : undefined;
-  const showRefInput = !!ticket && canManage && !cancelled;
+  // The payment reference matters once the client approved the quotation.
+  const showRefInput = !!ticket && canManage && !cancelled && !(quoting && [...QUOTING, "final"].includes(ticket.status));
   const agent = agentName || t("AI agent");
 
   return (
-    <PushPanel backLabel={t("Tickets")} onClose={requestClose} labelledBy={titleId}>
+    <PushPanel backLabel={t("Requests")} onClose={requestClose} labelledBy={titleId}>
       {!ticket ? (error ? <ErrorBox error={error} /> : <div className="tk-detail"><Loading height={0} />{[0, 1, 2].map((i) => <div key={i} className="skeleton tk-skel" />)}</div>) : (
         <div className="tk-detail">
           <h2 className="tk-detail-ref" id={titleId}><bdi dir="ltr">{ticket.reference}</bdi></h2>
@@ -370,9 +419,9 @@ function TicketPanel({ id, onClose, onSaved }: { id: number; onClose: () => void
             {ticket.contact_phone && <> · <bdi dir="ltr">{ticket.contact_phone}</bdi></>}
           </div>
 
-          <ol className={`stepper ${cancelled ? "cancelled" : ""}`} aria-label={t("Status")}
-            style={{ ["--step-color" as string]: statusColor, ["--progress" as string]: grown && idx > 0 ? `${(idx / 3) * 75}%` : "0%" }}>
-            {STEPS.map((s, i) => {
+          <ol className={`stepper ${quoting ? "gx-steps-6" : ""} ${cancelled ? "cancelled" : ""}`} aria-label={t("Status")}
+            style={{ ["--step-color" as string]: statusColor, ["--progress" as string]: grown && idx > 0 ? `${(idx / (steps.length - 1)) * (100 - 100 / steps.length)}%` : "0%" }}>
+            {steps.map((s, i) => {
               const state = cancelled ? "todo" : i < idx ? "done" : i === idx ? "current" : "todo";
               return (
                 <li key={s} className={`step ${state}`} aria-current={state === "current" ? "step" : undefined}>
@@ -384,7 +433,11 @@ function TicketPanel({ id, onClose, onSaved }: { id: number; onClose: () => void
               );
             })}
           </ol>
-          {cancelled && <div className="tk-cancelled">{t("Cancelled. The seats went back to the package.")}</div>}
+          {cancelled && <div className="tk-cancelled">{ticket.status === "rejected" ? t("The client rejected the quotation.")
+            : quoting ? t("Cancelled.") : t("Cancelled. The seats went back to the package.")}</div>}
+          {ticket.urgency?.score ? <div className="gx-rq-urgency-line"><span className={`gx-rq-urgent ${(ticket.urgency.score ?? 0) >= 45 ? "high" : ""}`}>{t("Priority {n}/100", { n: ticket.urgency.score })}</span> {urgencyText(ticket.urgency.reasons ?? [], t, user?.company?.member_levels, lang)}</div> : null}
+          <RequestCard ticket={ticket} services={services} />
+          <QuotePanel ticket={ticket} onChange={(tk) => after(tk, true)} />
           {seatsReleased(ticket) && (
             <div className="tk-cancelled" role="note">
               {t("Not paid in time: the seats went back on sale. Marking it paid takes them again if seats are still left on this date.")}
@@ -395,10 +448,10 @@ function TicketPanel({ id, onClose, onSaved }: { id: number; onClose: () => void
           )}
 
           <dl className="tk-grid-details">
-            <dt>{t("Package")}</dt><dd>{ticket.package_title}</dd>
-            <dt>{t("Departure")}</dt><dd>{shortDate(ticket.departure_date)}</dd>
+            <dt>{quoting ? t("Request") : t("Package")}</dt><dd dir="auto">{ticket.package_title}</dd>
+            <dt>{t("Departure")}</dt><dd>{shortDate(ticket.departure_date)}{ticket.return_date ? ` – ${shortDate(ticket.return_date)}` : ""}</dd>
             <dt>{t("Travellers")}</dt><dd>{travelersText(ticket.adults, ticket.children)}</dd>
-            <dt>{t("Total")}</dt><dd className="tk-strong"><Money value={ticket.total_price} currency={ticket.currency} /></dd>
+            {(ticket.total_price > 0 || !quoting) && <><dt>{t("Total")}</dt><dd className="tk-strong"><Money value={ticket.total_price} currency={ticket.currency} /></dd></>}
             <dt>{t("Lead traveller")}</dt><dd><bdi>{ticket.lead_traveler_name || "—"}</bdi></dd>
             <dt>{t("Email")}</dt><dd>{ticket.contact_email ? <bdi dir="ltr">{ticket.contact_email}</bdi> : "—"}</dd>
             <dt>{t("Customer")}</dt><dd><bdi>{customerLabel(ticket.customer)}</bdi></dd>
@@ -513,6 +566,22 @@ function TicketHistory({ events, currency, lang }: { events: TicketEvent[] | nul
         return t("{who} updated the internal notes", { who });
       case "seats_released":
         return trServer(ev.new_value) || t("Seats released");
+      case "option_added":
+        return t("{who} added the choice {new}", { who, new: ev.new_value ?? "" });
+      case "option_changed":
+        return t("{who} changed the choice {new}", { who, new: ev.new_value ?? "" });
+      case "option_removed":
+        return t("{who} removed the choice {new}", { who, new: ev.new_value ?? "" });
+      case "ai_drafted":
+        return t("{who} let the AI draft choices ({new})", { who, new: ev.new_value ?? "" });
+      case "chosen":
+        return t("{who} picked: {new}", { who, new: ev.new_value ?? "" });
+      case "changes":
+        return t("{who} asked for changes: {new}", { who, new: ev.new_value ?? "" });
+      case "final_note":
+        return t("{who} added to the final quotation: {new}", { who, new: ev.new_value ?? "" });
+      case "moved":
+        return t("Moved from the old requests");
       default:
         return `${who}: ${ev.action}`;
     }

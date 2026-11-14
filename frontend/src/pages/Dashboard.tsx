@@ -120,8 +120,8 @@ export default function Dashboard() {
   const ready = !!a && a.days === days;
   const k = ready ? anim : 0;
   const currency = a?.currency ?? data?.currency ?? "OMR";
-  const openTickets = data ? (data.tickets_by_status.pending_payment ?? 0) + (data.tickets_by_status.in_progress ?? 0)
-    + (data.tickets_by_status.paid ?? 0) : 0;
+  const openTickets = data ? ["new", "quoted", "changes", "chosen", "final", "pending_payment", "in_progress", "paid"]
+    .reduce((n, s) => n + (data.tickets_by_status[s] ?? 0), 0) : 0;
   const web = a ? a.daily.reduce((s, d) => s + d.web, 0) : 0;
   const wa = a ? a.daily.reduce((s, d) => s + d.whatsapp, 0) : 0;
   const ig = a ? a.daily.reduce((s, d) => s + (d.instagram ?? 0), 0) : 0;

@@ -14,6 +14,7 @@ import { AR_THEME } from "./ar-theme";
 import { AR_STORIES } from "./ar-stories";
 import { AR_B2B, AR_B2B_PATTERNS } from "./ar-b2b";
 import { AR_REQUESTS, AR_REQUESTS_PATTERNS } from "./ar-requests";
+import { AR_FLOW, AR_FLOW_PATTERNS } from "./ar-flow";
 import { AR_MEMBERS } from "./ar-members";
 import { AR_TRIPS } from "./ar-trips";
 import { AR_BRAIN } from "./ar-brain";
@@ -591,7 +592,7 @@ export const AR: Record<string, string> = {
  * status label, {1:adults} / {1:children} a counted text.
  */
 // Texts of the redesigned screens live in their own files (merged here).
-Object.assign(AR, AR_STAFF, AR_ADMIN, AR_PROCESS, AR_PLATFORM, AR_AI, AR_EDITOR, AR_SECURITY2, AR_DEMO, AR_INSTAGRAM, AR_PLANS, AR_TOOLS, AR_RELEASE, AR_THEME, AR_POLISH, AR_STORIES, AR_B2B, AR_REQUESTS, AR_MEMBERS, AR_TRIPS, AR_BRAIN);
+Object.assign(AR, AR_STAFF, AR_ADMIN, AR_PROCESS, AR_PLATFORM, AR_AI, AR_EDITOR, AR_SECURITY2, AR_DEMO, AR_INSTAGRAM, AR_PLANS, AR_TOOLS, AR_RELEASE, AR_THEME, AR_POLISH, AR_STORIES, AR_B2B, AR_REQUESTS, AR_MEMBERS, AR_TRIPS, AR_BRAIN, AR_FLOW);
 
 export const AR_PATTERNS: [RegExp, string][] = [
   [/^(.+) took over the conversation$/, "تولّى {1} المحادثة"],
@@ -623,6 +624,7 @@ AR_PATTERNS.push(...AR_TOOLS_PATTERNS);
 AR_PATTERNS.push(...AR_POLISH_PATTERNS);
 AR_PATTERNS.push(...AR_B2B_PATTERNS);
 AR_PATTERNS.push(...AR_REQUESTS_PATTERNS);
+AR_PATTERNS.push(...AR_FLOW_PATTERNS);
 // Before the general patterns: the monthly-limit message also starts with "Handed over to the team".
 AR_PATTERNS.unshift(...AR_PLANS_PATTERNS);
 

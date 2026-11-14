@@ -14,16 +14,21 @@ interface Me { name: string | null; phone: string | null; company_name: string;
   member: { key: string; name_en: string; name_ar: string; perks_en: string[]; perks_ar: string[]; since: string | null } | null }
 interface Trip {
   id: number; reference: string; title: string; departure_date: string | null; end_date: string | null; adults: number; children: number;
-  total_price: number; currency: string; status: string; phase: "booking" | "upcoming" | "travelling" | "finished" | "cancelled";
+  total_price: number; currency: string; status: string; phase: "quotation" | "booking" | "upcoming" | "travelling" | "finished" | "cancelled";
   steps: { action: string; at: string }[]; rating: number | null; comment: string | null; can_rate: boolean;
 }
 interface Chat { id: number; channel: string; created_at: string; last_message_at: string; messages: { sender: string; content: string; created_at: string }[] }
-interface Req { title: string; kind: string; status: string; created_at: string }
 
 const PHASE: Record<Trip["phase"], string> = {
-  booking: "Waiting for payment", upcoming: "Upcoming", travelling: "Travelling now", finished: "Finished", cancelled: "Cancelled",
+  quotation: "Quotation", booking: "Waiting for payment", upcoming: "Upcoming", travelling: "Travelling now", finished: "Finished", cancelled: "Cancelled",
 };
-const TRACK = ["Booked", "Paid", "Confirmed", "Travelling", "Back home"];
+const TRACK = ["Requested", "Paid", "Confirmed", "Travelling", "Back home"];
+// Where the quotation is, in the client's words.
+const QUOTE_TEXT: Record<string, string> = {
+  new: "We are preparing your choices.", quoted: "Your choices are ready: answer us in the chat.",
+  changes: "We are updating your choices.", chosen: "We are preparing your final quotation.",
+  final: "Your final quotation is ready: approve it in the chat.",
+};
 
 function trackIndex(t: Trip): number {
   if (t.phase === "finished") return 4;
@@ -115,8 +120,9 @@ function TripCard({ trip, onRate }: { trip: Trip; onRate: (id: number, rating: n
       <div className="mt-facts">
         <span>{shortDate(trip.departure_date)}{trip.end_date && trip.end_date !== trip.departure_date ? ` – ${shortDate(trip.end_date)}` : ""}</span>
         <span>{travellers}</span>
-        <strong>{moneyText(trip.total_price, trip.currency, lang)}</strong>
+        {trip.total_price > 0 && <strong>{moneyText(trip.total_price, trip.currency, lang)}</strong>}
       </div>
+      {trip.phase === "quotation" && QUOTE_TEXT[trip.status] && <p className="mt-muted">{t(QUOTE_TEXT[trip.status])}</p>}
       {trip.phase !== "cancelled" && (
         <ol className="mt-track" aria-label={t("Trip progress")}>
           {TRACK.map((s, i) => <li key={s} className={i <= idx ? "done" : ""} aria-current={i === idx ? "step" : undefined}><span>{i < idx || (trip.phase === "finished" && i === idx) ? <Check /> : i + 1}</span>{t(s)}</li>)}
@@ -145,8 +151,7 @@ export default function MyTrips() {
   const [me, setMe] = useState<Me | null>(null);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
-  const [reqs, setReqs] = useState<Req[]>([]);
-  const [tab, setTab] = useState<"trips" | "chats" | "requests">("trips");
+  const [tab, setTab] = useState<"trips" | "chats">("trips");
   const [openChat, setOpenChat] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
@@ -172,8 +177,8 @@ export default function MyTrips() {
     if (!token) return;
     const o = { customerToken: token };
     const base = `/api/public/companies/${slug}/me`;
-    Promise.all([get<Me>(base, o), get<Trip[]>(`${base}/trips`, o), get<Chat[]>(`${base}/chats`, o), get<Req[]>(`${base}/requests`, o)])
-      .then(([m, tr, ch, rq]) => { setMe(m); setTrips(tr); setChats(ch); setReqs(rq); setError(null); })
+    Promise.all([get<Me>(base, o), get<Trip[]>(`${base}/trips`, o), get<Chat[]>(`${base}/chats`, o)])
+      .then(([m, tr, ch]) => { setMe(m); setTrips(tr); setChats(ch); setError(null); })
       .catch((e) => { if (e instanceof ApiError && e.status === 401) signOut(); else setError((e as Error).message); });
   }, [slug, token, signOut]);
   useEffect(load, [load]);
@@ -186,7 +191,7 @@ export default function MyTrips() {
   };
 
   const style = (company ? pageVars(company.branding) : {}) as CSSProperties;
-  const upcoming = trips.filter((x) => ["booking", "upcoming", "travelling"].includes(x.phase));
+  const upcoming = trips.filter((x) => ["quotation", "booking", "upcoming", "travelling"].includes(x.phase));
   const past = trips.filter((x) => ["finished", "cancelled"].includes(x.phase));
   const member = me?.member;
 
@@ -216,7 +221,6 @@ export default function MyTrips() {
             <div className="mt-tabs" role="tablist">
               <button type="button" role="tab" aria-selected={tab === "trips"} className={tab === "trips" ? "on" : ""} onClick={() => setTab("trips")}><SuitcaseRolling />{t("Trips")} <span>{trips.length}</span></button>
               <button type="button" role="tab" aria-selected={tab === "chats"} className={tab === "chats" ? "on" : ""} onClick={() => setTab("chats")}><ChatCircleDots />{t("Chats")} <span>{chats.length}</span></button>
-              {reqs.length > 0 && <button type="button" role="tab" aria-selected={tab === "requests"} className={tab === "requests" ? "on" : ""} onClick={() => setTab("requests")}><Crown />{t("My requests")} <span>{reqs.length}</span></button>}
             </div>
             {tab === "trips" && (trips.length === 0 ? <p className="mt-muted">{t("No bookings yet. Ask us in the chat and we'll plan your next trip.")}</p> : (<>
               {upcoming.length > 0 && <h2 className="mt-h2">{t("Current and upcoming")}</h2>}
@@ -241,9 +245,7 @@ export default function MyTrips() {
                 )}
               </article>
             )))}
-            {tab === "requests" && reqs.map((r, i) => (
-              <article key={i} className="mt-card mt-req"><strong dir="auto">{r.title}</strong><span className="mt-muted">{dateTime(r.created_at)}</span><span className={`mt-phase mt-req-${r.status}`}>{t({ open: "Received", in_progress: "In progress", done: "Done", declined: "Not possible" }[r.status] ?? r.status)}</span></article>
-            ))}
+            
             <p className="mt-muted mt-small mt-foot">
               <LockSimple /> {t("This page is private to you.")} <button type="button" className="link-btn" onClick={everywhere}>{t("Sign out on all devices")}</button>
             </p>

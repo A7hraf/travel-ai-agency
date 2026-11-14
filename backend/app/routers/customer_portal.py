@@ -15,7 +15,7 @@ from ..addons import has_addon
 from ..database import get_db
 from ..deps import require_permission
 from ..members import level_of
-from ..models import Company, Conversation, Customer, MemberRequest, Message, Ticket, TripFeedback, User, utcnow
+from ..models import Company, Conversation, Customer, Message, Ticket, TripFeedback, User, utcnow
 from ..netutil import client_ip
 from ..ratelimit import limiter
 from ..routers.public import _company
@@ -91,13 +91,6 @@ class ChatOut(BaseModel):
     created_at: datetime
     last_message_at: datetime
     messages: list[ChatMessage]
-
-
-class RequestRow(BaseModel):
-    title: str
-    kind: str
-    status: str
-    created_at: datetime
 
 
 def session(slug: str, x_customer_token: str | None = Header(default=None), db: Session = Depends(get_db)) -> Customer:
@@ -204,14 +197,6 @@ def chats(me: Customer = Depends(session), db: Session = Depends(get_db)):
                            messages=[ChatMessage(sender=m.sender, content=m.content, created_at=m.created_at)
                                      for m in reversed(msgs) if is_customer_visible(m)]))
     return out
-
-
-@router.get(f"{BASE}/requests", response_model=list[RequestRow])
-def member_requests(me: Customer = Depends(session), db: Session = Depends(get_db)):
-    reqs = db.scalars(select(MemberRequest).where(MemberRequest.company_id == me.company_id,
-                                                  MemberRequest.customer_id == me.id)
-                      .order_by(MemberRequest.created_at.desc()).limit(100)).all()
-    return [RequestRow(title=r.title, kind=r.kind, status=r.status, created_at=r.created_at) for r in reqs]
 
 
 # --- Staff: what customers said after their trips -------------------------------------------------

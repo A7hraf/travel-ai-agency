@@ -73,14 +73,17 @@ def test_demo_company_has_realistic_data(client, owner):
     assert any("؀" <= ch <= "ۿ" for ch in training[0]["question"] + training[1]["question"])
 
     tickets = client.get("/api/tickets", headers=admin).json()
-    assert 10 <= len(tickets) <= 15
-    assert {t["status"] for t in tickets} == ALL_STATUSES
+    assert 16 <= len(tickets) <= 21
+    assert {t["status"] for t in tickets} == ALL_STATUSES  # every stage, from the request card to confirmed
+    quotes = [t for t in tickets if t["service"] and t["service"]["key"] != "packages"]
+    assert len(quotes) == 6 and all(t["answers"]["full_name"] for t in quotes)
+    assert any(len(t["options"]) == 3 for t in quotes if t["status"] == "quoted")
     for t in tickets:
         if t["status"] in ("paid", "confirmed"):
             assert t["payment_reference"]
         events = client.get(f"/api/tickets/{t['id']}/events", headers=admin).json()
         assert events[0]["action"] == "created"
-        if t["status"] != "pending_payment":
+        if t["status"] not in ("pending_payment", "new"):  # the stages a request starts at
             assert any(e["action"] == "status" for e in events)
 
     convs = client.get("/api/conversations", headers=admin).json()
@@ -143,6 +146,9 @@ def test_demo_tickets_keep_seat_counts_correct(client, owner):
         tickets = db.scalars(select(Ticket).where(Ticket.company_id == cid)).all()
         for t in tickets:
             travellers = t.adults + t.children
+            if t.package_id is None:
+                assert t.seats_held == 0  # only ready-made packages hold seats
+                continue
             if t.status == TicketStatus.CANCELLED:
                 assert t.seats_held == 0
             elif t.seats_held == 0:

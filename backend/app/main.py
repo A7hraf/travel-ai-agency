@@ -68,6 +68,9 @@ async def lifespan(_: FastAPI):
     init_db()
     with SessionLocal() as db:
         ensure_system_admin(db)
+        from .legacy import merge_into_requests  # noqa: PLC0415
+
+        merge_into_requests(db)
         if settings.seed_demo_data:
             seed_demo(db, production=PRODUCTION)
         if PRODUCTION:
@@ -158,13 +161,15 @@ _diagnostics.install_log_handler()
 app.include_router(plans_router.router)
 
 # --- Business accounts (clients and vendors) ---
-from .routers import customer_portal as _customer_portal, insights as _insights  # noqa: E402
+from .routers import customer_portal as _customer_portal, insights as _insights, services as _services  # noqa: E402
 from .routers import members as _members, partners as _partners, trip_requests as _trip_requests  # noqa: E402
 
 app.include_router(_partners.router)
 app.include_router(_members.router)
 app.include_router(_customer_portal.router)
 app.include_router(_insights.router)
+app.include_router(_services.router)
+app.include_router(_services.payment_router)
 app.include_router(_trip_requests.router)
 
 

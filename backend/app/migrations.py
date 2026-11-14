@@ -56,6 +56,20 @@ NEW_COLUMNS = [
     ("trip_requests", "customer_id", "INTEGER REFERENCES customers(id) ON DELETE SET NULL"),
     ("trip_options", "estimate_price", "NUMERIC(12, 3)"),
     ("trip_options", "ai_reason", "TEXT"),
+    # One request flow: services, quotation loop, options on client requests
+    ("companies", "payment_info", "JSON"),
+    ("tickets", "service_id", "INTEGER REFERENCES services(id) ON DELETE SET NULL"),
+    ("tickets", "answers", "JSON"),
+    ("tickets", "parts", "JSON"),
+    ("tickets", "destination", "VARCHAR(120)"),
+    ("tickets", "origin", "VARCHAR(120)"),
+    ("tickets", "return_date", "VARCHAR(20)"),
+    ("tickets", "quote_round", "INTEGER NOT NULL DEFAULT 0"),
+    ("tickets", "client_note", "TEXT"),
+    ("tickets", "last_client_at", "TIMESTAMP WITH TIME ZONE"),
+    ("tickets", "legacy_ref", "VARCHAR(60)"),
+    ("trip_options", "ticket_id", "INTEGER REFERENCES tickets(id) ON DELETE CASCADE"),
+    ("trip_options", "link", "VARCHAR(500)"),
 ]
 
 # Unique indexes of the Instagram columns (same names create_all gives them on a new database).
@@ -171,11 +185,13 @@ def upgrade(engine: Engine) -> None:
             for ddl in PARTNER_INDEXES:
                 conn.execute(text(ddl))
         if "trip_requests" in tables:
-            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_trip_requests_customer_id ON trip_requests (customer_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_trip_options_ticket_id ON trip_options (ticket_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_tickets_service_id ON tickets (service_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_tickets_legacy_ref ON tickets (legacy_ref)"))
             if engine.dialect.name == "postgresql":
-                # Individual travellers' requests have no business client. (A SQLite development database
-                # made before this keeps the old rule: recreate it to try custom trips.)
-                conn.execute(text("ALTER TABLE trip_requests ALTER COLUMN client_id DROP NOT NULL"))
+                # Options now belong to a business request or to a client's request. (A SQLite development
+                # database made before this keeps the old rule: recreate it.)
+                conn.execute(text("ALTER TABLE trip_options ALTER COLUMN request_id DROP NOT NULL"))
         # WhatsApp tokens saved before encryption existed are encrypted now.
         rows = conn.execute(
             text("SELECT id, whatsapp_access_token FROM companies WHERE whatsapp_access_token IS NOT NULL")

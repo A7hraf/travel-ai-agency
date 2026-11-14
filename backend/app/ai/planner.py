@@ -131,51 +131,49 @@ def _clean(raw: dict, needs: list[str]) -> dict | None:
             "reason": str(raw.get("reason") or "").strip()[:500] or None}
 
 
-def _mock_options(req: TripRequest, db: Session, company_id: int) -> list[dict]:
+def _mock_options(case: dict, db: Session, company_id: int) -> list[dict]:
     """Without an AI server (the "mock" provider): well-known names, ordered by what the company learned."""
-    dest, people = req.destination, req.travellers
+    dest, people = case["to"], max(1, int(case.get("travellers") or 1))
     ideas = {
-        "flight": [("Oman Air", f"Oman Air · {req.origin or 'Muscat'} → {dest}", 180), ("Qatar Airways", f"Qatar Airways via Doha → {dest}", 160),
-                   ("Emirates", f"Emirates via Dubai → {dest}", 190)],
-        "hotel": [("Marriott", f"Marriott {dest}", 320), ("Hilton", f"Hilton {dest}", 280), ("Local boutique hotel", f"Boutique stay in {dest}", 220)],
+        "flight": [("Oman Air", f"Oman Air · {case.get('from') or 'Muscat'} → {dest}", 180),
+                   ("Qatar Airways", f"Qatar Airways via Doha → {dest}", 160), ("Emirates", f"Emirates via Dubai → {dest}", 190)],
+        "hotel": [("Marriott", f"Marriott {dest}", 320), ("Hilton", f"Hilton {dest}", 280),
+                  ("Local boutique hotel", f"Boutique stay in {dest}", 220)],
         "transport": [("Private driver", "Private car with driver", 90), ("Airport transfer", "Airport meet & transfer", 40),
                       ("Rental car", "Rental SUV", 70)],
-        "activity": [("Local guide", f"Private city tour of {dest}", 60), ("Day trip", "Full-day excursion", 85), ("Experience", "Cultural evening", 50)],
-        "food": [("Fine dining", "Fine-dining dinner", 45), ("Local cuisine", "Local food tour", 35), ("Hotel half board", "Half board at the hotel", 40)],
+        "activity": [("Local guide", f"Private city tour of {dest}", 60), ("Day trip", "Full-day excursion", 85),
+                     ("Experience", "Cultural evening", 50)],
+        "food": [("Fine dining", "Fine-dining dinner", 45), ("Local cuisine", "Local food tour", 35),
+                 ("Hotel half board", "Half board at the hotel", 40)],
+        "visa": [("Embassy", f"Tourist visa for {dest}", 40), ("Visa service", f"Express visa for {dest}", 70)],
+        "insurance": [("Travel insurance", "Standard travel insurance", 15), ("Travel insurance", "Premium travel insurance", 30)],
     }
     order = {r["provider"]: i for cat in learned_stats(db, company_id).values() for i, r in enumerate(cat) if r["chosen"]}
     out = []
-    for part in req.needs or []:
+    for part in case["parts"]:
         for provider, title, price in sorted(ideas.get(part, []), key=lambda x: order.get(x[0], 99))[:MAX_CHOICES]:
             out.append({"category": part, "title": title, "provider": provider, "details": None,
                         "estimate_price": Decimal(price * people), "reason": "Suggestion without an AI server"})
     return out
 
 
-def draft_options(db: Session, req: TripRequest, company: Company, actor: svc.Actor) -> TripRequest:
-    if req.status not in svc.EDITABLE_OPTIONS:
-        raise HTTPException(409, f"This request is now '{req.status}', so this step is not possible.")
-    room = MAX_OPTIONS - len(req.options)
-    if room <= 0:
-        raise HTTPException(409, f"A request can have at most {MAX_OPTIONS} options")
-    needs = list(req.needs or [])
+def suggest(db: Session, company: Company, case: dict, room: int) -> tuple[list[dict], bool]:
+    """Up to 3 options per part for a trip `case` ({"from", "to", "depart", "return", "travellers", "parts",
+    "purpose", "budget", "preferences", "brief"}). Never traveller names or who the client is.
+    Returns (options, whether the web was searched)."""
+    needs = [p for p in case["parts"] if p in CATEGORIES]
     llm = get_llm_client()
     searched = False
     if isinstance(llm, MockTravelLLM):
-        options = _mock_options(req, db, company.id)
+        options = _mock_options({**case, "parts": needs}, db, company.id)
     else:
-        details = {"from": req.origin or "Muscat", "to": req.destination, "depart": str(req.depart_date or ""),
-                   "return": str(req.return_date or ""), "travellers": req.travellers, "parts": needs,
-                   "purpose": req.purpose, "budget": req.budget, "preferences": req.notes if not req.is_business else None,
-                   "brief": req.vendor_brief}
         tools = _web_search_tools()
         messages = [
             {"role": "system", "content": SYSTEM.format(
-                company=company.name, country="Oman", parts=", ".join(PART_NAMES[p] for p in needs),
+                company=company.name, country="Oman", parts=", ".join(PART_NAMES.get(p, p) for p in needs),
                 currency=company.currency or "OMR", search_rule=SEARCH_ON if tools else SEARCH_OFF,
                 learned=learned_text(db, company.id))},
-            # Never the traveller names or the business client's identity: only what planning needs.
-            {"role": "user", "content": json.dumps({k: v for k, v in details.items() if v}, ensure_ascii=False)},
+            {"role": "user", "content": json.dumps({k: v for k, v in case.items() if v}, ensure_ascii=False, default=str)},
         ]
         resp = None
         for attempt_tools in ([tools, []] if tools else [[]]):
@@ -194,6 +192,20 @@ def draft_options(db: Session, req: TripRequest, company: Company, actor: svc.Ac
             cleaned.append(opt)
     if not cleaned:
         raise HTTPException(502, "The AI could not draft options this time. Try again, or add them yourself.")
+    return cleaned, searched
+
+
+def draft_options(db: Session, req: TripRequest, company: Company, actor: svc.Actor) -> TripRequest:
+    """Business trip request: the AI's options are added for staff to review."""
+    if req.status not in svc.EDITABLE_OPTIONS:
+        raise HTTPException(409, f"This request is now '{req.status}', so this step is not possible.")
+    room = MAX_OPTIONS - len(req.options)
+    if room <= 0:
+        raise HTTPException(409, f"A request can have at most {MAX_OPTIONS} options")
+    case = {"from": req.origin or "Muscat", "to": req.destination, "depart": req.depart_date, "return": req.return_date,
+            "travellers": req.travellers, "parts": list(req.needs or []), "purpose": req.purpose, "budget": req.budget,
+            "brief": req.vendor_brief}
+    cleaned, searched = suggest(db, company, case, room)
     for opt in cleaned:
         option = TripOption(company_id=req.company_id, category=opt["category"], title=opt["title"],
                             provider=opt["provider"], details=opt["details"], estimate_price=opt["estimate_price"],

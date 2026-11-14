@@ -496,6 +496,9 @@ def create_demo_company(db: Session, name: str, slug: str, admin_email: str | No
     from .plans import ensure_subscription  # noqa: PLC0415
 
     ensure_subscription(db, company)  # the default plan, with the demo's account limit
+    from ..catalog import ensure_built_in  # noqa: PLC0415
+
+    ensure_built_in(db, company)
 
     logins: list[DemoLogin] = []
     users: dict[str, User] = {}
@@ -521,6 +524,8 @@ def create_demo_company(db: Session, name: str, slug: str, admin_email: str | No
         db.flush()
     if content.members:
         _add_members(db, company, content.members, include_activity)
+    if include_activity:
+        _add_quotation_samples(db, company, today)
 
     counts = {
         "users": len(users),
@@ -535,8 +540,10 @@ def create_demo_company(db: Session, name: str, slug: str, admin_email: str | No
 
 def _add_members(db: Session, company: Company, members: tuple, with_people: bool) -> None:
     """The members community of the profile: switched on, its levels, and (with the sample activity) a few
-    customers with a rank and some special requests to show."""
-    from ..models import Customer, MemberRequest  # noqa: PLC0415
+    customers with a rank, some special requests and a tailor-made trip waiting for the team."""
+    from ..catalog import service_by_key  # noqa: PLC0415
+    from ..models import Customer, TicketStatus  # noqa: PLC0415
+    from . import requests as flow  # noqa: PLC0415
 
     config, requests = members
     # The luxury demo shows every advanced feature: members, the AI trip planner and AI insights.
@@ -550,18 +557,72 @@ def _add_members(db: Session, company: Company, members: tuple, with_people: boo
     for i, (customer, rank) in enumerate(zip(customers, ranks)):
         customer.member_level = rank
         customer.member_since = now - timedelta(days=30 * (len(ranks) - i))
+    concierge = service_by_key(db, company.id, "concierge")
+    states = {"open": TicketStatus.NEW, "in_progress": TicketStatus.NEW, "done": TicketStatus.CONFIRMED}
     for customer, (title, details, status) in zip(customers[:len(requests)], requests):
-        db.add(MemberRequest(company_id=company.id, customer_id=customer.id, kind="special",
-                             level=customer.member_level, title=title, details=details, status=status))
+        t = flow.create_request(db, company, customer, concierge,
+                                {"details": f"{title}. {details}", "full_name": customer.name, "phone": customer.phone or "+96890000000"},
+                                title, None, actor="Demo")
+        t.package_title = title[:200]
+        t.status = states.get(status, TicketStatus.NEW)
     if customers:
         # A tailor-made trip waiting for the team: try "Draft options with AI" on it.
-        from ..models import TripRequest  # noqa: PLC0415
-
         start = (now + timedelta(days=60)).date()
-        db.add(TripRequest(company_id=company.id, reference="CT-DEMO01", customer_id=customers[0].id, source="whatsapp",
-                           purpose="Family safari", origin="Muscat", destination="Masai Mara, Kenya", depart_date=start,
-                           return_date=start + timedelta(days=6), travellers=4, needs=["flight", "hotel", "transport", "activity"],
-                           budget="9,000 OMR", notes="Private lodge, game drives, a hot-air balloon at sunrise"))
+        flow.create_request(db, company, customers[0], service_by_key(db, company.id, "custom_trip"), {
+            "destination": "Masai Mara, Kenya", "origin": "Muscat", "depart_date": start.isoformat(),
+            "return_date": (start + timedelta(days=6)).isoformat(), "adults": "2", "children": "2 (8, 11)",
+            "budget": "9,000 OMR", "preferences": "Private lodge, game drives, a hot-air balloon at sunrise",
+            "full_name": customers[0].name, "phone": customers[0].phone or "+96890000000"},
+            "Family safari in Kenya", None, actor="Demo")
+    db.flush()
+
+
+def _add_quotation_samples(db: Session, company: Company, today: date) -> None:
+    """Requests at each quotation stage, so the request page shows the whole flow from the first day."""
+    from ..catalog import service_by_key  # noqa: PLC0415
+    from ..models import Customer, TicketStatus as T, TripOption  # noqa: PLC0415
+    from . import requests as flow  # noqa: PLC0415
+
+    customers = db.scalars(select(Customer).where(Customer.company_id == company.id).order_by(Customer.id.desc())).all()
+    if len(customers) < 6:
+        return
+    d = lambda n: (today + timedelta(days=n)).isoformat()  # noqa: E731
+
+    def make(customer, key, answers, status, options=(), chosen=(), note=None, total=None):
+        base = {"full_name": customer.name, "phone": customer.phone or "+96890000000"}
+        t = flow.create_request(db, company, customer, service_by_key(db, company.id, key), {**base, **answers},
+                                "Sample request", None, actor="Demo")
+        for i, (part, title, provider, cost, price, link) in enumerate(options):
+            t.options.append(TripOption(company_id=company.id, category=part, title=title, provider=provider, link=link,
+                                        cost_price=Decimal(cost), price=Decimal(price), added_by="staff",
+                                        sent_to_client=status != T.NEW, chosen=i in chosen))
+        if status != T.NEW:
+            flow.event(db, t, "Demo", "status", T.NEW, status)
+        t.status, t.client_note = status, note
+        t.quote_round = 0 if status == T.NEW else 1
+        if total:
+            t.total_price = Decimal(total)
+        return t
+
+    hotels = [("hotel", "Shangri-La Barr Al Jissah · 3 nights", "Shangri-La", 420, 480, "https://www.shangri-la.com/muscat/barraljissahresort/"),
+              ("hotel", "Al Bustan Palace · 3 nights", "Ritz-Carlton", 610, 690, "https://www.ritzcarlton.com/en/hotels/mctrz-al-bustan-palace-a-ritz-carlton-hotel/"),
+              ("hotel", "Alila Jabal Akhdar · 3 nights", "Alila", 540, 610, "https://www.alilahotels.com/jabalakhdar")]
+    flights = [("flight", "Oman Air WY 101 · Muscat → London", "Oman Air", 380, 430, "https://www.omanair.com"),
+               ("flight", "Qatar Airways via Doha → London", "Qatar Airways", 340, 395, "https://www.qatarairways.com")]
+    make(customers[0], "flights", {"origin": "Muscat", "destination": "London", "depart_date": d(9), "return_date": d(20),
+                                   "adults": "2", "cabin": "Business"}, T.NEW)
+    make(customers[1], "hotel", {"destination": "Muscat", "depart_date": d(25), "return_date": d(28), "adults": "2",
+                                 "rooms": "1"}, T.QUOTED, hotels)
+    make(customers[2], "custom_trip", {"destination": "London", "depart_date": d(40), "return_date": d(47), "adults": "2"},
+         T.CHOSEN, flights + hotels[:2], chosen=(0, 2))
+    make(customers[3], "visa", {"destination": "United Kingdom", "nationality": "Omani", "depart_date": d(30), "adults": "3"},
+         T.CHANGES, [("visa", "UK standard visitor visa · 3 people", "UK Visas", 360, 420, None)],
+         note="Can you add a priority service? We travel in one month.")
+    make(customers[4], "flights", {"origin": "Muscat", "destination": "Istanbul", "depart_date": d(14), "adults": "4",
+                                   "cabin": "Economy"}, T.FINAL, [("flight", "Turkish Airlines TK 775", "Turkish Airlines", 760, 880, None)],
+         chosen=(0,), total=880)
+    make(customers[5], "hotel", {"destination": "Dubai", "depart_date": d(12), "return_date": d(14), "adults": "2", "rooms": "1"},
+         T.REJECTED, hotels[:1], note="Too expensive for us this time.")
     db.flush()
 
 

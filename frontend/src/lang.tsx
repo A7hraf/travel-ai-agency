@@ -31,8 +31,14 @@ export function tr(text: string, vars?: Record<string, string | number>): string
 }
 
 export const TICKET_STATUS_LABELS: Record<string, string> = {
+  new: "New request",
+  quoted: "Choices sent",
+  changes: "Changes asked",
+  chosen: "Client chose",
+  final: "Final quotation sent",
+  rejected: "Rejected by the client",
   pending_payment: "Waiting for payment",
-  in_progress: "In progress",
+  in_progress: "Checking payment",
   paid: "Paid",
   confirmed: "Confirmed",
   cancelled: "Cancelled",

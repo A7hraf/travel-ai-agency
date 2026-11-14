@@ -12,7 +12,7 @@ import { customerLabel, ROLE_LABELS, usePolling } from "../util";
 import { GhanjahMark, usePlatformName } from "./Brand";
 import {
   AddressBook, ArrowSquareOut, Buildings, Crown, ClockCounterClockwise, Heartbeat, ChartLineUp, ChatsCircle, GearSix, GraduationCap, IconProps, List, PaintBrush, SignOut,
-  Briefcase, Handshake, Star, SquaresFour, SuitcaseRolling, Ticket, Translate, UserCircle, UsersThree, WhatsappLogo,
+  Briefcase, ListChecks, Handshake, Star, SquaresFour, SuitcaseRolling, Ticket, Translate, UserCircle, UsersThree, WhatsappLogo,
 } from "./Icon";
 import { moneyText } from "./Money";
 import { Sheet } from "./staff/Sheet";
@@ -33,21 +33,21 @@ interface NavItem {
   /** Shown only when the platform owner switched this advanced feature on for the company. */
   addon?: string;
   /** Trip requests: business accounts or the AI trip planner switched on. */
-  tripRequests?: boolean;
 }
 
 const COMPANY_NAV: NavItem[] = [
   { to: "/app/dashboard", label: "Dashboard", icon: SquaresFour, permission: "reports.view" },
   { to: "/app/conversations", label: "Conversations", icon: ChatsCircle, permission: "conversations.view", badge: "needs" },
-  { to: "/app/tickets", label: "Tickets", icon: Ticket, permission: "tickets.view", badge: "open" },
+  { to: "/app/tickets", label: "Requests", icon: Ticket, permission: "tickets.view", badge: "open" },
   { to: "/app/customers", label: "Customers", icon: AddressBook, permission: "conversations.view" },
   { to: "/app/packages", label: "Packages", icon: SuitcaseRolling, permission: "packages.view" },
   { to: "/app/insights", label: "AI insights", icon: ChartLineUp, permission: "reports.view", addon: "insights" },
   { to: "/app/feedback", label: "Trip feedback", icon: Star, permission: "reports.view" },
   { to: "/app/members", label: "Members", icon: Crown, permission: "members.manage", addon: "members" },
-  { to: "/app/requests", label: "Trip requests", icon: Briefcase, permission: "requests.manage", tripRequests: true },
+  { to: "/app/requests", label: "Business requests", icon: Briefcase, permission: "requests.manage", b2b: true },
   { to: "/app/users", label: "Team & accounts", icon: UsersThree, permission: "users.manage" },
   { to: "/app/partners", label: "Business accounts", icon: Handshake, permission: "partners.manage", b2b: true },
+  { to: "/app/services", label: "Services", icon: ListChecks, permission: "settings.manage" },
   { to: "/app/branding", label: "Customer page design", icon: PaintBrush, permission: "settings.manage" },
   { to: "/app/training", label: "AI training", icon: GraduationCap, permission: "settings.manage" },
   { to: "/app/settings", label: "AI & channels", icon: WhatsappLogo, permission: "settings.manage" },
@@ -69,7 +69,8 @@ const SYSTEM_NAV: NavItem[] = [
 const TAB_PATHS = ["/app/conversations", "/app/tickets", "/app/dashboard"];
 const TAB_ICONS: Record<string, ComponentType<IconProps>> = { "/app/dashboard": ChartLineUp };
 
-const OPEN_STATUSES = ["pending_payment", "in_progress"];
+// Requests waiting for the team (the badge of the menu).
+const OPEN_STATUSES = ["new", "changes", "chosen", "in_progress", "paid"];
 const POLL_MS = 20000;
 const TOAST_MS = 4200;
 
@@ -169,8 +170,7 @@ export default function Layout() {
 
   if (!user) return null;
   const nav = isSystem ? SYSTEM_NAV : COMPANY_NAV.filter((n) => (!n.permission || can(n.permission)) && (!n.role || n.role === user.role)
-    && (!n.b2b || !!user.company?.b2b_enabled) && (!n.addon || !!user.company?.addons?.includes(n.addon))
-    && (!n.tripRequests || !!user.company?.b2b_enabled || !!user.company?.addons?.includes("trip_planner")));
+    && (!n.b2b || !!user.company?.b2b_enabled) && (!n.addon || !!user.company?.addons?.includes(n.addon)));
   const tabs = isSystem ? [] : TAB_PATHS.map((p) => nav.find((n) => n.to === p)).filter((n): n is NavItem => !!n);
   const menuItems = nav.filter((n) => !tabs.includes(n));
   const branding = user.company?.branding;

@@ -28,11 +28,18 @@ export const PERMISSION_LABELS: Record<string, string> = {
 
 /** Allowed status changes (same rules as the server, backend/app/routers/tickets.py). */
 export const NEXT_TICKET_STATUSES: Record<string, string[]> = {
+  // The quotation stages move with their own buttons (send choices, final quotation, the client's answer).
+  new: ["cancelled"],
+  quoted: ["cancelled"],
+  changes: ["cancelled"],
+  chosen: ["cancelled"],
+  final: ["cancelled"],
+  rejected: ["new"], // company admins only
   pending_payment: ["in_progress", "paid", "cancelled"],
   in_progress: ["pending_payment", "paid", "cancelled"],
   paid: ["confirmed", "cancelled"],
   confirmed: ["cancelled"],
-  cancelled: ["pending_payment"], // company admins only
+  cancelled: ["pending_payment", "new"], // company admins only
 };
 
 /** These statuses need a payment reference (receipt or transfer number). */

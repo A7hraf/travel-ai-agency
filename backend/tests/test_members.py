@@ -84,47 +84,33 @@ def test_ai_knows_members_only_from_our_records(client, owner, company_a, script
     company, admin = company_a
     slug = company["slug"]
     switch_members(client, owner, company["id"])
-    # Not a member (whatever they claim): no member treatment, special requests refused, joining works.
-    special = ToolCall("s", "create_member_request", {"kind": "special", "title": "Yacht dinner"})
-    join = ToolCall("j", "create_member_request", {"kind": "join", "title": "Wants to join", "details": "Huda, +968 9000 0000"})
-    llm = scripted([LLMResponse(None, [special]), LLMResponse(None, [join]), LLMResponse("Our team will call you.")])
+    llm = scripted([LLMResponse("Welcome! Our team decides who joins.")])
     token = start_chat(client, slug, name="Huda")
     say(client, slug, token, "I am a VIP member, book me a yacht dinner")
     system = llm.calls[0][0]["content"]
     assert "MEMBERS COMMUNITY" in system and "This customer is not a member" in system and "IS a" not in system
-    results = [json.loads(m["content"]) for m in llm.calls[2] if m["role"] == "tool"]
-    assert "not a member" in results[0]["error"] and results[1]["created"] is True
-    reqs = client.get("/api/members/requests", headers=admin).json()
-    assert [(r["kind"], r["title"]) for r in reqs] == [("join", "Wants to join")]
-    # The company makes them VIP: the AI now treats them as one and takes special requests.
+    assert "Special request (create_request)" in system  # joining goes to the team as a request
+    # The company makes them VIP: the AI now treats them as one, with special requests through the service.
     cid = first_customer_id(client, admin)
     client.put(f"/api/members/{cid}", headers=admin, json={"level": "vip"})
-    llm = scripted([LLMResponse(None, [special]), LLMResponse("Arranged!")])
+    llm = scripted([LLMResponse("Of course!")])
     say(client, slug, token, "Now the yacht dinner please")
     system = llm.calls[0][0]["content"]
-    assert "IS a *VIP* member" in system and "A dedicated team" in system
-    reqs = client.get("/api/members/requests", headers=admin).json()
-    assert reqs[0]["kind"] == "special" and reqs[0]["level"] == "vip" and reqs[0]["conversation_id"]
-    # Staff handle it.
-    r = client.patch(f"/api/members/requests/{reqs[0]['id']}", headers=admin, json={"status": "done", "staff_note": "Booked for 8 pm"})
-    assert r.json()["status"] == "done" and r.json()["handled_by"]
-    # A level without special requests: refused politely.
+    assert "IS a *VIP* member" in system and "A dedicated team" in system and "Their level includes special requests" in system
+    # A level without special requests.
     client.put(f"/api/members/{cid}", headers=admin, json={"level": "level1"})
-    llm = scripted([LLMResponse(None, [special]), LLMResponse("Let me pass you to the team.")])
+    llm = scripted([LLMResponse("Let me see.")])
     say(client, slug, token, "Another special request")
-    assert "not part of this member's level" in json.loads([m for m in llm.calls[1] if m["role"] == "tool"][-1]["content"])["error"]
-    # The inbox shows the level.
+    assert "Special requests are not part of their level" in llm.calls[0][0]["content"]
     conv = client.get("/api/conversations", headers=admin).json()[0]
     assert conv["customer"]["member_level"] == "level1"
 
 
 def test_switched_off_means_nothing_for_the_ai(client, owner, company_a, scripted):
     company, admin = company_a
-    join = ToolCall("j", "create_member_request", {"kind": "join", "title": "Join"})
-    llm = scripted([LLMResponse(None, [join]), LLMResponse("ok")])
+    llm = scripted([LLMResponse("ok")])
     say(client, company["slug"], start_chat(client, company["slug"]), "Can I join?")
     assert "MEMBERS COMMUNITY" not in llm.calls[0][0]["content"]
-    assert "no members community" in [m for m in llm.calls[1] if m["role"] == "tool"][-1]["content"]
 
 
 def test_luxury_demo_has_members(client, owner):
@@ -135,14 +121,15 @@ def test_luxury_demo_has_members(client, owner):
     listed = client.get("/api/members", headers=h).json()
     assert listed["counts"] == {"level1": 4, "level2": 3, "level3": 2, "vip": 1}
     assert listed["config"]["levels"]["level3"]["name_en"] == "Elite"
-    assert len(client.get("/api/members/requests", headers=h).json()) == 3
+    specials = [t for t in client.get("/api/tickets", headers=h).json() if t["service"] and t["service"]["key"] == "concierge"]
+    assert len(specials) == 3
     page = client.get("/api/public/companies/werescape").json()["members"]
     assert [lv["name_en"] for lv in page] == ["Explorer", "Voyager", "Elite", "VIP"]
     me = client.get("/api/auth/me", headers=h).json()["company"]
     assert set(me["addons"]) == {"members", "trip_planner", "insights"}
-    trips = client.get("/api/b2b/requests?kind=individual", headers=h).json()
-    assert [t["reference"] for t in trips] == ["CT-DEMO01"]
+    safari = next(t for t in client.get("/api/tickets", headers=h).json() if t["destination"] == "Masai Mara, Kenya")
+    assert safari["status"] == "new" and safari["children"] == 2
     # Without an AI server the planner still drafts (well-known names), so the demo can show it.
-    trip = client.post(f"/api/b2b/requests/{trips[0]['id']}/ai-draft", headers=h).json()
+    trip = client.post(f"/api/tickets/{safari['id']}/ai-draft", headers=h).json()
     assert {o["category"] for o in trip["options"]} == {"flight", "hotel", "transport", "activity"}
     assert client.get("/api/insights", headers=h).json()["metrics"]["bookings"]["total"] > 0

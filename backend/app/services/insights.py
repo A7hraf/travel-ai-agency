@@ -21,6 +21,7 @@ from ..addons import enabled_addons
 from ..ai.llm import LLMError, MockTravelLLM, clean_content, get_llm_client
 from ..ai.planner import learned_stats
 from ..b2b import b2b_settings
+from .requests import WAITING_FOR_STAFF
 from ..models import (
     Company,
     CompanyStatus,
@@ -28,7 +29,6 @@ from ..models import (
     ConversationStatus,
     Customer,
     InsightReport,
-    MemberRequest,
     Message,
     MessageKind,
     Subscription,
@@ -72,6 +72,17 @@ def _searches(db: Session, company_id: int, since) -> list[tuple[str, int]]:
                 if w not in STOP:
                     words[w] += 1
     return words.most_common(12)
+
+
+def _quotation_stats(tickets: list[Ticket]) -> dict:
+    """How clients answer quotations: sent, approved, rejected, and how many rounds it takes."""
+    quoted = [t for t in tickets if t.quote_round]
+    approved = [t for t in quoted if t.status in (TicketStatus.PENDING_PAYMENT, TicketStatus.IN_PROGRESS,
+                                                  TicketStatus.PAID, TicketStatus.CONFIRMED)]
+    return {"requests_quoted": len(quoted), "approved": len(approved),
+            "rejected": sum(1 for t in quoted if t.status == TicketStatus.REJECTED),
+            "approval_rate": round(len(approved) / len(quoted), 3) if quoted else None,
+            "average_rounds": round(sum(t.quote_round for t in quoted) / len(quoted), 2) if quoted else None}
 
 
 def company_metrics(db: Session, company: Company, days: int = 90, private: bool = True) -> dict:
@@ -122,9 +133,8 @@ def company_metrics(db: Session, company: Company, days: int = 90, private: bool
                      "never_booked": [t for t in active_packages if t not in booked_titles][:10]},
         "feedback": {"average": round(float(fb[0]), 2) if fb[0] is not None else None, "count": fb[1]},
         "members": members,
-        "trip_requests": {"total": len(requests), "by_status": dict(req_status),
-                          "business": sum(1 for r in requests if r.client_id), "individual": sum(1 for r in requests if not r.client_id),
-                          "margin": _money(margin)},
+        "business_requests": {"total": len(requests), "by_status": dict(req_status), "margin": _money(margin)},
+        "quotations": _quotation_stats(tickets),
         "ai_learned": {k: v[:3] for k, v in learned_stats(db, cid).items()},
     }
     if private:
@@ -132,8 +142,8 @@ def company_metrics(db: Session, company: Company, days: int = 90, private: bool
         m["low_ratings"] = [{"rating": f.rating, "comment": f.comment} for f in db.scalars(
             select(TripFeedback).where(TripFeedback.company_id == cid, TripFeedback.created_at >= since,
                                        TripFeedback.rating <= 3).order_by(TripFeedback.created_at.desc()).limit(5)).all()]
-        m["open_member_requests"] = db.scalar(select(func.count(MemberRequest.id)).where(
-            MemberRequest.company_id == cid, MemberRequest.status.in_(("open", "in_progress")))) or 0
+        m["requests_waiting_for_staff"] = db.scalar(select(func.count(Ticket.id)).where(
+            Ticket.company_id == cid, Ticket.status.in_(WAITING_FOR_STAFF))) or 0
     return m
 
 

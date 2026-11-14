@@ -6,9 +6,8 @@ Every query is limited to the employee's company.
 """
 
 from datetime import datetime
-from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -18,12 +17,9 @@ from ..audit import audit
 from ..database import get_db
 from ..deps import require_permission, require_system_admin
 from ..members import LEVELS, LevelKey, MembershipConfig, membership_config
-from ..models import Company, Customer, MemberRequest, User, utcnow
+from ..models import Company, Customer, User, utcnow
 
 router = APIRouter(tags=["members"])
-
-STATUSES = ("open", "in_progress", "done", "declined")
-
 
 # --- Platform owner: advanced features ----------------------------------------------------------------
 
@@ -89,46 +85,9 @@ class MemberUpdate(BaseModel):
         return " ".join(v.split()) or None if v is not None else None
 
 
-class RequestOut(BaseModel):
-    id: int
-    customer_id: int
-    customer_name: str | None
-    customer_phone: str | None
-    conversation_id: int | None
-    kind: str
-    level: str | None
-    title: str
-    details: str | None
-    status: str
-    staff_note: str | None
-    handled_by: str | None
-    created_at: datetime
-    updated_at: datetime
-
-
-class RequestIn(BaseModel):
-    customer_id: int
-    kind: Literal["special", "join"] = "special"
-    title: str = Field(min_length=2, max_length=200)
-    details: str | None = Field(default=None, max_length=4000)
-
-
-class RequestUpdate(BaseModel):
-    status: Literal["open", "in_progress", "done", "declined"] | None = None
-    staff_note: str | None = Field(default=None, max_length=4000)
-
-
 def _row(c: Customer) -> MemberRow:
     return MemberRow(customer_id=c.id, name=c.name, phone=c.phone, email=c.email, level=c.member_level,
                      member_since=c.member_since, note=c.member_note)
-
-
-def request_out(r: MemberRequest) -> RequestOut:
-    return RequestOut(id=r.id, customer_id=r.customer_id, customer_name=r.customer.name, customer_phone=r.customer.phone,
-                      conversation_id=r.conversation_id, kind=r.kind, level=r.level, title=r.title, details=r.details,
-                      status=r.status, staff_note=r.staff_note,
-                      handled_by=r.handled_by.full_name if r.handled_by else None,
-                      created_at=r.created_at, updated_at=r.updated_at)
 
 
 def _customer(db: Session, me: User, customer_id: int) -> Customer:
@@ -180,43 +139,3 @@ def set_member(customer_id: int, body: MemberUpdate, me: User = Depends(manager)
               detail=f"{before or '-'} → {customer.member_level or '-'}")
     db.commit()
     return _row(customer) if customer.member_level else None
-
-
-@router.get("/api/members/requests", response_model=list[RequestOut])
-def list_requests(status: str | None = Query(default=None, max_length=15), me: User = Depends(manager),
-                  db: Session = Depends(get_db)):
-    stmt = select(MemberRequest).where(MemberRequest.company_id == me.company_id)
-    if status:
-        stmt = stmt.where(MemberRequest.status == status)
-    reqs = db.scalars(stmt.order_by(MemberRequest.created_at.desc()).limit(500)).all()
-    return [request_out(r) for r in reqs]
-
-
-@router.post("/api/members/requests", response_model=RequestOut, status_code=201)
-def create_request(body: RequestIn, me: User = Depends(manager), db: Session = Depends(get_db)):
-    customer = _customer(db, me, body.customer_id)
-    req = MemberRequest(company_id=me.company_id, customer_id=customer.id, kind=body.kind,
-                        level=customer.member_level, title=" ".join(body.title.split()),
-                        details=(body.details or "").strip() or None)
-    db.add(req)
-    audit(db, me, "member.request_created", target=customer.name or f"#{customer.id}", detail=req.title)
-    db.commit()
-    db.refresh(req)
-    return request_out(req)
-
-
-@router.patch("/api/members/requests/{request_id}", response_model=RequestOut)
-def update_request(request_id: int, body: RequestUpdate, me: User = Depends(manager), db: Session = Depends(get_db)):
-    req = db.get(MemberRequest, request_id)
-    if req is None or req.company_id != me.company_id:
-        raise HTTPException(404, "Request not found")
-    data = body.model_dump(exclude_unset=True)
-    if data.get("status") and data["status"] != req.status:
-        req.status = data["status"]
-        req.handled_by_id = me.id
-        audit(db, me, "member.request_status", target=req.title, detail=req.status)
-    if "staff_note" in data:
-        req.staff_note = (data["staff_note"] or "").strip() or None
-    db.commit()
-    db.refresh(req)
-    return request_out(req)

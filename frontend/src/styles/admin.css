@@ -896,3 +896,20 @@ a.now-waiting:hover { background: color-mix(in srgb, var(--st-waiting-tint) 18%,
 .gx-md h4 { font-size: 15px; margin: 14px 0 4px; }
 .gx-md p { margin: 6px 0; }
 .gx-md ul, .gx-md ol { margin: 6px 0; padding-inline-start: 22px; display: flex; flex-direction: column; gap: 4px; }
+
+/* Services */
+.gx-svc-editor { display: flex; flex-direction: column; gap: 14px; }
+.gx-svc-editor .gx-section-label { margin: 8px 0 0; }
+.gx-svc-list { display: flex; flex-direction: column; gap: 8px; }
+.gx-svc-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 130px auto auto; gap: 8px; align-items: center; }
+.gx-svc-row.gx-svc-step { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+.gx-svc-wide { grid-column: 1 / -1; }
+.gx-svc-req { display: flex; gap: 6px; align-items: center; font-size: 13px; white-space: nowrap; }
+.gx-svc-btns { display: flex; gap: 2px; }
+.gx-svc-cards { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+.gx-svc-card { display: flex; flex-direction: column; gap: 6px; text-align: start; border: 0; cursor: pointer; margin: 0; font: inherit; color: var(--text); }
+.gx-svc-card:hover { box-shadow: var(--ring), 0 0 0 2px var(--brand-soft); }
+.gx-svc-card.off { opacity: .6; }
+@media (max-width: 640px) {
+  .gx-svc-row, .gx-svc-row.gx-svc-step { grid-template-columns: 1fr 1fr; }
+}

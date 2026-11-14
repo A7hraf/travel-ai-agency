@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..ai.health import check_ai
 from ..branding import Branding, BrandingUpdate, apply_update, get_branding
+from ..catalog import ensure_built_in
 from ..database import get_db
 from ..deps import require_system_admin
 from ..models import Company, CompanyStatus, Conversation, Role, Ticket, User
@@ -116,6 +117,7 @@ def create_company(body: CompanyCreate, _: User = Depends(require_system_admin),
         # The subscription first: the account limit follows the plan unless a limit was given.
         plans_service.start_subscription(db, company, plan, custom_max_users=body.max_users,
                                          cycle=body.billing_cycle)
+        ensure_built_in(db, company)  # every company starts with the built-in services
         create_company_user(
             db,
             company,

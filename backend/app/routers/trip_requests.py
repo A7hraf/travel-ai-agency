@@ -52,13 +52,8 @@ def _staff_out(db: Session, me: User, req: TripRequest) -> StaffTripOut:
 
 @router.get("/api/b2b/requests", response_model=list[StaffTripRow])
 def staff_list(status: str | None = Query(default=None, max_length=20), client_id: int | None = None,
-               kind: str | None = Query(default=None, pattern="^(business|individual)$"),
                me: User = Depends(staff), db: Session = Depends(get_db)):
     stmt = select(TripRequest).where(TripRequest.company_id == me.company_id)
-    if kind == "business":
-        stmt = stmt.where(TripRequest.client_id.is_not(None))
-    elif kind == "individual":
-        stmt = stmt.where(TripRequest.client_id.is_(None))
     if status:
         stmt = stmt.where(TripRequest.status == status)
     if client_id:

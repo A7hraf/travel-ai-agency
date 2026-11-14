@@ -15,15 +15,6 @@ HISTORY_TOOL_DEFINITIONS: list[dict] = [
     {
         "type": "function",
         "function": {
-            "name": "list_my_bookings",
-            "description": "This customer's own bookings with their status and where each trip stands "
-                           "(booking, upcoming, travelling, finished, cancelled).",
-            "parameters": {"type": "object", "properties": {}},
-        },
-    },
-    {
-        "type": "function",
-        "function": {
             "name": "send_my_trips_link",
             "description": "A private link (30 minutes, one use) to the customer's trips page: all their bookings, "
                            "chats and trip history. WhatsApp only. Put the link in your reply as it is.",
@@ -50,7 +41,7 @@ HISTORY_TOOL_DEFINITIONS: list[dict] = [
 
 HISTORY_PROMPT = """
 THE CUSTOMER'S OWN TRIPS
-When the customer asks about their bookings, call list_my_bookings. {link_rule}
+When the customer asks about their requests or bookings, call my_requests. {link_rule}
 """
 LINK_WHATSAPP = ("For their full history (all bookings, chats, trip progress), call send_my_trips_link and give "
                  "them the link.")
@@ -71,22 +62,6 @@ def history_prompt(ctx) -> str | None:
     return text
 
 
-def _mine(ctx):
-    return ctx.db.scalars(select(Ticket).where(Ticket.company_id == ctx.company.id,
-                                               Ticket.customer_id == ctx.customer.id)
-                          .order_by(Ticket.created_at.desc()).limit(10)).all()
-
-
-def list_my_bookings(ctx, **_) -> dict:
-    if ctx.dry_run or not ctx.customer.id:
-        return {"bookings": [], "note": "Test chat: no bookings."}
-    return {"bookings": [{
-        "reference": t.reference, "package": t.package_title, "departure_date": t.departure_date,
-        "travellers": {"adults": t.adults, "children": t.children}, "status": t.status,
-        "trip": portal.phase(t, ctx.today), "total": float(t.total_price), "currency": t.currency,
-    } for t in _mine(ctx)]}
-
-
 def send_my_trips_link(ctx, **_) -> dict:
     if ctx.dry_run:
         return {"simulated": True, "note": "Test chat: no link was made."}
@@ -104,7 +79,7 @@ def record_trip_feedback(ctx, reference="", rating=None, comment="", **_) -> dic
                                                 Ticket.customer_id == ctx.customer.id,
                                                 Ticket.reference == str(reference).strip().upper()))
     if ticket is None:
-        return {"error": "No booking with this reference for this customer. Call list_my_bookings."}
+        return {"error": "No booking with this reference for this customer. Call my_requests."}
     try:
         portal.save_feedback(ctx.db, ctx.customer, ticket, int(rating), comment, "chat", ctx.today)
     except (HTTPException, ValueError, TypeError) as exc:
@@ -113,7 +88,6 @@ def record_trip_feedback(ctx, reference="", rating=None, comment="", **_) -> dic
 
 
 HISTORY_HANDLERS = {
-    "list_my_bookings": list_my_bookings,
     "send_my_trips_link": send_my_trips_link,
     "record_trip_feedback": record_trip_feedback,
 }

@@ -31,7 +31,6 @@ from ..models import (
     Conversation,
     Customer,
     CustomerAccessCode,
-    MemberRequest,
     Message,
     MessageKind,
     Sender,
@@ -184,14 +183,22 @@ def trip_end(ticket: Ticket) -> date | None:
     start = _departure(ticket)
     if start is None:
         return None
+    if ticket.return_date:
+        try:
+            return date.fromisoformat(ticket.return_date[:10])
+        except ValueError:
+            pass
     days = ticket.package.duration_days if ticket.package is not None else 1
     return start + timedelta(days=max(0, (days or 1) - 1))
 
 
 def phase(ticket: Ticket, today: date) -> str:
-    """booking (not paid yet), upcoming, travelling, finished or cancelled."""
-    if ticket.status == TicketStatus.CANCELLED:
+    """quotation (choices and quotation being agreed), booking (waiting for the payment), upcoming, travelling,
+    finished or cancelled."""
+    if ticket.status in (TicketStatus.CANCELLED, TicketStatus.REJECTED):
         return "cancelled"
+    if ticket.status in (TicketStatus.NEW, TicketStatus.QUOTED, TicketStatus.CHANGES, TicketStatus.CHOSEN, TicketStatus.FINAL):
+        return "quotation"
     if ticket.status not in PAID:
         return "booking"
     start, end = _departure(ticket), trip_end(ticket)

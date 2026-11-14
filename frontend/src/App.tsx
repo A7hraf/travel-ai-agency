@@ -33,6 +33,7 @@ const Invoice = lazy(() => import("./pages/Invoice"));
 const Partners = lazy(() => import("./pages/Partners"));
 const PartnerPortal = lazy(() => import("./pages/PartnerPortal"));
 const Requests = lazy(() => import("./pages/Requests"));
+const Services = lazy(() => import("./pages/Services"));
 const Members = lazy(() => import("./pages/Members"));
 const Feedback = lazy(() => import("./pages/Feedback"));
 const Insights = lazy(() => import("./pages/Insights"));
@@ -146,6 +147,7 @@ export default function App() {
         <Route path="settings" element={<RequireUser permission="settings.manage"><Settings /></RequireUser>} />
         <Route path="branding" element={<RequireUser permission="settings.manage"><Branding /></RequireUser>} />
         <Route path="training" element={<RequireUser permission="settings.manage"><Training /></RequireUser>} />
+        <Route path="services" element={<RequireUser permission="settings.manage"><Services /></RequireUser>} />
         <Route path="customers" element={<RequireUser permission="conversations.view"><Customers /></RequireUser>} />
         <Route path="customers/:id" element={<RequireUser permission="conversations.view"><Customers /></RequireUser>} />
         <Route path="partners" element={<RequireUser permission="partners.manage"><Partners /></RequireUser>} />

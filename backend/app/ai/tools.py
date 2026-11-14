@@ -18,6 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, object_session
 
 from ..models import (
+    utcnow,
     Company,
     Conversation,
     ConversationStatus,
@@ -453,6 +454,13 @@ def _ticket_summary(ticket: Ticket) -> dict:
     }
 
 
+def _packages_service_id(ctx: ToolContext) -> int | None:
+    from ..catalog import service_by_key  # noqa: PLC0415
+
+    service = service_by_key(ctx.db, ctx.company.id, "packages")
+    return service.id if service else None
+
+
 def create_booking_ticket(ctx: ToolContext, package_id=None, departure_date="", adults=None, children=0,
                           lead_traveler_name="", contact_phone="", contact_email="",
                           special_requests="", **_) -> dict:
@@ -527,6 +535,10 @@ def create_booking_ticket(ctx: ToolContext, package_id=None, departure_date="", 
         currency=pkg.currency,
         status=TicketStatus.PENDING_PAYMENT,
         created_by="ai",
+        # A ready-made package: its price is known, so it skips the quotation and waits for the payment.
+        service_id=_packages_service_id(ctx),
+        destination=pkg.destination,
+        last_client_at=utcnow(),
     )
     ctx.db.add(ticket)
     ctx.db.flush()
@@ -627,10 +639,10 @@ def _dry_run_handover(ctx: ToolContext, reason="", **_) -> dict:
 # Business clients writing from a linked WhatsApp number (each handler checks the link itself).
 from .b2b_tools import B2B_HANDLERS  # noqa: E402
 from .history_tools import HISTORY_HANDLERS  # noqa: E402
-from .member_tools import MEMBER_HANDLERS  # noqa: E402
+from .request_tools import REQUEST_HANDLERS  # noqa: E402
 
 _HANDLERS.update(B2B_HANDLERS)
-_HANDLERS.update(MEMBER_HANDLERS)
+_HANDLERS.update(REQUEST_HANDLERS)
 _HANDLERS.update(HISTORY_HANDLERS)
 
 _DRY_RUN_HANDLERS = {

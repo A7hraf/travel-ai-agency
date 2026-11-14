@@ -8,8 +8,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-Category = Literal["flight", "hotel", "transport", "activity", "food"]
-CATEGORIES: tuple[str, ...] = ("flight", "hotel", "transport", "activity", "food")
+Category = Literal["flight", "hotel", "transport", "activity", "food", "visa", "insurance", "other"]
+CATEGORIES: tuple[str, ...] = ("flight", "hotel", "transport", "activity", "food", "visa", "insurance", "other")
 MAX_CHOICES = 3  # choices per part sent to the client
 MAX_OPTIONS = 30  # options of one request
 
@@ -234,9 +234,7 @@ class TripCommon(BaseModel):
 
 class StaffTripOut(TripCommon):
     source: str
-    kind: str  # business or individual
-    client_id: int | None
-    customer_id: int | None
+    client_id: int
     client_name: str
     vendor_id: int | None
     vendor_name: str | None
@@ -260,7 +258,6 @@ class StaffTripRow(BaseModel):
     reference: str
     status: str
     source: str
-    kind: str
     client_name: str
     vendor_name: str | None
     destination: str

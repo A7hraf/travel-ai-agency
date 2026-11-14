@@ -18,23 +18,17 @@ function RequestList() {
   const [rows, setRows] = useState<StaffTripRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<TripStatus | "">("");
-  const [kind, setKind] = useState<"" | "business" | "individual">("");
   const load = () => {
-    const q = new URLSearchParams({ ...(status ? { status } : {}), ...(kind ? { kind } : {}) }).toString();
+    const q = new URLSearchParams({ ...(status ? { status } : {}) }).toString();
     return get<StaffTripRow[]>(`/api/b2b/requests${q ? `?${q}` : ""}`)
       .then((r) => { setRows(r); setError(null); }).catch((e) => setError((e as Error).message));
   };
-  useEffect(() => { load(); }, [status, kind]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div>
-      <PageTitle kicker={t("Agency workspace")} title={t("Trip requests")}
-        subtitle={t("Tailor-made trips asked by business clients and individual travellers. Let the AI draft options or ask a vendor, send up to 3 choices per part, approve, and track the booking.")} />
-      <div className="seg gx-tabs" role="tablist" aria-label={t("Trip requests")}>
-        {([["", "All"], ["business", "Business clients"], ["individual", "Individual travellers"]] as const).map(([k, label]) => (
-          <button key={k || "all"} type="button" role="tab" aria-selected={kind === k} className={kind === k ? "active" : ""} onClick={() => setKind(k)}>{t(label)}</button>
-        ))}
-      </div>
+      <PageTitle kicker={t("Agency workspace")} title={t("Business requests")}
+        subtitle={t("Trips asked by your business clients. Let the AI draft options or ask a vendor, send up to 3 choices per part, approve, and track the booking.")} />
       <div className="gx-chips" role="group" aria-label={t("Status")}>
         {FILTERS.map((f) => (
           <button key={f || "all"} type="button" className={`gx-chip ${status === f ? "on" : ""}`} aria-pressed={status === f} onClick={() => setStatus(f)}>
@@ -48,7 +42,7 @@ function RequestList() {
             <li key={r.id}>
               <Link to={`/app/requests/${r.id}`} className="gx-req-row">
                 <span className="gx-req-ref">{r.reference}</span>
-                <span className="gx-req-main" dir="auto">{r.kind === "individual" && <span className="gx-ai-tag gx-kind-tag">{t("Individual")}</span>}<strong>{r.client_name}</strong> · {r.destination} · {shortDate(r.depart_date)} · {t("{n} travellers", { n: r.travellers })}</span>
+                <span className="gx-req-main" dir="auto"><strong>{r.client_name}</strong> · {r.destination} · {shortDate(r.depart_date)} · {t("{n} travellers", { n: r.travellers })}</span>
                 <span className="muted small">{r.vendor_name ?? "—"}</span>
                 {r.source === "whatsapp" && <WhatsappLogo className="gx-req-wa" aria-label="WhatsApp" />}
                 <StatusBadge status={r.status} side="staff" />
@@ -158,8 +152,8 @@ function RequestDetail({ id }: { id: number }) {
       <button type="button" className="link-btn" onClick={() => navigate("/app/requests")}><ArrowLeft className="flip" />{t("All requests")}</button>
       <div className="gx-req-head">
         <div>
-          <div className="gx-kicker">{trip.reference} · {trip.kind === "individual" ? t("Individual traveller") : t("Business client")}{trip.source === "whatsapp" && <> · <WhatsappLogo /> WhatsApp</>}</div>
-          <h1 dir="auto">{trip.kind === "individual" && trip.customer_id ? <Link to={`/app/customers/${trip.customer_id}`}>{trip.client_name}</Link> : trip.client_name} · {trip.destination}</h1>
+          <div className="gx-kicker">{trip.reference} · {t("Business client")}{trip.source === "whatsapp" && <> · <WhatsappLogo /> WhatsApp</>}</div>
+          <h1 dir="auto">{trip.client_name} · {trip.destination}</h1>
         </div>
         <StatusBadge status={trip.status} side="staff" />
       </div>

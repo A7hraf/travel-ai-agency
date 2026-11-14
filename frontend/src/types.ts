@@ -29,12 +29,6 @@ export interface LevelConfig {
 export interface MembershipConfig { levels: Record<MemberLevel, LevelConfig>; show_on_page: boolean }
 export interface MemberRow { customer_id: number; name: string | null; phone: string | null; email: string | null; level: MemberLevel; member_since: string | null; note: string | null }
 export interface MemberList { members: MemberRow[]; counts: Record<MemberLevel, number>; config: MembershipConfig }
-export interface MemberRequest {
-  id: number; customer_id: number; customer_name: string | null; customer_phone: string | null; conversation_id: number | null;
-  kind: "special" | "join"; level: MemberLevel | null; title: string; details: string | null;
-  status: "open" | "in_progress" | "done" | "declined"; staff_note: string | null; handled_by: string | null;
-  created_at: string; updated_at: string;
-}
 export interface PublicMemberLevel { key: MemberLevel; name_en: string; name_ar: string; perks_en: string[]; perks_ar: string[] }
 
 export type PartnerKind = "client" | "vendor";
@@ -373,7 +367,27 @@ export interface ConversationDetail extends ConversationSummary {
   tickets: { id: number; reference: string; status: string }[];
 }
 
-export type TicketStatus = "pending_payment" | "in_progress" | "paid" | "confirmed" | "cancelled";
+export type TicketStatus = "new" | "quoted" | "changes" | "chosen" | "final" | "rejected"
+  | "pending_payment" | "in_progress" | "paid" | "confirmed" | "cancelled";
+
+export type ServicePart = "flight" | "hotel" | "transport" | "activity" | "food" | "visa" | "insurance" | "other";
+
+/** One choice of a request. Cost and AI estimate are for staff only. */
+export interface TicketOption {
+  id: number; category: ServicePart; title: string; provider: string | null; link: string | null; details: string | null;
+  cost_price: number | null; price: number | null; estimate_price: number | null; ai_reason: string | null;
+  added_by: "staff" | "ai" | "vendor"; sent_to_client: boolean; chosen: boolean;
+}
+
+export interface ServiceField { key: string; label_en: string; label_ar: string; type: string; required: boolean; choices: string[] }
+export interface ServiceStep { key: string; label_en: string; label_ar: string }
+
+export interface Service {
+  id: number; key: string | null; position: number;
+  name_en: string; name_ar: string; description_en: string; description_ar: string;
+  pricing: "fixed" | "dynamic" | "packages"; price: string | number | null; price_note: string;
+  parts: ServicePart[]; fields: ServiceField[]; steps: ServiceStep[]; rules: string; is_active: boolean;
+}
 
 export interface Ticket {
   id: number;
@@ -381,6 +395,17 @@ export interface Ticket {
   status: TicketStatus;
   package_id: number | null;
   package_title: string;
+  service: { id: number; key: string | null; name_en: string; name_ar: string; pricing: string; steps: ServiceStep[] } | null;
+  answers: Record<string, string> | null;
+  parts: ServicePart[] | null;
+  destination: string | null;
+  origin: string | null;
+  return_date: string | null;
+  quote_round: number;
+  client_note: string | null;
+  options: TicketOption[];
+  /** Which request to work on first (0-100) and why. */
+  urgency: { score?: number; reasons?: string[] };
   departure_date: string | null;
   adults: number;
   children: number;
@@ -704,8 +729,6 @@ export interface StaffTripOption {
 
 export interface StaffTrip extends TripCommon {
   source: string;
-  kind: "business" | "individual";
-  customer_id: number | null;
   client_id: number | null;
   client_name: string;
   vendor_id: number | null;
@@ -726,7 +749,7 @@ export interface StaffTrip extends TripCommon {
 }
 
 export interface StaffTripRow {
-  id: number; reference: string; status: TripStatus; source: string; kind: "business" | "individual"; client_name: string; vendor_name: string | null;
+  id: number; reference: string; status: TripStatus; source: string; client_name: string; vendor_name: string | null;
   destination: string; depart_date: string | null; travellers: number; updated_at: string;
 }
 

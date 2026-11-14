@@ -185,6 +185,12 @@ export function ChatText({ text }: { text: string }) {
 }
 
 export const TICKET_TONES: Record<string, string> = {
+  new: "blue",
+  quoted: "teal",
+  changes: "amber",
+  chosen: "blue",
+  final: "teal",
+  rejected: "gray",
   pending_payment: "amber",
   in_progress: "blue",
   paid: "teal",
