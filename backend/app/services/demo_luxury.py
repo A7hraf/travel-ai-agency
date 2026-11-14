@@ -84,6 +84,169 @@ ABOUT_AR = ("{company} علامة سفر عصرية من مسقط. نصمم رح
             "سارة، مستشارتنا الذكية، ترد عليك في أي وقت بالعربية أو الإنجليزية، وفريقنا يهتم بالباقي.")
 
 
+def _item(tag: tuple[str, str], title: tuple[str, str], text: tuple[str, str], subtitle: tuple[str, str] = ("", "")) -> dict:
+    return {"tag_en": tag[0], "tag_ar": tag[1], "title_en": title[0], "title_ar": title[1],
+            "subtitle_en": subtitle[0], "subtitle_ar": subtitle[1], "text_en": text[0], "text_ar": text[1]}
+
+
+OMAN = ("Inside Oman", "داخل عُمان")
+WORLD = ("Around the world", "حول العالم")
+NONE = ("", "")
+
+
+def stories_for(company_name: str) -> dict:
+    """The Brand, Experiences, Services, Leadership and The Community of the luxury brand."""
+    c = company_name
+    return {
+        "brand": {
+            "kicker_en": "The Brand", "kicker_ar": "البراند",
+            "title_en": "Luxury is freedom, discretion and every detail considered.",
+            "title_ar": "الفخامة حرية وخصوصية، وكل تفصيل محسوب.",
+            "intro_en": f"{c} turns a trip into an experience. We plan journeys, private concierge services and "
+                        "lifestyle management for individuals and families who value comfort, privacy and meaning.",
+            "intro_ar": f"{c} تحوّل الرحلة إلى تجربة. نخطط الرحلات وخدمات الكونسيرج الخاصة وإدارة نمط الحياة "
+                        "للأفراد والعائلات الذين يقدّرون الراحة والخصوصية والتجارب ذات المعنى.",
+            "items": [
+                _item(NONE, ("Mission", "الرسالة"), (
+                    "To make travel feel effortless and personal: one trusted team that plans, books and looks after "
+                    "every part of the journey, before, during and after it.",
+                    "أن يكون السفر سهلاً وشخصياً: فريق واحد تثق به يخطط ويحجز ويهتم بكل جزء من الرحلة، قبلها وأثناءها وبعدها.")),
+                _item(NONE, ("Philosophy", "الفلسفة"), (
+                    "True luxury is not defined by excess. It is the freedom to travel your way, the discretion to "
+                    "enjoy it privately, and the privilege of having everything considered.",
+                    "الفخامة الحقيقية لا تُقاس بالمبالغة. هي حرية أن تسافر على طريقتك، وخصوصية تستمتع بها بهدوء، "
+                    "وامتياز أن يكون كل شيء محسوباً لك.")),
+                _item(NONE, ("Brand strategy", "استراتيجية البراند"), (
+                    "Few clients, deep care. We build long relationships, a trusted network of partners across the "
+                    "world of hospitality, and experiences designed around the person, never off a shelf.",
+                    "عدد أقل من العملاء واهتمام أعمق. نبني علاقات طويلة، وشبكة شركاء موثوقة في عالم الضيافة، "
+                    "وتجارب مصممة حول الشخص، لا تجارب جاهزة على الرف.")),
+            ],
+        },
+        "experiences": {
+            "kicker_en": "Experiences", "kicker_ar": "التجارب",
+            "title_en": "Extraordinary experiences, in Oman and around the world.",
+            "title_ar": "تجارب استثنائية، داخل عُمان وحول العالم.",
+            "intro_en": "Each experience is planned privately around you. Tell us what moves you, and we take care of the rest.",
+            "intro_ar": "كل تجربة نخطط لها بشكل خاص حولك. قل لنا ما يلهمك، ونحن نهتم بالباقي.",
+            "items": [
+                _item(OMAN, ("Mountain hiking", "الهايكنج في الجبال"), (
+                    "Guided treks in Jebel Akhdar, Jebel Shams and the wadis, with private guides, mountain lodges and camps under the stars.",
+                    "رحلات مشي مع مرشدين في الجبل الأخضر وجبل شمس والأودية، مع مرشد خاص ونُزل جبلية وتخييم تحت النجوم.")),
+                _item(OMAN, ("Motorbike journeys", "رحلات الدراجات النارية"), (
+                    "Coastal and mountain routes across Oman on premium motorbikes, with a support car, a route captain and handpicked stays.",
+                    "طرق ساحلية وجبلية عبر عُمان على دراجات نارية فاخرة، مع سيارة مرافقة وقائد للمسار وإقامات مختارة بعناية.")),
+                _item(OMAN, ("Exploration expeditions", "الرحلات الاستكشافية"), (
+                    "The Empty Quarter, Wahiba Sands, Musandam fjords and hidden caves, by 4x4, dhow or on foot, with expert guides.",
+                    "الربع الخالي، رمال الشرقية، خلجان مسندم والكهوف المخفية، بسيارات الدفع الرباعي أو الداو أو مشياً، مع مرشدين خبراء.")),
+                _item(WORLD, ("Extraordinary honeymoons", "شهر عسل استثنائي"), (
+                    "Private island villas, surprise moments and every detail arranged quietly, from the first night to the last.",
+                    "فلل في جزر خاصة، ولحظات مفاجئة، وكل تفصيل مرتب بهدوء، من أول ليلة إلى آخر ليلة.")),
+                _item(WORLD, ("Formula 1 around the world", "تجارب الفورمولا 1 حول العالم"), (
+                    "Grand Prix weekends with paddock and hospitality passes, hotels near the circuit and private transfers.",
+                    "عطلات سباقات الجائزة الكبرى مع تذاكر الضيافة والبادوك، وفنادق قريبة من الحلبة، وتنقلات خاصة.")),
+                _item(WORLD, ("Polar sailing", "الإبحار في القطب المتجمد"), (
+                    "Expedition cruises to the Arctic and Antarctica: glaciers, wildlife and nights under the northern lights.",
+                    "رحلات بحرية استكشافية إلى القطب الشمالي والجنوبي: أنهار جليدية، حياة برية، وليالٍ تحت الشفق القطبي.")),
+                _item(WORLD, ("African safari", "سفاري في أفريقيا"), (
+                    "Private lodges in Kenya, Tanzania and South Africa, the Great Migration and game drives with expert rangers.",
+                    "نُزل خاصة في كينيا وتنزانيا وجنوب أفريقيا، والهجرة الكبرى، ورحلات سفاري مع حراس خبراء.")),
+                _item(WORLD, ("Women's journeys", "السفرات النسائية"), (
+                    "Trips designed for women and groups of friends: trusted female hosts, wellness, shopping and culture, with full privacy.",
+                    "رحلات مصممة للنساء ومجموعات الصديقات: مضيفات موثوقات، عافية، تسوّق وثقافة، مع خصوصية كاملة.")),
+            ],
+        },
+        "services": {
+            "kicker_en": "Services", "kicker_ar": "الخدمات",
+            "title_en": "Everything you need as a traveller, in one place.",
+            "title_ar": "كل ما تحتاجه كمسافر، في مكان واحد.",
+            "intro_en": "One request is enough. Our team arranges every part of your trip and stays with you until you are home.",
+            "intro_ar": "يكفي طلب واحد. فريقنا يرتب كل جزء من رحلتك ويبقى معك حتى تعود إلى بيتك.",
+            "items": [
+                _item(NONE, ("Flight tickets", "تذاكر الطيران"), (
+                    "Business, first class or a private jet, with the best routes and seats.",
+                    "درجة الأعمال أو الأولى أو طائرة خاصة، مع أفضل المسارات والمقاعد.")),
+                _item(NONE, ("Transport", "المواصلات"), (
+                    "Private chauffeurs, luxury cars, airport meet & assist and fast track.",
+                    "سائق خاص، سيارات فاخرة، استقبال VIP في المطار ومسار سريع.")),
+                _item(NONE, ("Hotel stays", "الإقامة الفندقية"), (
+                    "Hand-picked hotels and resorts, with upgrades and privileges for our guests.",
+                    "فنادق ومنتجعات مختارة بعناية، مع ترقيات ومزايا خاصة لضيوفنا.")),
+                _item(NONE, ("Private stays", "الإقامة غير الفندقية"), (
+                    "Villas, chalets, lodges, camps and yachts, when you want a place of your own.",
+                    "فلل وشاليهات ونُزل ومخيمات ويخوت، عندما تريد مكاناً خاصاً بك.")),
+                _item(NONE, ("Visas and documents", "التأشيرات والوثائق"), (
+                    "We prepare and follow every visa application for you and your family.",
+                    "نجهّز ونتابع كل طلب تأشيرة لك ولعائلتك.")),
+                _item(NONE, ("Concierge and lifestyle", "الكونسيرج ونمط الحياة"), (
+                    "Restaurant tables, event and match tickets, spa, gifts and personal shopping, all year.",
+                    "حجوزات المطاعم، تذاكر الفعاليات والمباريات، السبا، الهدايا والتسوق الشخصي، طوال السنة.")),
+                _item(NONE, ("Travel insurance", "تأمين السفر"), (
+                    "Full cover for every trip, arranged with the booking.",
+                    "تغطية كاملة لكل رحلة، نرتبها مع الحجز.")),
+            ],
+        },
+        "leadership": {
+            "kicker_en": "Leadership", "kicker_ar": "القيادة",
+            "title_en": "From an ordinary trip to an extraordinary experience.",
+            "title_ar": "من رحلة عادية إلى تجربة استثنائية.",
+            "intro_en": "The idea began with a simple question: why does travel so often feel like a list of bookings? "
+                        f"{c} was built to answer it, by planning every journey around the person, looking after the "
+                        "details nobody sees, and staying close from the first message to the last day of the trip.",
+            "intro_ar": "بدأت الفكرة بسؤال بسيط: لماذا يبدو السفر غالباً مجرد قائمة حجوزات؟ "
+                        f"بُنيت {c} لتجيب عنه: بتخطيط كل رحلة حول الشخص، والاهتمام بالتفاصيل التي لا يراها أحد، "
+                        "والبقاء قريباً من أول رسالة حتى آخر يوم في الرحلة.",
+            "items": [
+                _item(NONE, ("KHAMIS ALSUBHI", "خميس الصبحي"), (
+                    "With over a decade of experience in travel and hospitality, Khamis Alsubhi's approach to luxury "
+                    "travel is shaped by personal experience, a passion for discovery, and an appreciation for the finer "
+                    "details of every journey.\n\n"
+                    f"Through {c}, he brings this perspective to a modern approach to luxury travel, private concierge "
+                    "services, and lifestyle management, designed for individuals and families who value comfort, "
+                    "privacy, and meaningful experiences.\n\n"
+                    "His vision is to make travel feel effortless and personal, where every detail is thoughtfully "
+                    "considered and every experience reflects the individual.\n\n"
+                    "Driven by a desire to share his own travel philosophy and build meaningful connections across the "
+                    f"world of luxury hospitality, Khamis established {c} as an expression of a more refined way to travel.\n\n"
+                    "For him, true luxury is not defined by excess, but by freedom, discretion, and the privilege of "
+                    "having everything considered.",
+                    "بخبرة تزيد على عشر سنوات في السفر والضيافة، تشكّلت رؤية خميس الصبحي للسفر الفاخر من تجربته "
+                    "الشخصية وشغفه بالاكتشاف وتقديره للتفاصيل الدقيقة في كل رحلة.\n\n"
+                    f"ومن خلال {c}، يقدّم هذه الرؤية بأسلوب عصري للسفر الفاخر وخدمات الكونسيرج الخاصة وإدارة نمط "
+                    "الحياة، مصمم للأفراد والعائلات الذين يقدّرون الراحة والخصوصية والتجارب ذات المعنى.\n\n"
+                    "رؤيته أن يكون السفر سهلاً وشخصياً، حيث يُدرس كل تفصيل بعناية وتعكس كل تجربة صاحبها.\n\n"
+                    "وبدافع الرغبة في مشاركة فلسفته الخاصة في السفر وبناء علاقات حقيقية في عالم الضيافة الفاخرة، "
+                    f"أسّس خميس {c} تعبيراً عن طريقة أرقى للسفر.\n\n"
+                    "فالفخامة الحقيقية عنده لا تُقاس بالمبالغة، بل بالحرية والخصوصية وامتياز أن يكون كل شيء محسوباً."),
+                    ("Founder & Managing Director", "المؤسس والعضو المنتدب")),
+            ],
+        },
+        "community": {
+            "kicker_en": "The Community", "kicker_ar": "المجتمع",
+            "title_en": "A private circle of travellers.",
+            "title_ar": "دائرة خاصة من المسافرين.",
+            "intro_en": "Members enjoy a personal concierge, early access to new experiences and privileges with our "
+                        "partners around the world. Every member level is granted personally by our team.",
+            "intro_ar": "يحظى الأعضاء بكونسيرج شخصي، ووصول مبكر إلى التجارب الجديدة، ومزايا لدى شركائنا حول العالم. "
+                        "كل مستوى عضوية يمنحه فريقنا بشكل شخصي.",
+            "items": [
+                _item(NONE, ("Explorer", "مستكشف"), (
+                    "Priority replies, member-only offers and a welcome gift on your first journey.",
+                    "أولوية في الرد، عروض خاصة بالأعضاء، وهدية ترحيبية في رحلتك الأولى."), ("First level", "المستوى الأول")),
+                _item(NONE, ("Voyager", "رحّالة"), (
+                    "Room upgrades when available, early access to new experiences and free date changes.",
+                    "ترقية الغرف عند توفرها، ووصول مبكر إلى التجارب الجديدة، وتغيير مجاني للمواعيد."), ("Second level", "المستوى الثاني")),
+                _item(NONE, ("Elite", "نخبة"), (
+                    "A personal concierge all year, airport meet & assist on every trip and partner privileges.",
+                    "كونسيرج شخصي طوال السنة، استقبال VIP في المطار في كل رحلة، ومزايا لدى الشركاء."), ("Third level", "المستوى الثالث")),
+                _item(("By invitation", "بدعوة فقط"), ("VIP", "VIP"), (
+                    "Our most private circle: a dedicated team, special requests at any hour and experiences created for you alone.",
+                    "دائرتنا الأكثر خصوصية: فريق مخصص لك، وطلبات خاصة في أي وقت، وتجارب تُصنع لك وحدك."), ("Chosen by our team", "يختاره فريقنا")),
+            ],
+        },
+    }
+
+
 def branding_for(company_name: str) -> dict:
     return Branding.model_validate({
         # Deep olive and cream, a quiet luxury look.
@@ -103,6 +266,9 @@ def branding_for(company_name: str) -> dict:
         "about_title_ar": f"عن {company_name}"[:120],
         "about_en": ABOUT_EN.format(company=company_name),
         "about_ar": ABOUT_AR.format(company=company_name),
+        "sections": ["search", "brand", "experiences", "featured", "offers", "services", "leadership",
+                     "community", "how", "contact"],
+        "stories": stories_for(company_name),
         "card_style": "square",
         "cards": {"style": "poster", "columns": 3, "show_price": True, "show_duration": True,
                   "show_next_date": True, "show_seats": False, "per_person": True},

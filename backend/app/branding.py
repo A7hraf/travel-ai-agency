@@ -20,11 +20,17 @@ from .models import Company
 HEX = r"^#[0-9a-fA-F]{6}$"
 VERSION = 2
 SECTIONS = ("search", "featured", "offers", "how", "about", "contact")
+# Story sections (The Brand, Experiences, Services, Leadership, The Community): off by default, each with its
+# own title, intro and cards, written in both languages.
+STORY_SECTIONS = ("brand", "experiences", "services", "leadership", "community")
 DASHBOARD_FIELDS = {"dashboard_color", "dashboard_sidebar"}
 IMAGE_FIELDS = ("logo", "hero_image", "about_image", "about_bg_image", "how_bg_image")
 LANGS = ("en", "ar")
 
-Section = Literal["search", "featured", "offers", "how", "about", "contact"]
+Section = Literal["search", "featured", "offers", "how", "about", "contact",
+                  "brand", "experiences", "services", "leadership", "community"]
+StoryKey = Literal["brand", "experiences", "services", "leadership", "community"]
+MAX_STORY_ITEMS = 12
 
 # Customer-page texts that can be replaced, with their maximum length. The keys are the string
 # entries of STOREFRONT_TEXT in frontend/src/i18n.ts; texts built from a template may use {agent}
@@ -175,6 +181,89 @@ def _migrate(data: Any) -> Any:
     return data
 
 
+class StoryItem(BaseModel):
+    """One card of a story section: a pillar of the brand, an experience, a service, a leader or a member perk.
+    `tag` groups cards (for example "Inside Oman" / "Around the world"); `subtitle` is a role or a short line."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    tag_en: str = Field(default="", max_length=40)
+    tag_ar: str = Field(default="", max_length=40)
+    title_en: str = Field(default="", max_length=120)
+    title_ar: str = Field(default="", max_length=120)
+    subtitle_en: str = Field(default="", max_length=120)
+    subtitle_ar: str = Field(default="", max_length=120)
+    text_en: str = Field(default="", max_length=1500)
+    text_ar: str = Field(default="", max_length=1500)
+    image: str | None = Field(default=None, max_length=500)
+
+    @field_validator("tag_en", "tag_ar", "title_en", "title_ar", "subtitle_en", "subtitle_ar")
+    @classmethod
+    def one_line(cls, v: str) -> str:
+        return clean_text(v, multiline=False)
+
+    @field_validator("text_en", "text_ar")
+    @classmethod
+    def paragraph(cls, v: str) -> str:
+        return clean_text(v, multiline=True)
+
+    @field_validator("image")
+    @classmethod
+    def check_image(cls, v: str | None) -> str | None:
+        return _image_ref(v)
+
+
+class StorySection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kicker_en: str = Field(default="", max_length=80)
+    kicker_ar: str = Field(default="", max_length=80)
+    title_en: str = Field(default="", max_length=120)
+    title_ar: str = Field(default="", max_length=120)
+    intro_en: str = Field(default="", max_length=1500)
+    intro_ar: str = Field(default="", max_length=1500)
+    image: str | None = Field(default=None, max_length=500)
+    items: list[StoryItem] = Field(default_factory=list, max_length=MAX_STORY_ITEMS)
+
+    @field_validator("kicker_en", "kicker_ar", "title_en", "title_ar")
+    @classmethod
+    def one_line(cls, v: str) -> str:
+        return clean_text(v, multiline=False)
+
+    @field_validator("intro_en", "intro_ar")
+    @classmethod
+    def paragraph(cls, v: str) -> str:
+        return clean_text(v, multiline=True)
+
+    @field_validator("image")
+    @classmethod
+    def check_image(cls, v: str | None) -> str | None:
+        return _image_ref(v)
+
+    def image_urls(self) -> list[str]:
+        return [u for u in (self.image, *(i.image for i in self.items)) if u]
+
+
+Stories = dict[StoryKey, StorySection]
+
+
+def story_image_urls(stories: Any) -> list[str]:
+    """Photo addresses used by saved or sent story sections (raw JSON or models)."""
+    out: list[str] = []
+    if not isinstance(stories, dict):
+        return out
+    for section in stories.values():
+        if isinstance(section, StorySection):
+            out += section.image_urls()
+        elif isinstance(section, dict):
+            if isinstance(section.get("image"), str):
+                out.append(section["image"])
+            for item in section.get("items") or []:
+                if isinstance(item, dict) and isinstance(item.get("image"), str):
+                    out.append(item["image"])
+    return out
+
+
 class Branding(BaseModel):
     # Defaults follow the Ghanjah brand: Gulf Cyan for actions, Ink for the sidebar.
     version: int = VERSION
@@ -210,6 +299,8 @@ class Branding(BaseModel):
     cards: CardDesign = Field(default_factory=CardDesign)
     # Texts replacing the standard ones, per language
     texts: Texts = Field(default_factory=lambda: {lang: {} for lang in LANGS})
+    # The Brand, Experiences, Services, Leadership, The Community
+    stories: Stories = Field(default_factory=dict)
     # Employee dashboard (platform owner only)
     dashboard_color: str = Field(default="#0088b0", pattern=HEX)
     dashboard_sidebar: str = Field(default="#0f0e0d", pattern=HEX)
@@ -289,6 +380,7 @@ class BrandingUpdate(BaseModel):
     layout: Literal["grid", "list"] | None = None
     cards: dict[str, Any] | None = None
     texts: dict[str, dict[str, Any] | None] | None = None
+    stories: Stories | None = None
     dashboard_color: str | None = Field(default=None, pattern=HEX)
     dashboard_sidebar: str | None = Field(default=None, pattern=HEX)
 
@@ -299,7 +391,7 @@ class BrandingUpdate(BaseModel):
 
     def image_urls(self) -> list[str]:
         """Every photo address sent, to check that it belongs to the company."""
-        return [url for url in (getattr(self, f) for f in IMAGE_FIELDS) if url]
+        return [url for url in (getattr(self, f) for f in IMAGE_FIELDS) if url] + story_image_urls(self.stories)
 
 
 class PublicBranding(BaseModel):
@@ -331,6 +423,7 @@ class PublicBranding(BaseModel):
     layout: str
     cards: CardDesign
     texts: Texts
+    stories: Stories
 
 
 class DashboardBranding(BaseModel):
@@ -375,6 +468,8 @@ def apply_update(company: Company, update: BrandingUpdate, allow_dashboard: bool
             merged["elements"]["powered_by"] = current.elements.powered_by
     if "cards" in data:
         merged["cards"] = current.cards.model_dump() | (data["cards"] or {})
+    if "stories" in data:  # each section sent replaces the saved one; sections not sent are kept
+        merged["stories"] = current.model_dump()["stories"] | (data["stories"] or {})
     if "texts" in data:
         merged["texts"] = current.texts | {lang: entries or {} for lang, entries in (data["texts"] or {}).items()}
     if "layout" in data and "cards" not in data:  # older clients switch the layout only
@@ -397,7 +492,8 @@ def public_branding(company: Company) -> PublicBranding:
 def branding_image_urls(branding: dict | None) -> set[str]:
     """Photos a saved design uses (so unused-photo clean-up keeps them)."""
     branding = branding or {}
-    return {branding[f] for f in IMAGE_FIELDS if isinstance(branding.get(f), str)}
+    return ({branding[f] for f in IMAGE_FIELDS if isinstance(branding.get(f), str)}
+            | set(story_image_urls(branding.get("stories"))))
 
 
 def welcome_override(company: Company, lang: str) -> str | None:

@@ -14,7 +14,8 @@ export interface CompanyBrief {
   branding?: DashboardBranding | null;
 }
 
-export type Section = "search" | "featured" | "offers" | "how" | "about" | "contact";
+export type Section = "search" | "featured" | "offers" | "how" | "about" | "contact"
+  | "brand" | "experiences" | "services" | "leadership" | "community";
 
 /** Smaller parts of the customer page that can be hidden ("powered_by": platform owner only). */
 export interface PageElements {
@@ -52,6 +53,25 @@ export interface CardDesign {
 /** Customer-page texts replacing the standard ones: {en: {key: text}, ar: {key: text}}. */
 export type PageTexts = Record<"en" | "ar", Record<string, string>>;
 
+export type StoryKey = "brand" | "experiences" | "services" | "leadership" | "community";
+
+/** One card of a story section: a brand pillar, an experience, a service, a leader or a member perk. */
+export interface StoryItem {
+  tag_en: string; tag_ar: string;
+  title_en: string; title_ar: string;
+  subtitle_en: string; subtitle_ar: string;
+  text_en: string; text_ar: string;
+  image: string | null;
+}
+
+export interface StorySection {
+  kicker_en: string; kicker_ar: string;
+  title_en: string; title_ar: string;
+  intro_en: string; intro_ar: string;
+  image: string | null;
+  items: StoryItem[];
+}
+
 export interface PublicBranding {
   primary_color: string;
   accent_color: string;
@@ -79,6 +99,7 @@ export interface PublicBranding {
   layout: "grid" | "list";
   cards: CardDesign;
   texts: PageTexts;
+  stories: Partial<Record<StoryKey, StorySection>>;
 }
 
 export interface Branding extends PublicBranding {

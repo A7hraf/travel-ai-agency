@@ -6,6 +6,8 @@ import { ChatHeader, ChatView } from "./ChatView";
 import type { StoreCtx } from "./context";
 import { PhonePackage } from "./PackageDetails";
 import { AboutBlock, AgencyMark, CategoryChips, HowSteps, PoweredBy, TripsEmpty } from "./Sections";
+import { STORY_KEYS, StoryBlock } from "./Stories";
+import type { StoryKey } from "../../types";
 import { FeaturedPoster, OfferRow, PhotoCard } from "./TripCards";
 
 /** Open screens, most recent last: Escape closes only the top one. */
@@ -112,6 +114,7 @@ export function PhoneLayout({ ctx, pkg, pkgOnTop, closePackage, chatOpen, closeC
       );
     }
     if (b === "how") return <HowSteps key="how" ctx={ctx} />;
+    if ((STORY_KEYS as string[]).includes(b)) return <StoryBlock key={b} ctx={ctx} k={b as StoryKey} />;
     return <AboutBlock key="about" ctx={ctx} />;
   });
 

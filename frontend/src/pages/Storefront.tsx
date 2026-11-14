@@ -8,6 +8,7 @@ import { Binoculars, SunHorizon } from "../components/Icon";
 import { Modal } from "../components/ui";
 import type { Block, StoreCtx } from "../components/storefront/context";
 import { PhoneLayout } from "../components/storefront/PhoneLayout";
+import { STORY_KEYS, storyHasContent } from "../components/storefront/Stories";
 import { matchesBudget, matchesCategory, matchesQuery, usefulCategories, waLink } from "../components/storefront/shared";
 import { DEFAULT_CARDS, DEFAULT_ELEMENTS, pageVars } from "../components/storefront/style";
 import { applyTexts } from "../components/storefront/texts";
@@ -15,7 +16,7 @@ import { useChat } from "../components/storefront/useChat";
 import { WebLayout } from "../components/storefront/WebLayout";
 import { STOREFRONT_TEXT, useLang } from "../i18n";
 import type { Lang } from "../components/Money";
-import type { PublicCompany, TravelPackage } from "../types";
+import type { PublicCompany, StoryKey, TravelPackage } from "../types";
 
 const DESKTOP = "(min-width: 901px)";
 
@@ -144,9 +145,10 @@ export function StorefrontPage({ slug, company, packages, lang, setLang, layout,
     for (const s of b.sections) {
       if ((s === "featured" || s === "offers" || s === "how") && !out.includes(s)) out.push(s);
       else if ((s === "about" || s === "contact") && !out.includes("about")) out.push("about");
+      else if ((STORY_KEYS as string[]).includes(s) && storyHasContent(b.stories?.[s as StoryKey]) && !out.includes(s as Block)) out.push(s as Block);
     }
     return out;
-  }, [b.sections]);
+  }, [b.sections, b.stories]);
 
   const aboutText = pick(lang, b.about_en, b.about_ar);
   const about = b.sections.includes("about") && (aboutText || b.about_image)
@@ -174,6 +176,11 @@ export function StorefrontPage({ slug, company, packages, lang, setLang, layout,
     chat.send(t.interested(p.title, p.duration_days));
   }, [chat, t]);
 
+  const ask = useCallback((message: string) => {
+    setChatOpen(true);
+    chat.send(message);
+  }, [chat]);
+
   const askNew = useCallback(() => {
     if (chat.hasCustomer) setConfirmNew(true);
     else chat.restart();
@@ -188,7 +195,7 @@ export function StorefrontPage({ slug, company, packages, lang, setLang, layout,
     featured: packages.filter((p) => p.is_featured), filtering, clearFilters,
     blocks, heroTitle, heroText, about, showContact: b.sections.includes("contact"),
     showSearch: b.sections.includes("search"), el, cards,
-    openPackage, book, openChat, askNew,
+    openPackage, book, openChat, ask, askNew,
   };
 
   const style = pageVars(b) as CSSProperties;

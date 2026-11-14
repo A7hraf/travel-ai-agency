@@ -7,6 +7,8 @@ import { ChatAvatar, ChatHeader, ChatTitle, ChatView } from "./ChatView";
 import type { StoreCtx } from "./context";
 import { WebPackage } from "./PackageDetails";
 import { AboutBlock, AgencyMark, CategoryChips, HowSteps, PoweredBy, TripsEmpty } from "./Sections";
+import { STORY_KEYS, StoryBlock, storyNavLabel } from "./Stories";
+import type { StoryKey } from "../../types";
 import { telLink } from "./shared";
 import { PhotoCard, WebPoster, WebRow } from "./TripCards";
 
@@ -61,6 +63,8 @@ export function WebLayout({ ctx, pkg, closePackage, widgetOpen, closeWidget, her
   const custom = ctx.heroTitle;
   const hasTrips = ctx.blocks.includes("featured") || ctx.blocks.includes("offers");
   const hasAbout = ctx.blocks.includes("about") && (!!ctx.about || ctx.showContact);
+  // With the brand sections the menu gets its own row under the name.
+  const manyLinks = ctx.blocks.some((x) => (STORY_KEYS as string[]).includes(x));
   const gridClass = `sf-wgrid sf-cols-${cards.columns} ${cards.style === "compact" ? "sf-list" : ""} ${cards.style === "photo" ? "sf-photo-grid" : ""} ${b.card_style === "square" ? "sf-square" : ""}`;
 
   const trips = (title: string, list: TravelPackage[]) => (
@@ -95,6 +99,7 @@ export function WebLayout({ ctx, pkg, closePackage, widgetOpen, closeWidget, her
         : trips(t.tripsOnSale, ctx.shown);
     }
     if (blk === "how") return <HowSteps key="how" ctx={ctx} />;
+    if ((STORY_KEYS as string[]).includes(blk)) return <StoryBlock key={blk} ctx={ctx} k={blk as StoryKey} />;
     return <AboutBlock key="about" ctx={ctx} />;
   });
 
@@ -102,13 +107,19 @@ export function WebLayout({ ctx, pkg, closePackage, widgetOpen, closeWidget, her
     <div className="sf-web">
       <div className={`sf-wtop ${heroBg ? "sf-has-photo" : ""}`} style={heroBg ? { backgroundImage: heroBg } : undefined}>
         <div className="sf-wtop-glow" aria-hidden="true" />
-        <nav className="sf-wnav" aria-label={company.name}>
+        <nav className={`sf-wnav ${manyLinks ? "sf-wnav-many" : ""}`} aria-label={company.name}>
           <a className="sf-wbrand" href="#top" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
             <AgencyMark ctx={ctx} size={42} /><span>{company.name}</span>
           </a>
-          {el.nav_links && hasTrips && <a className="sf-wlink" href="#trips">{t.navTrips}</a>}
-          {el.nav_links && ctx.blocks.includes("how") && <a className="sf-wlink" href="#how">{t.navHow}</a>}
-          {el.nav_links && hasAbout && <a className="sf-wlink" href="#about">{t.navAbout}</a>}
+          {el.nav_links && <div className="sf-wlinks">{ctx.blocks.map((x) => {
+            // Menu links in page order; the two trip blocks share one link.
+            if ((STORY_KEYS as string[]).includes(x)) return <a key={x} className="sf-wlink" href={`#${x}`} dir="auto">{storyNavLabel(ctx, x as StoryKey)}</a>;
+            if ((x === "featured" || x === "offers") && hasTrips && ctx.blocks.find((y) => y === "featured" || y === "offers") === x)
+              return <a key="trips" className="sf-wlink" href="#trips">{t.navTrips}</a>;
+            if (x === "how") return <a key="how" className="sf-wlink" href="#how">{t.navHow}</a>;
+            if (x === "about" && hasAbout) return <a key="about" className="sf-wlink" href="#about">{t.navAbout}</a>;
+            return null;
+          })}</div>}
           {el.nav_phone && company.contact_phone && <a className="sf-wphone" href={telLink(company.contact_phone)}><bdi dir="ltr">{company.contact_phone}</bdi></a>}
           {el.lang_switch && <button type="button" className="sf-lang" onClick={ctx.toggleLang} lang={lang === "ar" ? "en" : "ar"}>{t.switchTo}</button>}
           <button type="button" className="sf-cta sf-sm" onClick={ctx.openChat}><Sparkle />{t.chatWith(agent)}</button>

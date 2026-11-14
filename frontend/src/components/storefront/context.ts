@@ -1,10 +1,11 @@
 import type { Lang } from "../Money";
 import type { StorefrontText } from "../../i18n";
-import type { CardDesign, PageElements, PublicCompany, TravelPackage } from "../../types";
+import type { CardDesign, PageElements, PublicCompany, StoryKey, TravelPackage } from "../../types";
 import type { ChatEngine } from "./useChat";
 
-/** Page parts in display order: trips (featured / offers), "How booking works", about & contact. */
-export type Block = "featured" | "offers" | "how" | "about";
+/** Page parts in display order: trips (featured / offers), "How booking works", about & contact, and the
+ *  story sections (The Brand, Experiences, Services, Leadership, The Community). */
+export type Block = "featured" | "offers" | "how" | "about" | StoryKey;
 
 /** Everything the phone and desktop layouts share. */
 export interface StoreCtx {
@@ -45,5 +46,7 @@ export interface StoreCtx {
   openPackage: (p: TravelPackage) => void;
   book: (p: TravelPackage) => void;
   openChat: () => void;
+  /** Opens the chat and sends a message for the customer. */
+  ask: (message: string) => void;
   askNew: () => void;
 }

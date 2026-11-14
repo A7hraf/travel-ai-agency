@@ -8,8 +8,10 @@ import type { Branding, CardDesign, PageElements, PublicCompany, Section, Travel
 import type { Lang } from "./Money";
 import ImageUpload from "./ImageUpload";
 import { Switch } from "./admin/AdminUI";
+import StoryEditor, { STORY_LABELS } from "./StoryEditor";
+import { STORY_KEYS } from "./storefront/Stories";
 import {
-  ArrowCounterClockwise, ArrowDown, ArrowSquareOut, ArrowUp, Cards, Check, DeviceMobile, Images, MagnifyingGlass,
+  ArrowCounterClockwise, ArrowDown, BookOpenText, ArrowSquareOut, ArrowUp, Cards, Check, DeviceMobile, Images, MagnifyingGlass,
   Monitor, PaintBrush, Rows, SquaresFour, SquaresFour as Layout, TextT, UserGear, Warning, X,
 } from "./Icon";
 import { StorefrontPage } from "../pages/Storefront";
@@ -17,7 +19,9 @@ import { DEFAULT_CARDS, DEFAULT_ELEMENTS, contrastRatio, pageVars } from "./stor
 import { TEXT_GROUPS, defaultText, type TextField } from "./storefront/texts";
 import { ErrorBox, Field, Loading } from "./ui";
 
-const ALL_SECTIONS: Section[] = ["search", "featured", "offers", "how", "about", "contact"];
+const STANDARD_SECTIONS: Section[] = ["search", "featured", "offers", "how", "about", "contact"];
+/** The standard sections, then the brand sections (off until switched on). */
+const ALL_SECTIONS: Section[] = [...STANDARD_SECTIONS, ...STORY_KEYS];
 
 const SECTION_LABELS: Record<Section, string> = {
   search: "Search bar",
@@ -26,6 +30,7 @@ const SECTION_LABELS: Record<Section, string> = {
   how: "How booking works",
   about: "About us",
   contact: "Contact & WhatsApp",
+  ...STORY_LABELS,
 };
 
 /** Smaller parts of the page, in the order they appear. */
@@ -67,8 +72,8 @@ const DEFAULTS: Omit<Branding, "logo" | "dashboard_color" | "dashboard_sidebar">
   hero_title_en: "", hero_title_ar: "", hero_text_en: "", hero_text_ar: "",
   about_title_en: "", about_title_ar: "", about_en: "", about_ar: "",
   about_image: null, about_bg_image: null, how_bg_image: null,
-  sections: [...ALL_SECTIONS], elements: { ...DEFAULT_ELEMENTS }, card_style: "rounded", layout: "grid",
-  cards: { ...DEFAULT_CARDS }, texts: { en: {}, ar: {} },
+  sections: [...STANDARD_SECTIONS], elements: { ...DEFAULT_ELEMENTS }, card_style: "rounded", layout: "grid",
+  cards: { ...DEFAULT_CARDS }, texts: { en: {}, ar: {} }, stories: {},
 };
 
 /** Shown in the preview when the company has no packages yet (or its page is offline). */
@@ -82,7 +87,7 @@ const SAMPLE: TravelPackage[] = [
   sample(-3, "Salalah", "Oman", 3, 120, false), sample(-4, "Dubai", "UAE", 4, 180, false),
 ];
 
-type Tab = "theme" | "texts" | "layout" | "photos" | "cards" | "dashboard";
+type Tab = "theme" | "texts" | "stories" | "layout" | "photos" | "cards" | "dashboard";
 
 function ColorInput({ label, value, onChange, fallback, hint }: {
   label: string; value: string | null; onChange: (v: string | null) => void;
@@ -280,6 +285,7 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
   const tabs: { id: Tab; label: string; icon: ReactNode }[] = [
     { id: "theme", label: t("Theme & colours"), icon: <PaintBrush /> },
     { id: "texts", label: t("Texts"), icon: <TextT /> },
+    { id: "stories", label: t("Brand sections"), icon: <BookOpenText /> },
     { id: "layout", label: t("Sections & layout"), icon: <Layout /> },
     { id: "photos", label: t("Photos"), icon: <Images /> },
     { id: "cards", label: t("Package cards"), icon: <Cards /> },
@@ -422,6 +428,12 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
               );
             })}
           </section>
+        )}
+
+        {tab === "stories" && (
+          <StoryEditor stories={b.stories} uploadPath={uploadPath} lang={textLang} langTabs={langTabs}
+            onChange={(k, sec) => update({ stories: { ...b.stories, [k]: sec } })}
+            isOn={(k) => b.sections.includes(k)} turnOn={(k) => { if (!b.sections.includes(k)) toggle(k); }} />
         )}
 
         {tab === "layout" && (<>
@@ -613,6 +625,7 @@ function withDefaults(data: Branding): Branding {
     elements: { ...DEFAULT_ELEMENTS, ...data.elements },
     cards: { ...DEFAULT_CARDS, ...data.cards },
     texts: { en: { ...data.texts?.en }, ar: { ...data.texts?.ar } },
+    stories: { ...data.stories },
   } as Branding;
 }
 

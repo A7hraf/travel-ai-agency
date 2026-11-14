@@ -147,6 +147,13 @@ export const STOREFRONT_TEXT = {
     paused: "This page is taking a short break.",
     pausedHint: "The agency will be back soon. Please try again later.",
     loading: "Loading trips…",
+    // Story sections (The Brand, Experiences, Services, Leadership, The Community)
+    storyNav: { brand: "The Brand", experiences: "Experiences", services: "Services", leadership: "Leadership", community: "Community" },
+    storyAll: "All",
+    storyAsk: (agent: string) => `Ask ${agent}`,
+    storyAskMsg: (title: string) => `Hi! I'd like to know more about "${title}".`,
+    joinCommunity: "Ask to join",
+    joinMsg: "Hi! I'd like to join the community. How do I become a member?",
   },
   ar: {
     switchTo: "English",
@@ -270,6 +277,12 @@ export const STOREFRONT_TEXT = {
     paused: "هذه الصفحة متوقفة مؤقتاً.",
     pausedHint: "ستعود الوكالة قريباً. يُرجى المحاولة لاحقاً.",
     loading: "جارٍ تحميل الرحلات…",
+    storyNav: { brand: "البراند", experiences: "التجارب", services: "الخدمات", leadership: "القيادة", community: "المجتمع" },
+    storyAll: "الكل",
+    storyAsk: (agent: string) => `اسأل ${agent}`,
+    storyAskMsg: (title: string) => `مرحباً! أبغى أعرف أكثر عن "${title}".`,
+    joinCommunity: "اطلب الانضمام",
+    joinMsg: "مرحباً! أبغى أنضم للمجتمع. كيف أصير عضو؟",
   },
 };
 
