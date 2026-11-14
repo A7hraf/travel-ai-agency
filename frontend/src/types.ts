@@ -642,3 +642,84 @@ export interface ErrorEventRow {
   release: string | null;
   count: number;
 }
+
+// --- Business trip requests (B2B) ---
+export type TripStatus = "new" | "with_vendor" | "options_ready" | "with_client" | "chosen" | "approved" | "booked"
+  | "completed" | "cancelled";
+export type TripPart = "flight" | "hotel" | "transport" | "activity" | "food";
+
+export interface TripMessage { id: number; thread: "client" | "vendor"; author_kind: string; author_name: string | null; text: string; created_at: string }
+export interface TripStep { action: string; created_at: string }
+
+interface TripCommon {
+  id: number;
+  reference: string;
+  status: TripStatus;
+  purpose: string | null;
+  origin: string | null;
+  destination: string;
+  depart_date: string | null;
+  return_date: string | null;
+  travellers: number;
+  needs: TripPart[];
+  created_at: string;
+  updated_at: string;
+  currency: string;
+}
+
+/** Money comes from the server as text ("480.000"). */
+export type Amount = string | number | null;
+
+export interface StaffTripOption {
+  id: number; category: TripPart; title: string; provider: string | null; details: string | null;
+  cost_price: Amount; price: Amount; added_by: "vendor" | "staff"; sent_to_client: boolean; chosen: boolean;
+}
+
+export interface StaffTrip extends TripCommon {
+  source: string;
+  client_id: number;
+  client_name: string;
+  vendor_id: number | null;
+  vendor_name: string | null;
+  vendor_accepted: boolean | null;
+  traveller_names: string | null;
+  budget: string | null;
+  notes: string | null;
+  vendor_brief: string | null;
+  markup_percent: Amount;
+  booking_reference: string | null;
+  booking_notes: string | null;
+  total_price: Amount;
+  total_cost: Amount;
+  options: StaffTripOption[];
+  events: (TripStep & { actor_kind: string; actor_name: string | null; detail: string | null })[];
+  messages: TripMessage[];
+}
+
+export interface StaffTripRow {
+  id: number; reference: string; status: TripStatus; source: string; client_name: string; vendor_name: string | null;
+  destination: string; depart_date: string | null; travellers: number; updated_at: string;
+}
+
+export interface ClientTrip extends TripCommon {
+  traveller_names: string | null;
+  budget: string | null;
+  notes: string | null;
+  booking_reference: string | null;
+  total_price: Amount;
+  options: { id: number; category: TripPart; title: string; provider: string | null; details: string | null; price: Amount; chosen: boolean }[];
+  steps: TripStep[];
+  messages: TripMessage[];
+}
+
+export interface VendorTrip extends TripCommon {
+  brief: string | null;
+  traveller_names: string | null;
+  accepted: boolean | null;
+  booking_reference: string | null;
+  booking_notes: string | null;
+  total_cost: Amount;
+  options: { id: number; category: TripPart; title: string; provider: string | null; details: string | null; cost_price: Amount; chosen: boolean }[];
+  steps: TripStep[];
+  messages: TripMessage[];
+}

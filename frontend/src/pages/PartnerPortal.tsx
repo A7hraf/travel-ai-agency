@@ -6,6 +6,8 @@ import {
 } from "../components/Icon";
 import type { IconProps } from "../components/Icon";
 import { ErrorBox, Loading } from "../components/ui";
+import ClientRequests from "../components/b2b/ClientRequests";
+import VendorJobs from "../components/b2b/VendorJobs";
 import { useI18n } from "../lang";
 import { dashboardVars } from "../theme";
 import { useTheme } from "../themeMode";
@@ -24,12 +26,19 @@ export default function PartnerPortal() {
   const { theme } = useTheme();
   const [home, setHome] = useState<PartnerHome | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<"home" | "work">("home");
   const load = () => get<PartnerHome>("/api/partner/home").then((h) => { setHome(h); setError(null); }).catch((e) => setError((e as Error).message));
   useEffect(() => { load(); }, []);
 
   const b = user?.company?.branding;
   const style = dashboardVars(b?.dashboard_color, b?.dashboard_sidebar, theme) as CSSProperties;
   const kindLabel = home?.kind === "vendor" ? t("Vendor") : t("Business client");
+  const has = (f: string) => !!home?.features.includes(f);
+  // The work tab: a client's trip requests, or the jobs a vendor received.
+  const work = home?.kind === "vendor"
+    ? (has("vendor.requests") ? t("Requests for you") : null)
+    : (has("client.requests") || has("client.history") ? t("Trip requests") : null);
+  const LIVE = new Set(["client.requests", "client.history", "vendor.requests", "vendor.quotes", "vendor.history", "client.whatsapp"]);
 
   return (
     <div className="gx-portal" style={style} dir={lang === "ar" ? "rtl" : "ltr"}>
@@ -46,7 +55,15 @@ export default function PartnerPortal() {
       </header>
 
       <main className="gx-portal-main">
-        {!home ? (error ? <ErrorBox error={error} onRetry={load} /> : <Loading height={260} />) : (<>
+        {home && work && (
+          <div className="seg gx-portal-tabs" role="tablist" aria-label={home.partner_name}>
+            <button type="button" role="tab" aria-selected={tab === "home"} className={tab === "home" ? "active" : ""} onClick={() => setTab("home")}>{t("Home")}</button>
+            <button type="button" role="tab" aria-selected={tab === "work"} className={tab === "work" ? "active" : ""} onClick={() => setTab("work")}>{work}</button>
+          </div>
+        )}
+        {home && work && tab === "work" ? (
+          home.kind === "vendor" ? <VendorJobs canQuote={has("vendor.quotes")} /> : <ClientRequests canWrite={has("client.requests")} />
+        ) : !home ? (error ? <ErrorBox error={error} onRetry={load} /> : <Loading height={260} />) : (<>
           <div className="gx-portal-hello">
             <div className="gx-kicker">{kindLabel}</div>
             <h1 dir="auto">{home.partner_name}</h1>
@@ -64,7 +81,10 @@ export default function PartnerPortal() {
                   <div key={f} className="gx-card gx-portal-card">
                     <Icon className="gx-portal-icon" />
                     <div className="gx-portal-card-title">{t(home.catalog[f] ?? f)}</div>
-                    <span className="gx-status plain">{t("Opening soon")}</span>
+                    {LIVE.has(f)
+                      ? (work && f !== "client.whatsapp" ? <button type="button" className="btn btn-sm btn-soft" onClick={() => setTab("work")}>{t("Open")}</button>
+                        : <span className="gx-status on">{t("Active")}</span>)
+                      : <span className="gx-status plain">{t("Opening soon")}</span>}
                   </div>
                 );
               })}

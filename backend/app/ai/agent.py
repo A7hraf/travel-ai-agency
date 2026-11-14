@@ -14,6 +14,7 @@ from ..models import Company, Conversation, Message, MessageKind, Sender
 from ..timeutil import local_today
 from .llm import LLMClient, LLMError, get_llm_client, looks_like_tool_call
 from .prompts import FALLBACK_REPLY, build_system_prompt
+from .b2b_tools import B2B_TOOL_DEFINITIONS, b2b_prompt
 from .tools import TOOL_DEFINITIONS, ToolContext, run_tool
 from .training import relevant_examples
 
@@ -135,6 +136,11 @@ def run_agent(db: Session, conversation: Conversation, llm: LLMClient | None = N
     customer_text, previous_text = _latest_customer_texts(db, conversation)
     training = relevant_examples(db, company.id, customer_text, previous_text)
     system = build_system_prompt(company, ctx.customer, conversation.channel, ctx.today, training, customer_text)
+    tools = TOOL_DEFINITIONS
+    business = b2b_prompt(ctx)  # a business client writing from a linked WhatsApp number
+    if business:
+        system += "\n" + business
+        tools = TOOL_DEFINITIONS + B2B_TOOL_DEFINITIONS
     messages = [{"role": "system", "content": system}]
     messages += build_history(db, conversation, settings.llm_max_history_messages)
 
@@ -142,7 +148,7 @@ def run_agent(db: Session, conversation: Conversation, llm: LLMClient | None = N
     tool_results: list[tuple[str, dict]] = []
     for _ in range(settings.llm_max_tool_rounds):
         try:
-            resp = llm.chat(messages, TOOL_DEFINITIONS)
+            resp = llm.chat(messages, tools)
         except LLMError as exc:
             log.warning("LLM failed for conversation %s: %s", conversation.id, exc)
             if not ctx.handed_over:

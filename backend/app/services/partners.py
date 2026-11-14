@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from ..audit import audit
 from ..b2b import B2BSettings, b2b_settings, clean_features, effective_features, features_of
-from ..models import Company, Customer, Partner, PartnerKind, PartnerPhone, Role, User
+from ..models import Company, Customer, Partner, PartnerKind, PartnerPhone, Role, TripRequest, User
 from ..partner_schemas import (
     B2BUsage,
     PartnerIn,
@@ -181,6 +181,10 @@ def update_partner(db: Session, partner: Partner, data: PartnerUpdate, acting_us
 
 def delete_partner(db: Session, partner: Partner, acting_user: User) -> None:
     name, company_id = partner.name, partner.company_id
+    if partner.kind == PartnerKind.CLIENT and db.scalar(
+            select(func.count(TripRequest.id)).where(TripRequest.company_id == company_id,
+                                                     TripRequest.client_id == partner.id)):
+        raise HTTPException(409, "This client has trip requests, so its history is kept. Pause the account instead.")
     db.execute(update(Customer).where(Customer.company_id == company_id, Customer.partner_id == partner.id)
                .values(partner_id=None).execution_options(synchronize_session=False))
     for user in db.scalars(select(User).where(User.partner_id == partner.id, User.company_id == company_id)).all():

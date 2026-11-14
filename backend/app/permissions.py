@@ -18,6 +18,7 @@ PERMISSIONS: dict[str, str] = {
     "users.manage": "Create, edit and delete employee accounts",
     "settings.manage": "Manage company settings (AI persona, knowledge, WhatsApp)",
     "partners.manage": "Manage business clients and vendors, and their logins",
+    "requests.manage": "Handle business trip requests (vendors, options, approval)",
     "reports.view": "View the dashboard and statistics",
 }
 

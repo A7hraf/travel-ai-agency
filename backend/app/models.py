@@ -583,3 +583,120 @@ class SubscriptionPayment(Base):
     notes: Mapped[str] = mapped_column(Text, default="")
     created_by: Mapped[str | None] = mapped_column(String(200))
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+
+# --- Business trip requests (B2B) ---------------------------------------------------------------------
+
+class TripRequestStatus(StrEnum):
+    NEW = "new"                      # sent by the client, waiting for the travel company
+    WITH_VENDOR = "with_vendor"      # forwarded to a vendor for options
+    OPTIONS_READY = "options_ready"  # the vendor sent its options (or staff added them): staff review
+    WITH_CLIENT = "with_client"      # up to 3 choices per part sent to the client
+    CHOSEN = "chosen"                # the client picked: staff approve
+    APPROVED = "approved"            # approved: the vendor books
+    BOOKED = "booked"                # booked, with the booking references
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+
+class TripRequest(Base):
+    """A trip a business client asks its travel company for. The travel company is the middle party:
+    the vendor never sees who the client is or what the client pays, and the client never sees the vendor
+    or its cost (see services/trip_requests.py for the three views)."""
+
+    __tablename__ = "trip_requests"
+    __table_args__ = (UniqueConstraint("company_id", "reference", name="uq_trip_requests_company_reference"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    reference: Mapped[str] = mapped_column(String(20))
+    client_id: Mapped[int] = mapped_column(ForeignKey("partners.id", ondelete="CASCADE"), index=True)
+    vendor_id: Mapped[int | None] = mapped_column(ForeignKey("partners.id", ondelete="SET NULL"), index=True)
+    status: Mapped[str] = mapped_column(String(20), default=TripRequestStatus.NEW, index=True)
+    source: Mapped[str] = mapped_column(String(20), default="portal")  # portal, whatsapp, staff
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    # A WhatsApp request: the chat the client wrote in (updates are sent there).
+    conversation_id: Mapped[int | None] = mapped_column(ForeignKey("conversations.id", ondelete="SET NULL"))
+
+    purpose: Mapped[str | None] = mapped_column(String(200))
+    origin: Mapped[str | None] = mapped_column(String(120))
+    destination: Mapped[str] = mapped_column(String(120))
+    depart_date: Mapped[date | None] = mapped_column(Date)
+    return_date: Mapped[date | None] = mapped_column(Date)
+    travellers: Mapped[int] = mapped_column(Integer, default=1)
+    traveller_names: Mapped[str | None] = mapped_column(Text)  # shown to the vendor only after approval
+    needs: Mapped[list[str]] = mapped_column(JSON, default=list)  # flight, hotel, transport, activity, food
+    budget: Mapped[str | None] = mapped_column(String(120))
+    notes: Mapped[str | None] = mapped_column(Text)  # the client's notes (never shown to the vendor)
+    vendor_brief: Mapped[str | None] = mapped_column(Text)  # what the travel company tells the vendor
+    markup_percent: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=Decimal("10"))
+    booking_reference: Mapped[str | None] = mapped_column(String(200))
+    booking_notes: Mapped[str | None] = mapped_column(Text)
+    vendor_accepted: Mapped[bool | None] = mapped_column(Boolean)
+
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, onupdate=utcnow)
+
+    client: Mapped["Partner"] = relationship(foreign_keys=[client_id])
+    vendor: Mapped["Partner | None"] = relationship(foreign_keys=[vendor_id])
+    options: Mapped[list["TripOption"]] = relationship(cascade="all, delete-orphan", passive_deletes=True,
+                                                       order_by="TripOption.id")
+    events: Mapped[list["TripRequestEvent"]] = relationship(cascade="all, delete-orphan", passive_deletes=True,
+                                                            order_by="TripRequestEvent.id")
+    messages: Mapped[list["TripRequestMessage"]] = relationship(cascade="all, delete-orphan", passive_deletes=True,
+                                                                order_by="TripRequestMessage.id")
+
+
+class TripOption(Base):
+    """One choice for one part of a request (a flight, a hotel…). `cost_price` is what the vendor asks;
+    `price` is what the client pays (set by the travel company). Both are totals for all travellers."""
+
+    __tablename__ = "trip_options"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    request_id: Mapped[int] = mapped_column(ForeignKey("trip_requests.id", ondelete="CASCADE"), index=True)
+    # The vendor who proposed it (None: added by the travel company). A vendor sees only its own options.
+    vendor_id: Mapped[int | None] = mapped_column(ForeignKey("partners.id", ondelete="SET NULL"), index=True)
+    category: Mapped[str] = mapped_column(String(20))
+    title: Mapped[str] = mapped_column(String(200))
+    provider: Mapped[str | None] = mapped_column(String(120))  # airline, hotel, operator
+    details: Mapped[str | None] = mapped_column(Text)
+    cost_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
+    price: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
+    added_by: Mapped[str] = mapped_column(String(10), default="vendor")  # vendor or staff
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    sent_to_client: Mapped[bool] = mapped_column(Boolean, default=False)
+    chosen: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+
+class TripRequestEvent(Base):
+    """Every step of a request (who, when, what), for the history."""
+
+    __tablename__ = "trip_request_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    request_id: Mapped[int] = mapped_column(ForeignKey("trip_requests.id", ondelete="CASCADE"), index=True)
+    actor_kind: Mapped[str] = mapped_column(String(10))  # staff, client, vendor, ai
+    actor_name: Mapped[str | None] = mapped_column(String(200))
+    action: Mapped[str] = mapped_column(String(40))
+    detail: Mapped[str | None] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+
+class TripRequestMessage(Base):
+    """A message on one of the two threads of a request: travel company ↔ client, travel company ↔ vendor.
+    The client and the vendor never share a thread."""
+
+    __tablename__ = "trip_request_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    request_id: Mapped[int] = mapped_column(ForeignKey("trip_requests.id", ondelete="CASCADE"), index=True)
+    thread: Mapped[str] = mapped_column(String(10))  # client or vendor
+    author_kind: Mapped[str] = mapped_column(String(10))  # staff, client, vendor
+    author_name: Mapped[str | None] = mapped_column(String(200))
+    text: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)

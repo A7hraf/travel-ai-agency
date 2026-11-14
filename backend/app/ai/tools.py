@@ -624,6 +624,11 @@ def _dry_run_handover(ctx: ToolContext, reason="", **_) -> dict:
             "next_step": "Tell the customer a consultant will reply in this chat shortly."}
 
 
+# Business clients writing from a linked WhatsApp number (each handler checks the link itself).
+from .b2b_tools import B2B_HANDLERS  # noqa: E402
+
+_HANDLERS.update(B2B_HANDLERS)
+
 _DRY_RUN_HANDLERS = {
     "create_booking_ticket": _dry_run_booking,
     "request_human_agent": _dry_run_handover,

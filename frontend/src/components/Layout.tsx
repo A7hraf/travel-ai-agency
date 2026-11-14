@@ -12,7 +12,7 @@ import { customerLabel, ROLE_LABELS, usePolling } from "../util";
 import { GhanjahMark, usePlatformName } from "./Brand";
 import {
   AddressBook, ArrowSquareOut, Buildings, Crown, ClockCounterClockwise, Heartbeat, ChartLineUp, ChatsCircle, GearSix, GraduationCap, IconProps, List, PaintBrush, SignOut,
-  Handshake, SquaresFour, SuitcaseRolling, Ticket, Translate, UserCircle, UsersThree, WhatsappLogo,
+  Briefcase, Handshake, SquaresFour, SuitcaseRolling, Ticket, Translate, UserCircle, UsersThree, WhatsappLogo,
 } from "./Icon";
 import { moneyText } from "./Money";
 import { Sheet } from "./staff/Sheet";
@@ -38,6 +38,7 @@ const COMPANY_NAV: NavItem[] = [
   { to: "/app/tickets", label: "Tickets", icon: Ticket, permission: "tickets.view", badge: "open" },
   { to: "/app/customers", label: "Customers", icon: AddressBook, permission: "conversations.view" },
   { to: "/app/packages", label: "Packages", icon: SuitcaseRolling, permission: "packages.view" },
+  { to: "/app/requests", label: "Business requests", icon: Briefcase, permission: "requests.manage", b2b: true },
   { to: "/app/users", label: "Team & accounts", icon: UsersThree, permission: "users.manage" },
   { to: "/app/partners", label: "Business accounts", icon: Handshake, permission: "partners.manage", b2b: true },
   { to: "/app/branding", label: "Customer page design", icon: PaintBrush, permission: "settings.manage" },
