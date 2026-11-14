@@ -90,6 +90,7 @@ class UserOut(ORM):
     company_id: int | None
     created_at: datetime
     last_login_at: datetime | None
+    whatsapp_number: str | None = None
 
 
 class MeOut(UserOut):

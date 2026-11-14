@@ -209,6 +209,7 @@ export interface User {
   company_id: number | null;
   created_at: string;
   last_login_at: string | null;
+  whatsapp_number?: string | null;
 }
 
 export interface Me extends User {

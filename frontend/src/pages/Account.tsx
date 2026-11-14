@@ -26,6 +26,7 @@ export default function Account() {
   // Profile
   const [name, setName] = useState(user?.full_name ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
+  const [wa, setWa] = useState(user?.whatsapp_number ?? "");
   const [profilePassword, setProfilePassword] = useState("");
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileOk, setProfileOk] = useState(false);
@@ -51,7 +52,8 @@ export default function Account() {
     if (!user) return;
     setName(user.full_name);
     setEmail(user.email);
-  }, [user?.full_name, user?.email]); // eslint-disable-line react-hooks/exhaustive-deps
+    setWa(user.whatsapp_number ?? "");
+  }, [user?.full_name, user?.email, user?.whatsapp_number]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (isOwner) get<PlatformStats>("/api/system/stats").then(setStats).catch(() => setStats(null));
@@ -59,7 +61,8 @@ export default function Account() {
 
   if (!user) return <div className="narrow gx-narrow"><PageTitle title={t("My account")} /><Loading height={240} /></div>;
   const emailChanged = email.trim().toLowerCase() !== user.email.toLowerCase();
-  const profileChanged = name.trim() !== user.full_name || emailChanged;
+  const waChanged = wa.trim() !== (user.whatsapp_number ?? "");
+  const profileChanged = name.trim() !== user.full_name || emailChanged || waChanged;
 
   const saveProfile = async (e: FormEvent) => {
     e.preventDefault();
@@ -69,6 +72,7 @@ export default function Account() {
     setProfileBusy(true);
     try {
       const body: Record<string, string> = { full_name: name.trim() };
+      if (waChanged) body.whatsapp_number = wa.trim();
       if (emailChanged) {
         body.email = email.trim();
         body.current_password = profilePassword;
@@ -174,6 +178,12 @@ export default function Account() {
             <input value={name} maxLength={200} required dir="auto" autoComplete="name"
               onChange={(e) => { setName(e.target.value); setProfileOk(false); }} />
           </Field>
+          {user.company_id && (
+            <Field label={t("Your WhatsApp number")} hint={t("Calendar reminders are sent here.")}>
+              <input value={wa} maxLength={30} dir="ltr" inputMode="tel" placeholder="+968 9123 4567"
+                onChange={(e) => { setWa(e.target.value); setProfileOk(false); }} />
+            </Field>
+          )}
           <Field label={t("Email (login)")} hint={t("You sign in with this email.")}>
             <input type="email" value={email} maxLength={200} required dir="ltr" autoComplete="email"
               onChange={(e) => { setEmail(e.target.value); setProfileOk(false); }} />

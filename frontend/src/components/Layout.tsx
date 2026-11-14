@@ -12,7 +12,7 @@ import { customerLabel, ROLE_LABELS, usePolling } from "../util";
 import { GhanjahMark, usePlatformName } from "./Brand";
 import {
   AddressBook, ArrowSquareOut, Buildings, Crown, ClockCounterClockwise, Heartbeat, ChartLineUp, ChatsCircle, GearSix, GraduationCap, IconProps, List, PaintBrush, SignOut,
-  Briefcase, BookBookmark, FileText, ListChecks, Handshake, Star, SquaresFour, SuitcaseRolling, Ticket, Translate, UserCircle, UsersThree, WhatsappLogo,
+  Briefcase, BookBookmark, CalendarDots, FileText, ListChecks, Handshake, Star, SquaresFour, SuitcaseRolling, Ticket, Translate, UserCircle, UsersThree, WhatsappLogo,
 } from "./Icon";
 import { moneyText } from "./Money";
 import { Sheet } from "./staff/Sheet";
@@ -39,6 +39,7 @@ const COMPANY_NAV: NavItem[] = [
   { to: "/app/dashboard", label: "Dashboard", icon: SquaresFour, permission: "reports.view" },
   { to: "/app/conversations", label: "Conversations", icon: ChatsCircle, permission: "conversations.view", badge: "needs" },
   { to: "/app/tickets", label: "Requests", icon: Ticket, permission: "tickets.view", badge: "open" },
+  { to: "/app/calendar", label: "Calendar", icon: CalendarDots, permission: "tickets.view", addon: "calendar" },
   { to: "/app/customers", label: "Customers", icon: AddressBook, permission: "conversations.view" },
   { to: "/app/library", label: "Supplier library", icon: BookBookmark, permission: "tickets.view", addon: "library" },
   { to: "/app/packages", label: "Packages", icon: SuitcaseRolling, permission: "packages.view" },

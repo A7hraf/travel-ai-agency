@@ -932,3 +932,23 @@ a.now-waiting:hover { background: color-mix(in srgb, var(--st-waiting-tint) 18%,
 .gx-lib-table th { text-align: start; font-weight: 600; color: var(--text-muted); font-size: 12px; padding: 6px 8px; }
 .gx-lib-table td { padding: 8px; box-shadow: inset 0 1px 0 var(--line); }
 .gx-lib-body .gx-row-between { flex-wrap: nowrap; align-items: flex-start; }
+
+/* Calendar */
+.gx-cal-bar { display: flex; align-items: center; gap: 8px; margin: 8px 0 16px; }
+.gx-cal-bar .spacer { flex: 1; }
+.gx-cal-month { font-size: 20px; text-transform: capitalize; min-width: 180px; text-align: center; }
+.gx-cal-days { list-style: none; margin: 0 0 20px; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.gx-cal-days > li.past { opacity: .6; }
+.gx-cal-day { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 6px; }
+.gx-cal-days > li.today .gx-cal-day { color: var(--brand); font-weight: 700; }
+.gx-cal-days ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.gx-cal-item { display: flex; gap: 12px; align-items: flex-start; padding: 10px 14px; border-radius: 14px; background: var(--surface-1); box-shadow: var(--ring); }
+.gx-cal-item.trip { background: var(--brand-soft); box-shadow: none; align-items: center; }
+.gx-cal-item.trip a { color: var(--text); }
+.gx-cal-item.cancelled { opacity: .55; text-decoration: line-through; }
+.gx-cal-item.done .gx-cal-time { color: var(--st-confirmed); }
+.gx-cal-time { font-weight: 700; min-width: 52px; }
+.gx-cal-open { all: unset; cursor: pointer; flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; overflow-wrap: anywhere; }
+.gx-cal-open:disabled { cursor: default; }
+.gx-cal-warn { color: var(--st-waiting); }
+.gx-cal-tpl summary { cursor: pointer; font-weight: 600; }

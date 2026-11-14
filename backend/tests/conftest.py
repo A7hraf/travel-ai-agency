@@ -67,6 +67,14 @@ class FakeWhatsApp:
             raise WhatsAppError("no such media")
         return self.media[media_id]
 
+    def send_template(self, company, to, name, language, params):
+        from app.services.whatsapp import WhatsAppError
+
+        if self.fail:
+            raise WhatsAppError("boom")
+        self.sent.append((company.whatsapp_phone_number_id, to, f"[template {name}/{language}] " + " | ".join(params)))
+        return f"wamid.tpl.{len(self.sent)}"
+
     def send_file(self, company, to, data, content_type, filename, caption=None):
         from app.services.whatsapp import WhatsAppError
 

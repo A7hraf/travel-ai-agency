@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from ..audit import audit
 from ..config import get_settings
 from ..database import get_db
+from ..services.whatsapp import normalize_phone
 from ..deps import get_current_user
 from ..models import CompanyStatus, User, utcnow
 from ..netutil import client_ip
@@ -124,6 +125,8 @@ class ProfileUpdate(BaseModel):
     email: EmailStr | None = None
     # Needed to change the email: whoever has an open session must not take over the login.
     current_password: str | None = Field(default=None, max_length=200)
+    # Where calendar reminders go ("" removes it).
+    whatsapp_number: str | None = Field(default=None, max_length=30)
 
 
 @router.patch("/profile", response_model=MeOut)
@@ -143,6 +146,11 @@ def update_profile(body: ProfileUpdate, user: User = Depends(get_current_user), 
             if taken:
                 raise HTTPException(status.HTTP_409_CONFLICT, "Another account already uses this email")
             user.email = email
+    if body.whatsapp_number is not None:
+        raw = body.whatsapp_number.strip()
+        if raw and normalize_phone(raw) is None:
+            raise HTTPException(422, "Write your WhatsApp number with the country code, for example +968 9123 4567")
+        user.whatsapp_number = f"+{normalize_phone(raw)}" if raw else None
     db.commit()
     db.refresh(user)
     return me_out(user)

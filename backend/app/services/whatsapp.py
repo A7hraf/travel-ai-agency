@@ -249,6 +249,8 @@ class WhatsAppSender(Protocol):
     def send_file(self, company: Company, to: str, data: bytes, content_type: str, filename: str,
                   caption: str | None = None) -> str | None: ...
 
+    def send_template(self, company: Company, to: str, name: str, language: str, params: list[str]) -> str | None: ...
+
 
 class CloudAPISender:
     def _endpoint(self, company: Company) -> tuple[str, dict]:
@@ -327,6 +329,21 @@ class CloudAPISender:
         except (httpx.HTTPError, ValueError, KeyError) as exc:
             detail = getattr(getattr(exc, "response", None), "text", "")
             raise WhatsAppError(f"WhatsApp file send failed: {exc} {detail}".strip()) from exc
+
+    def send_template(self, company: Company, to: str, name: str, language: str, params: list[str]) -> str | None:
+        """A message template approved by Meta: the only kind WhatsApp delivers outside the 24-hour window."""
+        url, headers = self._endpoint(company)
+        payload = {"messaging_product": "whatsapp", "to": to, "type": "template",
+                   "template": {"name": name, "language": {"code": language},
+                                "components": [{"type": "body", "parameters": [
+                                    {"type": "text", "text": p[:1000]} for p in params]}]}}
+        try:
+            resp = httpx.post(url, json=payload, headers=headers, timeout=20)
+            resp.raise_for_status()
+            return (resp.json().get("messages") or [{}])[0].get("id")
+        except (httpx.HTTPError, ValueError) as exc:
+            detail = getattr(getattr(exc, "response", None), "text", "")
+            raise WhatsAppError(f"WhatsApp template send failed: {exc} {detail}".strip()) from exc
 
     def mark_read(self, company: Company, message_id: str) -> None:
         try:

@@ -8,16 +8,21 @@ from .timeutil import local_today
 
 log = logging.getLogger(__name__)
 
-EVERY_SECONDS = 30 * 60
+EVERY_SECONDS = 5 * 60  # calendar reminders need a short step
 
 
 def run_once() -> None:
+    from .services.calendar import send_reminders  # noqa: PLC0415
     from .services.customer_portal import send_feedback_requests  # noqa: PLC0415
 
     with SessionLocal() as db:
         sent = send_feedback_requests(db, local_today())
         if sent:
             log.info("Sent %s after-trip feedback requests", sent)
+    with SessionLocal() as db:
+        reminded = send_reminders(db)
+        if reminded:
+            log.info("Sent %s calendar reminders", reminded)
 
 
 async def loop() -> None:

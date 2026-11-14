@@ -172,6 +172,9 @@ class Company(Base):
     # How clients pay (bank details…), sent when they approve a quotation: {"en": "...", "ar": "..."}.
     payment_info: Mapped[dict | None] = mapped_column(JSON)
     quote_settings: Mapped[dict | None] = mapped_column(JSON)  # the quotation design: intro, terms, footer
+    # A WhatsApp message template approved by Meta ({"name", "language"}): lets reminders reach people who
+    # haven't written in the last 24 hours. Its body has one parameter, the reminder text.
+    reminder_template: Mapped[dict | None] = mapped_column(JSON)
 
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
@@ -214,6 +217,7 @@ class User(Base):
     tokens_valid_after: Mapped[datetime | None] = mapped_column(UTCDateTime())
     # Set for the logins of a business client or vendor (role "partner"); None for staff and the owner.
     partner_id: Mapped[int | None] = mapped_column(ForeignKey("partners.id", ondelete="CASCADE"), index=True)
+    whatsapp_number: Mapped[str | None] = mapped_column(String(30))  # staff: where the calendar reminders go
 
     company: Mapped[Company | None] = relationship(back_populates="users")
     partner: Mapped["Partner | None"] = relationship(back_populates="users")
@@ -452,6 +456,36 @@ class Supplier(Base):
     preferred: Mapped[bool] = mapped_column(Boolean, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+
+class Appointment(Base):
+    """A meeting, an airport pick-up, a call… on the company's calendar, with reminders on WhatsApp."""
+
+    __tablename__ = "appointments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    ticket_id: Mapped[int | None] = mapped_column(ForeignKey("tickets.id", ondelete="SET NULL"), index=True)
+    customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id", ondelete="SET NULL"), index=True)
+    assigned_to_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    kind: Mapped[str] = mapped_column(String(20), default="meeting")  # meeting, airport, call, visit, other
+    title: Mapped[str] = mapped_column(String(200))
+    starts_at: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
+    ends_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    location: Mapped[str] = mapped_column(String(200), default="")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    remind_minutes: Mapped[int] = mapped_column(Integer, default=60)
+    remind_client: Mapped[bool] = mapped_column(Boolean, default=False)
+    staff_reminded_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    client_reminded_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    reminder_note: Mapped[str | None] = mapped_column(String(300))  # why a reminder could not be sent
+    status: Mapped[str] = mapped_column(String(20), default="planned")  # planned, done, cancelled
+    created_by: Mapped[str] = mapped_column(String(200), default="")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+    ticket: Mapped["Ticket | None"] = relationship()
+    customer: Mapped["Customer | None"] = relationship()
+    assigned_to: Mapped["User | None"] = relationship()
 
 
 class RequestFile(Base):

@@ -49,6 +49,7 @@ def user_out(user: User) -> UserOut:
         company_id=user.company_id,
         created_at=user.created_at,
         last_login_at=user.last_login_at,
+        whatsapp_number=user.whatsapp_number,
     )
 
 

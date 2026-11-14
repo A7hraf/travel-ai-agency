@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useId, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { get, patch } from "../api";
 import { useAuth } from "../auth";
-import { Binoculars, ChatsCircle, Check, CheckCircle, MagnifyingGlass, WarningCircle } from "../components/Icon";
+import { Binoculars, CalendarPlus, ChatsCircle, Check, CheckCircle, MagnifyingGlass, WarningCircle } from "../components/Icon";
 import { Money, moneyText } from "../components/Money";
 import { ConfirmRequest, ConfirmSheet, PushPanel } from "../components/staff/Sheet";
 import { useStaff } from "../components/staff/StaffContext";
@@ -465,6 +465,11 @@ function TicketPanel({ id, onClose, onSaved }: { id: number; onClose: () => void
             <dd>{ticket.created_by === "ai" ? t("{agent} (AI) in chat", { agent }) : t("Staff")} · {dateTime(ticket.created_at)}</dd>
           </dl>
 
+          {user?.company?.addons?.includes("calendar") && canManage && (
+            <Link className="btn btn-soft btn-sm tk-conv-link" to={`/app/calendar?new=1&ticket=${ticket.id}&title=${encodeURIComponent(ticket.reference)}`}>
+              <CalendarPlus aria-hidden="true" />{t("Add to the calendar")}
+            </Link>
+          )}
           {ticket.conversation_id && can("conversations.view") && (
             <Link className="btn btn-soft btn-sm tk-conv-link" to={`/app/conversations/${ticket.conversation_id}`}>
               <ChatsCircle aria-hidden="true" />{t("Open the conversation")}

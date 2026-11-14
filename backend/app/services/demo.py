@@ -528,6 +528,7 @@ def create_demo_company(db: Session, name: str, slug: str, admin_email: str | No
     if include_activity:
         _add_quotation_samples(db, company, today)
         _add_suppliers(db, company)
+        _add_appointments(db, company, list(users.values()))
 
     counts = {
         "users": len(users),
@@ -589,6 +590,28 @@ DEMO_SUPPLIERS = [
     ("transport", "Muscat private driver (full day)", "Muscat", None, None, "45", "60", False),
     ("activity", "Wahiba Sands desert safari", "Oman", None, None, "60", "85", True),
 ]
+
+
+def _add_appointments(db: Session, company: Company, users: list) -> None:
+    from datetime import datetime, time, timedelta, timezone  # noqa: PLC0415
+
+    from ..models import Appointment  # noqa: PLC0415
+    from ..timeutil import business_tz, local_today  # noqa: PLC0415
+
+    db.flush()
+    paid = db.scalars(select(Ticket).where(Ticket.company_id == company.id, Ticket.status.in_(("paid", "confirmed")))
+                      .order_by(Ticket.id)).first()
+    staff = next((u for u in users if u.role != "company_admin"), users[0] if users else None)
+
+    def at(days: int, hour: int, minute: int = 0) -> datetime:
+        return datetime.combine(local_today() + timedelta(days=days), time(hour, minute), business_tz()).astimezone(timezone.utc)
+
+    db.add(Appointment(company_id=company.id, kind="airport", title="Airport pick-up and farewell", starts_at=at(1, 6, 30),
+                       location="Muscat International Airport, departures", ticket_id=paid.id if paid else None,
+                       customer_id=paid.customer_id if paid else None, assigned_to_id=staff.id if staff else None,
+                       remind_minutes=120, created_by="Demo"))
+    db.add(Appointment(company_id=company.id, kind="meeting", title="Honeymoon planning meeting", starts_at=at(3, 17),
+                       location="Our office", assigned_to_id=staff.id if staff else None, created_by="Demo"))
 
 
 def _add_suppliers(db: Session, company: Company) -> None:
