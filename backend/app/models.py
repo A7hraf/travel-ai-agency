@@ -156,6 +156,10 @@ class Company(Base):
     # Business accounts (clients and vendors), set by the platform owner only: on/off, limits and the
     # features the company may give (see app/b2b.py).
     b2b: Mapped[dict | None] = mapped_column(JSON)
+    # Advanced features the platform owner switches on for this company, e.g. {"members": true} (app/addons.py).
+    addons: Mapped[dict | None] = mapped_column(JSON)
+    # Members community: level names, perks and what each level can do (app/members.py), set by the company.
+    membership: Mapped[dict | None] = mapped_column(JSON)
 
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
@@ -287,6 +291,11 @@ class Customer(Base):
     # Staff notes and labels on the Customers page (business tools).
     notes: Mapped[str | None] = mapped_column(Text)
     tags: Mapped[list[str] | None] = mapped_column(JSON)
+    # Members community: the level the company gave this customer (level1, level2, level3 or vip). Only staff
+    # set it; a customer saying "I'm VIP" in a chat changes nothing.
+    member_level: Mapped[str | None] = mapped_column(String(10), index=True)
+    member_since: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    member_note: Mapped[str | None] = mapped_column(String(500))
     # The business client this customer writes for (their WhatsApp number is linked to it).
     partner_id: Mapped[int | None] = mapped_column(ForeignKey("partners.id", ondelete="SET NULL"), index=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
@@ -700,3 +709,27 @@ class TripRequestMessage(Base):
     author_name: Mapped[str | None] = mapped_column(String(200))
     text: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+
+class MemberRequest(Base):
+    """A member's special request (beyond the packages), or someone asking to join the community.
+    Taken by the AI in the chat or added by staff; handled by the team."""
+
+    __tablename__ = "member_requests"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id", ondelete="CASCADE"), index=True)
+    conversation_id: Mapped[int | None] = mapped_column(ForeignKey("conversations.id", ondelete="SET NULL"))
+    kind: Mapped[str] = mapped_column(String(10))  # special or join
+    level: Mapped[str | None] = mapped_column(String(10))  # the member's level when asked
+    title: Mapped[str] = mapped_column(String(200))
+    details: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(15), default="open", index=True)  # open, in_progress, done, declined
+    staff_note: Mapped[str | None] = mapped_column(Text)
+    handled_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, onupdate=utcnow)
+
+    customer: Mapped["Customer"] = relationship()
+    handled_by: Mapped["User | None"] = relationship()

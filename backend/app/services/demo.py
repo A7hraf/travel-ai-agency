@@ -390,6 +390,8 @@ class Profile:
     training: list[tuple[str, str]]
     branding: object  # (company name) -> branding dict
     budget: int  # the "trips for N OMR per person" sample chat
+    # Members community of the profile: (level config dict, sample special requests) or None.
+    members: tuple | None = None
 
     @property
     def by_key(self) -> dict[str, PackageDef]:
@@ -401,7 +403,7 @@ def get_profile(name: str) -> Profile:
         from . import demo_luxury as lx  # noqa: PLC0415  (it imports PackageDef from here)
 
         return Profile(lx.PACKAGES, lx.KNOWLEDGE + "\n" + lx.KNOWLEDGE_AR, lx.INSTRUCTIONS, lx.WELCOME_EN,
-                       lx.WELCOME_AR, lx.TRAINING, lx.branding_for, 900)
+                       lx.WELCOME_AR, lx.TRAINING, lx.branding_for, 900, (lx.MEMBERSHIP, lx.MEMBER_REQUESTS))
     return Profile(PACKAGES, KNOWLEDGE + "\n" + KNOWLEDGE_AR, INSTRUCTIONS, WELCOME_EN, WELCOME_AR, TRAINING,
                    branding_for, 300)
 
@@ -517,6 +519,8 @@ def create_demo_company(db: Session, name: str, slug: str, admin_email: str | No
     if include_activity:
         _Activity(db, company, users, packages, language, today, content).build()
         db.flush()
+    if content.members:
+        _add_members(db, company, content.members, include_activity)
 
     counts = {
         "users": len(users),
@@ -527,6 +531,28 @@ def create_demo_company(db: Session, name: str, slug: str, admin_email: str | No
     }
     log.info("Demo company %s (%s) created: %s", company.id, slug, counts)
     return DemoResult(company=company, logins=logins, counts=counts)
+
+
+def _add_members(db: Session, company: Company, members: tuple, with_people: bool) -> None:
+    """The members community of the profile: switched on, its levels, and (with the sample activity) a few
+    customers with a rank and some special requests to show."""
+    from ..models import Customer, MemberRequest  # noqa: PLC0415
+
+    config, requests = members
+    company.addons = {**(company.addons or {}), "members": True}
+    company.membership = config
+    if not with_people:
+        return
+    customers = db.scalars(select(Customer).where(Customer.company_id == company.id).order_by(Customer.id)).all()
+    ranks = ["vip", "level3", "level3", "level2", "level2", "level2", "level1", "level1", "level1", "level1"]
+    now = datetime.now(timezone.utc)
+    for i, (customer, rank) in enumerate(zip(customers, ranks)):
+        customer.member_level = rank
+        customer.member_since = now - timedelta(days=30 * (len(ranks) - i))
+    for customer, (title, details, status) in zip(customers[:len(requests)], requests):
+        db.add(MemberRequest(company_id=company.id, customer_id=customer.id, kind="special",
+                             level=customer.member_level, title=title, details=details, status=status))
+    db.flush()
 
 
 # --- Sample activity --------------------------------------------------------------------------

@@ -676,3 +676,6 @@ body.sf-body { background: var(--bg-app); }
 @media (max-width: 900px) {
   .sf-story-title { font-size: 30px; }
 }
+.sf-perks { margin: 4px 0 0; padding-inline-start: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 15px; line-height: 1.5;
+  color: color-mix(in srgb, var(--sf-text) 76%, transparent); }
+.sf-perks li::marker { color: var(--brand); }

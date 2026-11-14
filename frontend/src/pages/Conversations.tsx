@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
+import MemberBadge from "../components/members/MemberBadge";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ApiError, get, post } from "../api";
 import { pollWatcher } from "../errorReporter";
@@ -172,6 +173,7 @@ export default function Conversations() {
                   <span className="cv-preview" dir="auto">{trServer(c.last_message_preview) || "…"}</span>
                   <span className="cv-tags">
                     <span className={`pill ${p.cls}`}>{p.label}</span>
+                    <MemberBadge level={c.customer.member_level} />
                     <Channel channel={c.channel} />
                   </span>
                 </span>

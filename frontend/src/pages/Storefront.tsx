@@ -145,10 +145,11 @@ export function StorefrontPage({ slug, company, packages, lang, setLang, layout,
     for (const s of b.sections) {
       if ((s === "featured" || s === "offers" || s === "how") && !out.includes(s)) out.push(s);
       else if ((s === "about" || s === "contact") && !out.includes("about")) out.push("about");
-      else if ((STORY_KEYS as string[]).includes(s) && storyHasContent(b.stories?.[s as StoryKey]) && !out.includes(s as Block)) out.push(s as Block);
+      else if ((STORY_KEYS as string[]).includes(s) && !out.includes(s as Block)
+        && (storyHasContent(b.stories?.[s as StoryKey]) || (s === "community" && (company.members?.length ?? 0) > 0))) out.push(s as Block);
     }
     return out;
-  }, [b.sections, b.stories]);
+  }, [b.sections, b.stories, company.members]);
 
   const aboutText = pick(lang, b.about_en, b.about_ar);
   const about = b.sections.includes("about") && (aboutText || b.about_image)

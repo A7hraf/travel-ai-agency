@@ -14,7 +14,28 @@ export interface CompanyBrief {
   branding?: DashboardBranding | null;
   /** Business accounts (clients and vendors) switched on by the platform owner. */
   b2b_enabled?: boolean;
+  /** Advanced features switched on by the platform owner (e.g. "members"). */
+  addons?: string[];
+  /** Members community levels (when switched on): key → names and whether their chats are priority. */
+  member_levels?: Record<MemberLevel, { name_en: string; name_ar: string; priority: boolean }> | null;
 }
+
+export type MemberLevel = "level1" | "level2" | "level3" | "vip";
+export const MEMBER_LEVELS: MemberLevel[] = ["level1", "level2", "level3", "vip"];
+
+export interface LevelConfig {
+  name_en: string; name_ar: string; perks_en: string; perks_ar: string; special_requests: boolean; priority: boolean;
+}
+export interface MembershipConfig { levels: Record<MemberLevel, LevelConfig>; show_on_page: boolean }
+export interface MemberRow { customer_id: number; name: string | null; phone: string | null; email: string | null; level: MemberLevel; member_since: string | null; note: string | null }
+export interface MemberList { members: MemberRow[]; counts: Record<MemberLevel, number>; config: MembershipConfig }
+export interface MemberRequest {
+  id: number; customer_id: number; customer_name: string | null; customer_phone: string | null; conversation_id: number | null;
+  kind: "special" | "join"; level: MemberLevel | null; title: string; details: string | null;
+  status: "open" | "in_progress" | "done" | "declined"; staff_note: string | null; handled_by: string | null;
+  created_at: string; updated_at: string;
+}
+export interface PublicMemberLevel { key: MemberLevel; name_en: string; name_ar: string; perks_en: string[]; perks_ar: string[] }
 
 export type PartnerKind = "client" | "vendor";
 
@@ -310,6 +331,7 @@ export interface TravelPackage {
 
 export interface Customer {
   id: number;
+  member_level?: MemberLevel | null;
   name: string | null;
   phone: string | null;
   email: string | null;
@@ -415,6 +437,8 @@ export interface PublicCompany {
   contact_email: string | null;
   contact_phone: string | null;
   branding: PublicBranding;
+  /** Members community levels for the Community section (when switched on). */
+  members?: PublicMemberLevel[] | null;
 }
 
 export interface Travelers { adults: number; children: number }
@@ -554,6 +578,7 @@ export interface InstagramTestResult {
 
 export interface CustomerRow {
   id: number;
+  member_level?: MemberLevel | null;
   name: string | null;
   phone: string | null;
   email: string | null;

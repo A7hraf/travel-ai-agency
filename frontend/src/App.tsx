@@ -33,6 +33,7 @@ const Invoice = lazy(() => import("./pages/Invoice"));
 const Partners = lazy(() => import("./pages/Partners"));
 const PartnerPortal = lazy(() => import("./pages/PartnerPortal"));
 const Requests = lazy(() => import("./pages/Requests"));
+const Members = lazy(() => import("./pages/Members"));
 
 function preloadPages() {
   for (const load of PRELOAD) load().catch(() => { /* loaded again (with the reload fallback) when the page is opened */ });
@@ -144,6 +145,7 @@ export default function App() {
         <Route path="partners" element={<RequireUser permission="partners.manage"><Partners /></RequireUser>} />
         <Route path="requests" element={<RequireUser permission="requests.manage"><Requests /></RequireUser>} />
         <Route path="requests/:id" element={<RequireUser permission="requests.manage"><Requests /></RequireUser>} />
+        <Route path="members" element={<RequireUser permission="members.manage"><Members /></RequireUser>} />
         <Route path="activity" element={<Activity />} />
         <Route path="plan" element={<MyPlan />} />
         <Route path="account" element={<Account />} />

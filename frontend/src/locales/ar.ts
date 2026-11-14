@@ -14,6 +14,7 @@ import { AR_THEME } from "./ar-theme";
 import { AR_STORIES } from "./ar-stories";
 import { AR_B2B, AR_B2B_PATTERNS } from "./ar-b2b";
 import { AR_REQUESTS, AR_REQUESTS_PATTERNS } from "./ar-requests";
+import { AR_MEMBERS } from "./ar-members";
 import { AR_POLISH, AR_POLISH_PATTERNS, AR_POLISH_PLURALS } from "./ar-polish";
 
 /** Arabic texts of the staff dashboard. The English text is the key. Placeholders like {name} must stay as they are. */
@@ -588,7 +589,7 @@ export const AR: Record<string, string> = {
  * status label, {1:adults} / {1:children} a counted text.
  */
 // Texts of the redesigned screens live in their own files (merged here).
-Object.assign(AR, AR_STAFF, AR_ADMIN, AR_PROCESS, AR_PLATFORM, AR_AI, AR_EDITOR, AR_SECURITY2, AR_DEMO, AR_INSTAGRAM, AR_PLANS, AR_TOOLS, AR_RELEASE, AR_THEME, AR_POLISH, AR_STORIES, AR_B2B, AR_REQUESTS);
+Object.assign(AR, AR_STAFF, AR_ADMIN, AR_PROCESS, AR_PLATFORM, AR_AI, AR_EDITOR, AR_SECURITY2, AR_DEMO, AR_INSTAGRAM, AR_PLANS, AR_TOOLS, AR_RELEASE, AR_THEME, AR_POLISH, AR_STORIES, AR_B2B, AR_REQUESTS, AR_MEMBERS);
 
 export const AR_PATTERNS: [RegExp, string][] = [
   [/^(.+) took over the conversation$/, "تولّى {1} المحادثة"],

@@ -46,14 +46,40 @@ function Card({ ctx, k, item, i }: { ctx: StoreCtx; k: StoryKey; item: StoryItem
 }
 
 /** The Brand, Experiences, Services, Leadership or The Community. */
+/** The members community levels, when the company has them on its page. */
+function MemberLevels({ ctx }: { ctx: StoreCtx }) {
+  const levels = ctx.company.members ?? [];
+  return (
+    <div className="sf-story-grid">
+      {levels.map((lv) => {
+        const perks = ctx.lang === "ar" ? lv.perks_ar : lv.perks_en;
+        return (
+          <article key={lv.key} className={`sf-story-card sf-level-${lv.key}`}>
+            <div className="sf-story-body">
+              <h3 dir="auto">{ctx.lang === "ar" ? lv.name_ar : lv.name_en}</h3>
+              {perks.length > 0 && <ul className="sf-perks" dir="auto">{perks.map((p, i) => <li key={i}>{p}</li>)}</ul>}
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
 export function StoryBlock({ ctx, k }: { ctx: StoreCtx; k: StoryKey }) {
-  const s = ctx.company.branding.stories?.[k];
+  const levels = k === "community" && (ctx.company.members?.length ?? 0) > 0;
+  const stored = ctx.company.branding.stories?.[k];
+  // The Community with real member levels shows even without cards of its own.
+  const s: StorySection | undefined = levels && !storyHasContent(stored)
+    ? { kicker_en: "", kicker_ar: "", title_en: "", title_ar: "", intro_en: "", intro_ar: "", image: null, items: [], ...(stored ?? {}) }
+    : stored;
   const { lang, t } = ctx;
   const tags = storyHasContent(s)
     ? [...new Set(s.items.map((it) => pick(lang, it.tag_en, it.tag_ar)).filter(Boolean))]
     : [];
   const [tag, setTag] = useState<string | null>(null);
-  if (!storyHasContent(s)) return null;
+  if (!levels && !storyHasContent(s)) return null;
+  if (!s) return null;
   const kicker = storyNavLabel(ctx, k);
   const title = pick(lang, s.title_en, s.title_ar);
   const intro = pick(lang, s.intro_en, s.intro_ar);
@@ -76,7 +102,7 @@ export function StoryBlock({ ctx, k }: { ctx: StoreCtx; k: StoryKey }) {
           ))}
         </div>
       )}
-      {items.length > 0 && (
+      {levels ? <MemberLevels ctx={ctx} /> : items.length > 0 && (
         <div className="sf-story-grid">
           {items.map((item, i) => <Card key={`${active ?? ""}-${i}`} ctx={ctx} k={k} item={item} i={i} />)}
         </div>

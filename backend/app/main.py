@@ -150,9 +150,10 @@ _diagnostics.install_log_handler()
 app.include_router(plans_router.router)
 
 # --- Business accounts (clients and vendors) ---
-from .routers import partners as _partners, trip_requests as _trip_requests  # noqa: E402
+from .routers import members as _members, partners as _partners, trip_requests as _trip_requests  # noqa: E402
 
 app.include_router(_partners.router)
+app.include_router(_members.router)
 app.include_router(_trip_requests.router)
 
 

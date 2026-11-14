@@ -3,7 +3,9 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from .addons import enabled_addons
 from .b2b import b2b_settings
+from .members import staff_member_levels
 from .branding import dashboard_branding
 from .models import (
     Company,
@@ -55,7 +57,8 @@ def me_out(user: User) -> MeOut:
     if user.company:
         c = user.company
         company = CompanyBrief(id=c.id, name=c.name, slug=c.slug, status=c.status, branding=dashboard_branding(c),
-                               b2b_enabled=b2b_settings(c).enabled)
+                               b2b_enabled=b2b_settings(c).enabled, addons=enabled_addons(c),
+                               member_levels=staff_member_levels(c))
     partner = None
     if user.partner is not None:
         partner = PartnerBrief(id=user.partner.id, name=user.partner.name, kind=user.partner.kind)

@@ -67,6 +67,10 @@ class CompanyBrief(ORM):
     branding: DashboardBranding | None = None
     # Business accounts (clients and vendors) switched on by the platform owner.
     b2b_enabled: bool = False
+    # Advanced features switched on by the platform owner (e.g. "members").
+    addons: list[str] = []
+    # Members community: level key → name in both languages and whether their chats are priority.
+    member_levels: dict[str, dict] | None = None
 
 
 class PartnerBrief(BaseModel):
@@ -350,6 +354,7 @@ class CustomerOut(ORM):
     phone: str | None
     email: str | None
     whatsapp_id: str | None
+    member_level: str | None = None
 
 
 class UserBrief(ORM):
@@ -481,6 +486,8 @@ class PublicCompanyOut(BaseModel):
     contact_email: str | None
     contact_phone: str | None
     branding: PublicBranding
+    # Members community levels for the Community section (when switched on and shown on the page).
+    members: list[dict] | None = None
 
 
 class PublicPackageOut(ORM):

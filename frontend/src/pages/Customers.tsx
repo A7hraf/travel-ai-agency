@@ -1,4 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
+import MemberBadge from "../components/members/MemberBadge";
+import RankCard from "../components/members/RankCard";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { download, get, patch } from "../api";
 import { useAuth } from "../auth";
@@ -138,6 +140,7 @@ function CustomerListPage() {
                       <span className="bt-who">
                         <Link to={`/app/customers/${c.id}`} onClick={(e) => e.stopPropagation()}><strong><bdi>{customerLabel(c)}</bdi></strong></Link>
                         {(c.phone || c.email) && <small><bdi dir="ltr">{[c.phone, c.email].filter(Boolean).join(" · ")}</bdi></small>}
+                        <MemberBadge level={c.member_level} />
                         {c.tags.length > 0 && <span className="bt-tags">{c.tags.map((tag) => <span key={tag} className="bt-tag">{tag}</span>)}</span>}
                       </span>
                     </td>
@@ -228,6 +231,8 @@ function CustomerPage({ id }: { id: number }) {
         <div className="bt-fact"><div className="bt-fact-label">{t("Paid")}</div><div className="bt-fact-value"><Money value={c.total_paid} currency={c.currency} /></div></div>
         <div className="bt-fact"><div className="bt-fact-label">{t("First contact")}</div><div className="bt-fact-value small">{shortDate(c.first_contact)}</div></div>
       </div>
+
+      <RankCard customerId={c.id} level={c.member_level} onChanged={load} />
 
       <form className="gx-card" onSubmit={save}>
         <h2 className="gx-card-title"><span className="gx-card-icon"><AddressBook /></span>{t("Contact details")}</h2>

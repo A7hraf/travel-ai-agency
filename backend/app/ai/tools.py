@@ -626,8 +626,10 @@ def _dry_run_handover(ctx: ToolContext, reason="", **_) -> dict:
 
 # Business clients writing from a linked WhatsApp number (each handler checks the link itself).
 from .b2b_tools import B2B_HANDLERS  # noqa: E402
+from .member_tools import MEMBER_HANDLERS  # noqa: E402
 
 _HANDLERS.update(B2B_HANDLERS)
+_HANDLERS.update(MEMBER_HANDLERS)
 
 _DRY_RUN_HANDLERS = {
     "create_booking_ticket": _dry_run_booking,

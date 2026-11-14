@@ -30,6 +30,8 @@ interface NavItem {
   badge?: "needs" | "open";
   /** Shown only when the platform owner switched business accounts on for the company. */
   b2b?: boolean;
+  /** Shown only when the platform owner switched this advanced feature on for the company. */
+  addon?: string;
 }
 
 const COMPANY_NAV: NavItem[] = [
@@ -38,6 +40,7 @@ const COMPANY_NAV: NavItem[] = [
   { to: "/app/tickets", label: "Tickets", icon: Ticket, permission: "tickets.view", badge: "open" },
   { to: "/app/customers", label: "Customers", icon: AddressBook, permission: "conversations.view" },
   { to: "/app/packages", label: "Packages", icon: SuitcaseRolling, permission: "packages.view" },
+  { to: "/app/members", label: "Members", icon: Crown, permission: "members.manage", addon: "members" },
   { to: "/app/requests", label: "Business requests", icon: Briefcase, permission: "requests.manage", b2b: true },
   { to: "/app/users", label: "Team & accounts", icon: UsersThree, permission: "users.manage" },
   { to: "/app/partners", label: "Business accounts", icon: Handshake, permission: "partners.manage", b2b: true },
@@ -161,7 +164,7 @@ export default function Layout() {
 
   if (!user) return null;
   const nav = isSystem ? SYSTEM_NAV : COMPANY_NAV.filter((n) => (!n.permission || can(n.permission)) && (!n.role || n.role === user.role)
-    && (!n.b2b || !!user.company?.b2b_enabled));
+    && (!n.b2b || !!user.company?.b2b_enabled) && (!n.addon || !!user.company?.addons?.includes(n.addon)));
   const tabs = isSystem ? [] : TAB_PATHS.map((p) => nav.find((n) => n.to === p)).filter((n): n is NavItem => !!n);
   const menuItems = nav.filter((n) => !tabs.includes(n));
   const branding = user.company?.branding;

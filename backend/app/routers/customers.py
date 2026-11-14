@@ -43,6 +43,7 @@ class CustomerRow(BaseModel):
     total_booked: float
     total_paid: float
     tags: list[str]
+    member_level: str | None = None
 
 
 class CustomerList(BaseModel):
@@ -172,7 +173,7 @@ def _rows(db: Session, me: User, q: str | None, channel: str | None, has_booking
                 Conversation.company_id == cid, Conversation.customer_id.in_(ids)).distinct()):
             channels.setdefault(customer_id, set()).add(ch)
     rows = [
-        CustomerRow(id=c.id, name=c.name, phone=c.phone, email=c.email, channels=sorted(channels.get(c.id, set())),
+        CustomerRow(id=c.id, name=c.name, phone=c.phone, email=c.email, member_level=c.member_level, channels=sorted(channels.get(c.id, set())),
                     first_contact=f, last_contact=lst, conversations=int(nc or 0), bookings=int(nb or 0),
                     total_booked=round(float(tb or 0), 3), total_paid=round(float(tp or 0), 3), tags=list(c.tags or []))
         for c, nc, f, lst, nb, tb, tp in result
@@ -226,6 +227,7 @@ def _detail(db: Session, me: User, customer: Customer) -> CustomerDetail:
     can_tickets = "tickets.view" in effective_permissions(me)
     return CustomerDetail(
         id=customer.id, name=customer.name, phone=customer.phone, email=customer.email,
+        member_level=customer.member_level,
         channels=sorted({c.channel for c in convs}),
         first_contact=min([c.created_at for c in convs], default=customer.created_at),
         last_contact=max([c.last_message_at for c in convs], default=customer.created_at),

@@ -490,3 +490,32 @@ PACKAGES: list[PackageDef] = [
         ["طيران درجة رجال الأعمال", "6 ليالٍ إقامة كاملة", "ليلة في قارب خاص", "علاجات أيورفيدا يومية"],
         ["India e-visa"], ["التأشيرة الإلكترونية"]),
 ]
+
+
+# Members community: the four levels of The Community section, with the same perks.
+MEMBERSHIP = {
+    "show_on_page": True,
+    "levels": {
+        "level1": {"name_en": "Explorer", "name_ar": "مستكشف",
+                   "perks_en": "Priority replies\nMember-only offers\nA welcome gift on your first journey",
+                   "perks_ar": "أولوية في الرد\nعروض خاصة بالأعضاء\nهدية ترحيبية في رحلتك الأولى"},
+        "level2": {"name_en": "Voyager", "name_ar": "رحّالة",
+                   "perks_en": "Room upgrades when available\nEarly access to new experiences\nFree date changes",
+                   "perks_ar": "ترقية الغرف عند توفرها\nوصول مبكر إلى التجارب الجديدة\nتغيير مجاني للمواعيد"},
+        "level3": {"name_en": "Elite", "name_ar": "نخبة",
+                   "perks_en": "A personal concierge all year\nAirport meet & assist on every trip\nPartner privileges",
+                   "perks_ar": "كونسيرج شخصي طوال السنة\nاستقبال VIP في المطار في كل رحلة\nمزايا لدى الشركاء",
+                   "special_requests": True},
+        "vip": {"name_en": "VIP", "name_ar": "VIP",
+                "perks_en": "A dedicated team\nSpecial requests at any hour\nExperiences created for you alone",
+                "perks_ar": "فريق مخصص لك\nطلبات خاصة في أي وقت\nتجارب تُصنع لك وحدك",
+                "special_requests": True, "priority": True},
+    },
+}
+
+# Sample special requests of the demo's members: (title, details, status).
+MEMBER_REQUESTS = [
+    ("Private yacht dinner in Muscat for an anniversary", "2 people, sunset, Omani menu, flowers on board.", "open"),
+    ("Paddock passes for the Abu Dhabi Grand Prix", "2 passes, Sunday race, hotel near Yas Marina.", "in_progress"),
+    ("Chauffeur for a week in London", "Mercedes S-Class, airport pickup on arrival.", "done"),
+]

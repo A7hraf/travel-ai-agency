@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from ..ai.prompts import welcome_message
 from ..ai.tools import is_bookable
 from ..branding import public_branding, welcome_override
+from ..members import public_member_levels
 from ..config import get_settings
 from ..database import get_db
 from ..models import (
@@ -87,6 +88,7 @@ def company_info(slug: str, request: Request, db: Session = Depends(get_db)):
         contact_email=c.contact_email,
         contact_phone=c.contact_phone,
         branding=public_branding(c),
+        members=public_member_levels(c),
     )
 
 
