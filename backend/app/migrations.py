@@ -68,6 +68,8 @@ NEW_COLUMNS = [
     ("tickets", "client_note", "TEXT"),
     ("tickets", "last_client_at", "TIMESTAMP WITH TIME ZONE"),
     ("tickets", "legacy_ref", "VARCHAR(60)"),
+    ("tickets", "checklist", "JSON"),
+    ("tickets", "documents_sent_at", "TIMESTAMP WITH TIME ZONE"),
     ("trip_options", "ticket_id", "INTEGER REFERENCES tickets(id) ON DELETE CASCADE"),
     ("trip_options", "link", "VARCHAR(500)"),
 ]

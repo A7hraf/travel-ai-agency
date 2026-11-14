@@ -4,6 +4,8 @@ The customer's session token travels in the ``X-Customer-Token`` header (never i
 staff login in the same browser is never mixed up with it). Every answer is about the signed-in customer only.
 """
 
+import base64
+import binascii
 from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -15,11 +17,15 @@ from ..addons import has_addon
 from ..database import get_db
 from ..deps import require_permission
 from ..members import level_of
-from ..models import Company, Conversation, Customer, Message, Ticket, TripFeedback, User, utcnow
+from ..models import (
+    Company, Conversation, Customer, Message, RequestFile, Ticket, TicketStatus, TripFeedback, User, utcnow,
+)
 from ..netutil import client_ip
 from ..ratelimit import limiter
 from ..routers.public import _company
 from ..services import customer_portal as svc
+from ..services import request_files as files_svc
+from ..services import requests as flow
 from ..services.conversations import is_customer_visible
 from ..services.whatsapp import normalize_phone
 from ..timeutil import local_today
@@ -30,9 +36,15 @@ BASE = "/api/public/companies/{slug}/me"
 
 class PhoneIn(BaseModel):
     phone: str = Field(min_length=6, max_length=30)
+    # The request ID (e.g. TRV-AB12CD): finds requests made on the website with this number.
+    reference: str | None = Field(default=None, max_length=20)
 
 
-class CodeIn(PhoneIn):
+class CodeOnlyIn(BaseModel):
+    phone: str = Field(min_length=6, max_length=30)
+
+
+class CodeIn(CodeOnlyIn):
     code: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
 
 
@@ -77,6 +89,21 @@ class TripOut(BaseModel):
     rating: int | None
     comment: str | None
     can_rate: bool
+    # A service request: what was asked, the choices sent, how to pay, the booking steps and the files.
+    service_en: str | None = None
+    service_ar: str | None = None
+    choices: list[dict] = []
+    payment_info: dict | None = None
+    checklist: list[dict] = []
+    files: list[dict] = []
+    can_upload: bool = False
+    upload_is_proof: bool = False
+
+
+class FileIn(BaseModel):
+    name: str | None = Field(default=None, max_length=200)
+    content_type: str = Field(max_length=60)
+    data_base64: str = Field(max_length=files_svc.MAX_FILE_BYTES * 4 // 3 + 16)
 
 
 class ChatMessage(BaseModel):
@@ -113,7 +140,10 @@ def ask_code(slug: str, body: PhoneIn, request: Request, db: Session = Depends(g
     limiter.check(f"portal-code-ip:{ip}", 10, "Too many requests, please wait a few minutes", window=900)
     # Per number: a few codes per 15 minutes, and the same answer whether the number is known or not.
     if limiter.allow(f"portal-code:{company.id}:{phone}", 3, window=900):
-        customer = svc.find_whatsapp_customer(db, company, phone)
+        if body.reference and body.reference.strip():
+            customer = svc.customer_for_reference(db, company, body.reference, phone)
+        else:
+            customer = svc.find_whatsapp_customer(db, company, phone)
         if customer is not None:
             svc.send_code(db, company, customer)
     return {"sent": True}
@@ -124,6 +154,7 @@ def verify(slug: str, body: CodeIn, request: Request, db: Session = Depends(get_
     company = _company(db, slug)
     limiter.check(f"portal-verify-ip:{client_ip(request)}", 20, "Too many tries, please wait a few minutes", window=900)
     customer = svc.verify_code(db, company, _phone(body.phone), body.code)
+    svc.claim_requests(db, customer)
     return SessionOut(token=svc.create_token(customer))
 
 
@@ -158,15 +189,40 @@ def _trips(db: Session, customer: Customer) -> list[TripOut]:
                                               Ticket.customer_id == customer.id).order_by(Ticket.created_at.desc())).all()
     feedback = {f.ticket_id: f for f in db.scalars(select(TripFeedback).where(TripFeedback.customer_id == customer.id)).all()}
     out = []
+    company = db.get(Company, customer.company_id)
     for t in tickets:
         fb = feedback.get(t.id)
-        out.append(TripOut(
+        out.append(_trip(t, company, TripOut(
             id=t.id, reference=t.reference, title=t.package_title, departure_date=t.departure_date,
             end_date=svc.trip_end(t), adults=t.adults, children=t.children, total_price=round(float(t.total_price), 3),
             currency=t.currency, status=t.status, phase=svc.phase(t, today),
             steps=[TripStep(**s) for s in svc.customer_steps(db, t)],
             rating=fb.rating if fb else None, comment=fb.comment if fb else None,
-            can_rate=svc.can_give_feedback(t, today, fb is not None)))
+            can_rate=svc.can_give_feedback(t, today, fb is not None))))
+    return out
+
+
+SHOW_CHOICES = (TicketStatus.QUOTED, TicketStatus.CHANGES, TicketStatus.CHOSEN, TicketStatus.FINAL)
+
+
+def _trip(t: Ticket, company: Company, out: TripOut) -> TripOut:
+    """What the client may see of their own request: never costs, AI estimates, notes or staff."""
+    if t.service is not None:
+        out.service_en, out.service_ar = t.service.name_en, t.service.name_ar
+    if t.status in SHOW_CHOICES:
+        out.choices = [{"number": n, "part": o.category, "title": o.title, "provider": o.provider, "link": o.link,
+                        "details": o.details, "price": float(o.price) if o.price is not None else None, "chosen": o.chosen}
+                       for n, o in flow.numbered(t)]
+    if t.status in (TicketStatus.PENDING_PAYMENT, TicketStatus.IN_PROGRESS) and isinstance(company.payment_info, dict):
+        out.payment_info = {"en": company.payment_info.get("en") or "", "ar": company.payment_info.get("ar") or ""}
+    if t.status in (TicketStatus.PAID, TicketStatus.CONFIRMED):
+        out.checklist = [{"label_en": c["label_en"], "label_ar": c["label_ar"], "done": c["done"]}
+                         for c in files_svc.checklist_view(t)]
+    out.files = [{"key": f.key, "name": f.name, "kind": f.kind, "size": f.size, "content_type": f.content_type,
+                  "at": f.sent_at or f.created_at}
+                 for f in t.files if f.uploaded_by == "client" or (f.kind == "document" and f.sent_at is not None)]
+    out.can_upload = t.status in files_svc.CLIENT_FILE_STATUSES
+    out.upload_is_proof = t.status in files_svc.PROOF_STATUSES
     return out
 
 
@@ -183,6 +239,31 @@ def give_feedback(ticket_id: int, body: FeedbackIn, me: Customer = Depends(sessi
     svc.save_feedback(db, me, ticket, body.rating, body.comment, "portal", local_today())
     db.commit()
     return _trips(db, me)
+
+
+@router.post(f"{BASE}/trips/{{ticket_id}}/files", response_model=list[TripOut], status_code=201)
+def upload_file(ticket_id: int, body: FileIn, me: Customer = Depends(session), db: Session = Depends(get_db)):
+    """The client sends their transfer receipt (or a paper the team asked for) from their private page."""
+    limiter.check(f"portal-files:{me.id}", 20, "Too many files, please wait a little", window=3600)
+    ticket = db.get(Ticket, ticket_id, with_for_update=True)
+    if ticket is None or ticket.customer_id != me.id or ticket.company_id != me.company_id:
+        raise HTTPException(404, "Trip not found")
+    try:
+        data = base64.b64decode(body.data_base64, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(400, "The file data is not valid") from None
+    files_svc.client_upload(db, ticket, body.name, body.content_type, data, actor="Client (trips page)")
+    db.commit()
+    return _trips(db, me)
+
+
+@router.get(f"{BASE}/files/{{key}}")
+def open_file(key: str, me: Customer = Depends(session), db: Session = Depends(get_db)):
+    f = db.scalar(select(RequestFile).where(RequestFile.key == key, RequestFile.company_id == me.company_id))
+    if f is None or f.ticket.customer_id != me.id or not (
+            f.uploaded_by == "client" or (f.kind == "document" and f.sent_at is not None)):
+        raise HTTPException(404, "File not found")
+    return files_svc.file_response(f)
 
 
 @router.get(f"{BASE}/chats", response_model=list[ChatOut])

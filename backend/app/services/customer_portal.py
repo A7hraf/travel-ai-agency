@@ -110,6 +110,48 @@ def find_whatsapp_customer(db: Session, company: Company, phone: str) -> Custome
     return db.scalar(select(Customer).where(Customer.company_id == company.id, Customer.whatsapp_id == phone))
 
 
+def _same_phone(raw: str | None, phone: str) -> bool:
+    from .whatsapp import normalize_phone  # noqa: PLC0415
+
+    return bool(raw) and normalize_phone(raw) == phone
+
+
+def customer_for_reference(db: Session, company: Company, reference: str, phone: str) -> Customer | None:
+    """The client of request `reference`, when that request belongs to this WhatsApp number (the number the client
+    chats from, or the one they gave on the website). Their WhatsApp record is made if they never wrote to us there,
+    so the code can go to that number. None when the request and the number don't match."""
+    ticket = db.scalar(select(Ticket).where(Ticket.company_id == company.id,
+                                            Ticket.reference == (reference or "").strip().upper()))
+    if ticket is None:
+        return None
+    if not (ticket.customer.whatsapp_id == phone or _same_phone(ticket.contact_phone, phone)):
+        return None
+    customer = find_whatsapp_customer(db, company, phone)
+    if customer is None:
+        customer = Customer(company_id=company.id, whatsapp_id=phone, phone=f"+{phone}",
+                            name=ticket.customer.name or ticket.lead_traveler_name or None)
+        db.add(customer)
+        db.commit()
+    return customer
+
+
+def claim_requests(db: Session, customer: Customer) -> int:
+    """After the client proved this WhatsApp number (the code), the requests they made on the website with this
+    number move to them, so their private page shows everything. Requests of other numbers never move."""
+    if not customer.whatsapp_id:
+        return 0
+    moved = 0
+    for t in db.scalars(select(Ticket).join(Customer, Customer.id == Ticket.customer_id).where(
+            Ticket.company_id == customer.company_id, Customer.whatsapp_id.is_(None),
+            Ticket.contact_phone.is_not(None))).all():
+        if _same_phone(t.contact_phone, customer.whatsapp_id):
+            t.customer_id = customer.id
+            moved += 1
+    if moved:
+        db.commit()
+    return moved
+
+
 def send_code(db: Session, company: Company, customer: Customer) -> None:
     """Creates a code and sends it on WhatsApp. Never raises: the caller answers the same either way."""
     from .whatsapp import WhatsAppError, get_whatsapp_sender  # noqa: PLC0415

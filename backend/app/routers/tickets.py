@@ -1,6 +1,8 @@
 """Clients' requests (stored as "tickets"): the AI's request card, the quotation loop, the payment and the
 booking. The flow itself lives in services/requests.py; this file checks who may do what."""
 
+import base64
+import binascii
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -13,6 +15,7 @@ from ..deps import require_permission
 from ..models import (
     Message,
     MessageKind,
+    RequestFile,
     Role,
     Sender,
     Ticket,
@@ -22,6 +25,8 @@ from ..models import (
 )
 from ..permissions import effective_permissions
 from ..schemas import TicketEventOut, TicketOut, TicketUpdate
+from ..services import request_files as files
+from ..services.request_files import file_response
 from ..services import requests as flow
 from ..services import seats
 from ..timeutil import local_today
@@ -40,8 +45,11 @@ def _get(db: Session, me: User, ticket_id: int, lock: bool = False) -> Ticket:
     return ticket
 
 
-def ticket_out(ticket: Ticket, me: User) -> TicketOut:
+def ticket_out(ticket: Ticket, me: User, detail: bool = False) -> TicketOut:
     out = TicketOut.model_validate(ticket)
+    if detail:
+        out.request_files = [files.file_out(f) for f in ticket.files]
+        out.booking_steps = files.checklist_view(ticket)
     out.options = sorted(out.options, key=lambda o: (flow.CATEGORIES.index(o.category) if o.category in flow.CATEGORIES else 99, o.id))
     out.urgency = flow.urgency(ticket, me.company, local_today())
     return out
@@ -84,7 +92,7 @@ def list_tickets(
 def get_ticket(ticket_id: int, me: User = Depends(require_permission("tickets.view")), db: Session = Depends(get_db)):
     if seats.release_expired(db, company_id=me.company_id):
         db.commit()
-    return ticket_out(_get(db, me, ticket_id), me)
+    return ticket_out(_get(db, me, ticket_id), me, detail=True)
 
 
 # Status changes staff make here (the quotation steps have their own endpoints below). Cancelled and
@@ -221,7 +229,7 @@ def update_ticket(ticket_id: int, body: TicketUpdate,
     if body.status is not None and ticket.status == body.status:
         flow.notify_status(db, ticket)  # the client hears about payment received, booked, cancelled
         db.refresh(ticket)
-    return ticket_out(ticket, me)
+    return ticket_out(ticket, me, detail=True)
 
 
 # --- Quotation (choices, final quotation) and the client's answers -------------------------------------
@@ -275,7 +283,7 @@ manage = require_permission("tickets.view", "tickets.manage")
 def _done(db: Session, ticket: Ticket, me: User) -> TicketOut:
     db.commit()
     db.refresh(ticket)
-    return ticket_out(ticket, me)
+    return ticket_out(ticket, me, detail=True)
 
 
 @router.post("/{ticket_id}/options", response_model=TicketOut)
@@ -341,3 +349,71 @@ def client_answer(ticket_id: int, body: ClientAnswerIn, me: User = Depends(manag
     else:
         flow.client_paid(db, ticket, body.transfer_reference or "", actor)
     return _done(db, ticket, me)
+
+
+# --- Files, booking checklist and documents --------------------------------------------------------------
+
+class FileIn(BaseModel):
+    kind: Literal["document", "payment_proof", "client_file"] = "document"
+    name: str | None = Field(default=None, max_length=200)
+    content_type: str = Field(max_length=60)
+    data_base64: str = Field(max_length=files.MAX_FILE_BYTES * 4 // 3 + 16)
+
+
+def decode(data_base64: str) -> bytes:
+    try:
+        return base64.b64decode(data_base64, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(400, "The file data is not valid") from None
+
+
+@router.post("/{ticket_id}/files", response_model=TicketOut, status_code=201)
+def upload_file(ticket_id: int, body: FileIn, me: User = Depends(manage), db: Session = Depends(get_db)):
+    limiter.check(f"request-files:{me.company_id}", 300, "Too many uploads, please wait a few minutes", window=3600)
+    ticket = _get(db, me, ticket_id, lock=True)
+    files.staff_upload(db, ticket, body.kind, body.name, body.content_type, decode(body.data_base64), me)
+    return _done(db, ticket, me)
+
+
+@router.get("/{ticket_id}/files/{file_id}")
+def open_file(ticket_id: int, file_id: int, me: User = Depends(require_permission("tickets.view")),
+              db: Session = Depends(get_db)):
+    ticket = _get(db, me, ticket_id)
+    f = db.scalar(select(RequestFile).where(RequestFile.id == file_id, RequestFile.ticket_id == ticket.id,
+                                            RequestFile.company_id == me.company_id))
+    if f is None:
+        raise HTTPException(404, "File not found")
+    return file_response(f)
+
+
+@router.delete("/{ticket_id}/files/{file_id}", response_model=TicketOut)
+def remove_file(ticket_id: int, file_id: int, me: User = Depends(manage), db: Session = Depends(get_db)):
+    ticket = _get(db, me, ticket_id, lock=True)
+    files.delete_file(db, ticket, file_id, me)
+    return _done(db, ticket, me)
+
+
+class StepIn(BaseModel):
+    step: str = Field(min_length=1, max_length=40)
+    done: bool
+
+
+@router.post("/{ticket_id}/checklist", response_model=TicketOut)
+def tick_step(ticket_id: int, body: StepIn, me: User = Depends(manage), db: Session = Depends(get_db)):
+    ticket = _get(db, me, ticket_id, lock=True)
+    files.tick(db, ticket, body.step, body.done, me)
+    return _done(db, ticket, me)
+
+
+class DocumentsIn(BaseModel):
+    note: str | None = Field(default=None, max_length=1000)
+
+
+@router.post("/{ticket_id}/send-documents", response_model=TicketOut)
+def send_documents(ticket_id: int, body: DocumentsIn, me: User = Depends(manage), db: Session = Depends(get_db)):
+    ticket = _get(db, me, ticket_id, lock=True)
+    failed = files.send_documents(db, me.company, ticket, body.note, me)
+    out = _done(db, ticket, me)
+    if failed:
+        out.notice = f"{failed} documents could not be sent on WhatsApp: the client can open them on their trips page"
+    return out

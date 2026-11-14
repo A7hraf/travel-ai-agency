@@ -392,6 +392,9 @@ class Ticket(Base):
     last_client_at: Mapped[datetime | None] = mapped_column(UTCDateTime())  # waiting since (for urgency)
     # Requests moved from the old custom trips and member requests ("member_request:12"), so it runs once.
     legacy_ref: Mapped[str | None] = mapped_column(String(60), index=True)
+    # The booking steps of the service done after payment (step key → {"at": iso time, "by": name}).
+    checklist: Mapped[dict | None] = mapped_column(JSON)
+    documents_sent_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     departure_date: Mapped[str | None] = mapped_column(String(20))
     adults: Mapped[int] = mapped_column(Integer, default=1)
     children: Mapped[int] = mapped_column(Integer, default=0)
@@ -423,6 +426,30 @@ class Ticket(Base):
                                                        order_by="TripOption.id", back_populates="ticket")
     assigned_to: Mapped[User | None] = relationship()
     conversation: Mapped[Conversation | None] = relationship()
+    files: Mapped[list["RequestFile"]] = relationship(cascade="all, delete-orphan", passive_deletes=True,
+                                                      order_by="RequestFile.id", back_populates="ticket")
+
+
+class RequestFile(Base):
+    """A private file of a request: the client's payment proof or papers (passport copy…), or a travel document
+    the team sends (tickets, vouchers, plan). Never public: only the company's staff and that client can open it."""
+
+    __tablename__ = "request_files"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    ticket_id: Mapped[int] = mapped_column(ForeignKey("tickets.id", ondelete="CASCADE"), index=True)
+    key: Mapped[str] = mapped_column(String(64), unique=True, index=True, default=lambda: random_token(24))
+    kind: Mapped[str] = mapped_column(String(20))  # payment_proof | client_file | document
+    name: Mapped[str] = mapped_column(String(200))
+    content_type: Mapped[str] = mapped_column(String(60))
+    size: Mapped[int] = mapped_column(Integer)
+    data: Mapped[bytes] = mapped_column(LargeBinary, deferred=True)  # read only when the file is opened
+    uploaded_by: Mapped[str] = mapped_column(String(200))  # "client" or the staff member's name
+    sent_at: Mapped[datetime | None] = mapped_column(UTCDateTime())  # documents: when the client got it
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+    ticket: Mapped["Ticket"] = relationship(back_populates="files")
 
 
 class TicketEvent(Base):

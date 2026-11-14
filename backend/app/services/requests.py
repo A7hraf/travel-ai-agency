@@ -327,8 +327,8 @@ def payment_text(ticket: Ticket, company: Company) -> str:
     how = "\n".join(x for x in ((info.get("en") or "").strip(), (info.get("ar") or "").strip()) if x)
     return "\n".join(x for x in [
         f"*{ticket.reference}* approved ✅ Total: {_money(ticket.total_price, ticket.currency)}",
-        "To confirm your booking, please pay and send us the transfer or receipt number.",
-        "لتأكيد الحجز، يرجى الدفع وإرسال رقم التحويل أو الإيصال.",
+        "To confirm your booking, please pay and send us the transfer receipt here (a photo or PDF) or its number.",
+        "لتأكيد الحجز، يرجى الدفع وإرسال إيصال التحويل هنا (صورة أو PDF) أو رقمه.",
         how or "Our team will send you the payment details. سيرسل لك فريقنا تفاصيل الدفع.",
     ] if x)
 

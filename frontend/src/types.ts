@@ -389,6 +389,11 @@ export interface Service {
   parts: ServicePart[]; fields: ServiceField[]; steps: ServiceStep[]; rules: string; is_active: boolean;
 }
 
+export interface RequestFile {
+  id: number; key: string; kind: "payment_proof" | "client_file" | "document"; name: string; content_type: string; size: number;
+  uploaded_by: string; sent_at: string | null; created_at: string;
+}
+
 export interface Ticket {
   id: number;
   reference: string;
@@ -406,6 +411,11 @@ export interface Ticket {
   options: TicketOption[];
   /** Which request to work on first (0-100) and why. */
   urgency: { score?: number; reasons?: string[] };
+  /** Only on one request (empty in lists). */
+  request_files: RequestFile[];
+  booking_steps: { key: string; label_en: string; label_ar: string; done: boolean; at: string | null; by: string | null }[];
+  documents_sent_at: string | null;
+  notice: string | null;
   departure_date: string | null;
   adults: number;
   children: number;

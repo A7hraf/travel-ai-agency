@@ -140,6 +140,68 @@ export const AR_FLOW: Record<string, string> = {
   "Quotations approved": "عروض الأسعار المعتمدة",
   "Approval {p} · {n} rounds on average": "نسبة الاعتماد {p} · {n} جولة في المتوسط",
 
+  // Payment proof, booking checklist and documents (staff)
+  "Payment and booking": "الدفع والحجز",
+  "Files": "الملفات",
+  "the client": "العميل",
+  "Download {name}": "تنزيل {name}",
+  "The client sent a payment proof: check it, write the transfer number in Payment reference, then mark as paid.":
+    "أرسل العميل إثبات الدفع: راجعه، واكتب رقم التحويل في مرجع الدفع، ثم علّمه مدفوعاً.",
+  "Booking checklist": "قائمة خطوات الحجز",
+  "Done when you send the documents": "تكتمل عند إرسال الوثائق",
+  "Kind of file": "نوع الملف",
+  "Travel document": "وثيقة سفر",
+  "Payment proof": "إثبات الدفع",
+  "From the client": "من العميل",
+  "Add files (photo or PDF)": "أضف ملفات (صورة أو PDF)",
+  "Send the documents and confirm": "أرسل الوثائق وأكّد الحجز",
+  "Send the new documents": "أرسل الوثائق الجديدة",
+  "Documents to send: {n}. They go to the client on WhatsApp and on their private trips page.":
+    "وثائق للإرسال: {n}. تصل للعميل على واتساب وفي صفحة رحلاته الخاصة.",
+  "No documents added: the client gets the confirmation message only.": "لم تُضف وثائق: يصل العميل رسالة التأكيد فقط.",
+  "Tick the booking steps first ({n} left).": "أكمل خطوات الحجز أولاً (بقي {n}).",
+  "Send and confirm": "أرسل وأكّد",
+  "The client": "العميل",
+  "The client (trips page)": "العميل (صفحة الرحلات)",
+  "{who} sent a payment proof: {new}": "أرسل {who} إثبات الدفع: {new}",
+  "{who} sent a file: {new}": "أرسل {who} ملفاً: {new}",
+  "{who} added the file {new}": "أضاف {who} الملف {new}",
+  "{who} removed the file {new}": "حذف {who} الملف {new}",
+  "{who} ticked: {new}": "أكمل {who}: {new}",
+  "{who} unticked: {new}": "ألغى {who} إكمال: {new}",
+  "{who} sent the documents: {new}": "أرسل {who} الوثائق: {new}",
+  "Could not read the file.": "تعذّرت قراءة الملف.",
+
+  // Trips page (client)
+  "Write the request ID from our messages (it starts with TRV-) and the WhatsApp number you gave us. We send a code to that WhatsApp.":
+    "اكتب رقم الطلب من رسائلنا (يبدأ بـ TRV-) ورقم واتساب الذي أعطيتنا إياه. سنرسل رمزاً إلى ذلك الواتساب.",
+  "Your request ID": "رقم طلبك",
+  "Your choice": "اختيارك",
+  "Reply in our chat with the number of your choice for each part, or tell us what to change.":
+    "ردّ في محادثتنا برقم اختيارك لكل جزء، أو أخبرنا بما تريد تغييره.",
+  "How to pay": "طريقة الدفع",
+  "Send your transfer receipt (photo or PDF)": "أرسل إيصال التحويل (صورة أو PDF)",
+  "Send a paper we asked for (photo or PDF)": "أرسل مستنداً طلبناه (صورة أو PDF)",
+  "Booking steps": "خطوات الحجز",
+  "From us": "منّا",
+  "You sent it": "أرسلته أنت",
+
+  // Server messages (files)
+  "Only photos (JPEG, PNG, WebP) and PDF files are allowed": "يُسمح فقط بالصور (JPEG وPNG وWebP) وملفات PDF",
+  "The file is empty": "الملف فارغ",
+  "The file is too large (maximum 6 MB)": "الملف كبير جداً (الحد الأقصى 6 ميغابايت)",
+  "The file is not a real photo or PDF": "الملف ليس صورة أو PDF حقيقياً",
+  "This request already has the most files": "بلغ هذا الطلب الحد الأقصى للملفات",
+  "File storage limit reached for this company": "بلغت الشركة حد تخزين الملفات",
+  "This request is closed: files can't be added any more": "هذا الطلب مغلق: لا يمكن إضافة ملفات",
+  "Unknown kind of file": "نوع ملف غير معروف",
+  "File not found": "الملف غير موجود",
+  "This document was already sent to the client": "أُرسلت هذه الوثيقة للعميل مسبقاً",
+  "Step not found": "الخطوة غير موجودة",
+  "Tick every booking step first": "أكمل كل خطوات الحجز أولاً",
+  "There are no new documents to send": "لا توجد وثائق جديدة للإرسال",
+  "The file data is not valid": "بيانات الملف غير صالحة",
+
   // Server messages
   "Service not found": "الخدمة غير موجودة",
   "Ready-made packages are one built-in service": "الباقات الجاهزة خدمة مدمجة واحدة",
@@ -165,4 +227,6 @@ export const AR_FLOW_PATTERNS: [RegExp, string][] = [
   [/^Send at most (\d+) choices for each part$/, "أرسل {1} خيارات كحد أقصى لكل جزء"],
   [/^Set the client price of "(.+)" first$/, "حدّد سعر العميل لـ «{1}» أولاً"],
   [/^Missing: (.+)$/, "ناقص: {1}"],
+  [/^(\d+) documents could not be sent on WhatsApp: the client can open them on their trips page$/,
+    "تعذّر إرسال {1} وثيقة على واتساب: يمكن للعميل فتحها من صفحة رحلاته"],
 ];

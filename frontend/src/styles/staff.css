@@ -388,3 +388,26 @@ img.brand-logo { object-fit: contain; border-radius: 10px; }
 .gx-rq-final-list { margin: 0; padding-inline-start: 18px; font-size: 14px; }
 .gx-rq-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
 @media (max-width: 560px) { .gx-rq-opt-form, .gx-rq-row { grid-template-columns: 1fr; } }
+
+/* Requests: files, booking checklist, documents */
+.gx-rq-booking { margin-top: 22px; padding-top: 16px; box-shadow: inset 0 1px 0 var(--line); display: flex; flex-direction: column; gap: 10px; }
+.gx-rq-booking h3 { font-size: 20px; font-weight: 600; margin: 4px 0 0; }
+.gx-rq-files, .gx-rq-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.gx-rq-file { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 14px; background: rgba(var(--fg-rgb), .04); }
+.gx-rq-file.payment_proof { box-shadow: inset 0 0 0 1.5px var(--st-paid); }
+.gx-rq-file-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
+.gx-rq-file-main svg { vertical-align: -2px; color: var(--st-paid); }
+.gx-rq-thumb { width: 52px; height: 52px; flex: none; border-radius: 10px; object-fit: cover; display: grid; place-items: center;
+  background: rgba(var(--fg-rgb), .08); font-size: 26px; color: var(--accent); }
+.gx-rq-hint { display: flex; gap: 8px; align-items: flex-start; margin: 0; padding: 9px 12px; border-radius: 12px; font-size: 14px;
+  background: color-mix(in srgb, var(--st-paid) 14%, transparent); }
+.gx-rq-hint svg { flex: none; margin-top: 2px; color: var(--st-paid); }
+.gx-rq-steps li { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 12px;
+  border-radius: 12px; background: rgba(var(--fg-rgb), .04); }
+.gx-rq-steps li.done span[dir] { text-decoration: line-through; text-decoration-color: var(--brand); color: var(--text-muted); }
+.gx-rq-steps label { display: flex; gap: 10px; align-items: center; font-size: 15px; cursor: pointer; }
+.gx-rq-steps input { width: 18px; height: 18px; }
+.gx-rq-upload { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.gx-rq-upload label.btn { cursor: pointer; }
+.gx-rq-booking .gx-rq-final { margin-top: 4px; }
+.gx-rq-final p { margin: 0; }

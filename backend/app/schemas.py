@@ -447,6 +447,11 @@ class TicketOut(ORM):
     options: list[TicketOptionOut] = []
     # Which request to work on first (0-100) and why; set by the request list and page.
     urgency: dict = {}
+    # Only on one request (not in lists): its files (no content) and the booking checklist.
+    request_files: list[dict] = []
+    booking_steps: list[dict] = []
+    documents_sent_at: datetime | None = None
+    notice: str | None = None  # something the staff member should know about the step just done
     departure_date: str | None
     adults: int
     children: int

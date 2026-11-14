@@ -227,11 +227,12 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
   return data as T;
 }
 
-/** Downloads a file of the API (CSV exports) with the login, and saves it under `filename`. */
-export async function download(path: string, filename: string): Promise<void> {
+/** A file of the API with the login (staff) or the client's trips-page session, and its file name. */
+export async function fetchBlob(path: string, opts?: { customerToken?: string | null }): Promise<{ blob: Blob; filename: string | null }> {
   const headers: Record<string, string> = {};
-  const token = getToken();
+  const token = opts?.customerToken ? null : getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
+  if (opts?.customerToken) headers["X-Customer-Token"] = opts.customerToken;
   let res: Response;
   try {
     res = await fetchWithTimeout(path, { headers }, 120_000);
@@ -243,16 +244,31 @@ export async function download(path: string, filename: string): Promise<void> {
     const data = await res.json().catch(() => null);
     throw report(new ApiError(res.status, errorMessage(res.status, data)), "GET", path, undefined, rawDetail(data));
   }
-  const blob = await res.blob();
   const match = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "");
+  return { blob: await res.blob(), filename: match?.[1] ?? null };
+}
+
+/** Downloads a file of the API (CSV exports, request files) and saves it under `filename`. */
+export async function download(path: string, filename: string, opts?: { customerToken?: string | null }): Promise<void> {
+  const { blob, filename: given } = await fetchBlob(path, opts);
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = match?.[1] ?? filename;
+  a.download = given ?? filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** A photo or PDF chosen by the user, as base64 for an upload (checked by the server too). */
+export function readFileBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",", 2)[1] ?? "");
+    reader.onerror = () => reject(new Error(tr("Could not read the file.")));
+    reader.readAsDataURL(file);
+  });
 }
 
 export const get = <T>(path: string, opts?: ApiOptions) => api<T>("GET", path, undefined, opts);

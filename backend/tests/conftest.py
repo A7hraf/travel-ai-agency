@@ -45,6 +45,8 @@ class FakeWhatsApp:
         self.sent: list[tuple[str, str, str]] = []
         self.read: list[str] = []
         self.fail = fail
+        self.media = {}
+        self.files = []
 
     def send_text(self, company, to, text):
         from app.services.whatsapp import WhatsAppError
@@ -56,6 +58,22 @@ class FakeWhatsApp:
 
     def mark_read(self, company, message_id):
         self.read.append(message_id)
+
+    # Photos and files: what clients "sent" (media id -> (bytes, mime)), and the files we sent (self.files).
+    def download_media(self, company, media_id, max_bytes):
+        from app.services.whatsapp import WhatsAppError
+
+        if media_id not in self.media or len(self.media[media_id][0]) > max_bytes:
+            raise WhatsAppError("no such media")
+        return self.media[media_id]
+
+    def send_file(self, company, to, data, content_type, filename, caption=None):
+        from app.services.whatsapp import WhatsAppError
+
+        if self.fail:
+            raise WhatsAppError("boom")
+        self.files.append((to, filename, content_type, caption))
+        return f"wamid.file.{len(self.files)}"
 
 
 @pytest.fixture

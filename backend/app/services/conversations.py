@@ -306,7 +306,13 @@ def _process_whatsapp_message(db: Session, item: IncomingMessage, only_company_i
         return  # Meta retried a delivery we already handled
     conversation = _whatsapp_conversation(db, company, item.wa_id, item.profile_name)
     get_whatsapp_sender().mark_read(company, item.message_id)
-    replies = handle_customer_message(db, conversation, item.text[:max_len], external_id=item.message_id)
+    text = item.text
+    if item.media is not None:
+        # A photo or PDF (transfer receipt, passport copy…): kept with the client's open request.
+        from .request_files import receive_whatsapp_file  # noqa: PLC0415
+
+        text = receive_whatsapp_file(db, company, conversation, item.media, item.text[:500])
+    replies = handle_customer_message(db, conversation, text[:max_len], external_id=item.message_id)
     for reply in replies or []:
         deliver(db, conversation, reply)
 

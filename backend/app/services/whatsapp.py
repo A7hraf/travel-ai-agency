@@ -35,6 +35,8 @@ class IncomingMessage:
     message_id: str
     text: str
     profile_name: str | None
+    # A photo or a file (PDF…): {"id", "mime_type", "filename"}. The caption, if any, is the text.
+    media: dict | None = None
 
 
 @dataclass
@@ -86,8 +88,15 @@ def parse_webhook(payload: dict) -> tuple[list[IncomingMessage], list[StatusUpda
             for m in value.get("messages") or []:
                 if not phone_number_id or not m.get("from") or not m.get("id"):
                     continue
-                text = _message_text(m).strip()
-                if not text:
+                media = None
+                if m.get("type") in ("image", "document") and isinstance(m.get(m["type"]), dict) and m[m["type"]].get("id"):
+                    body = m[m["type"]]
+                    media = {"id": str(body["id"])[:100], "mime_type": str(body.get("mime_type") or "")[:60].split(";")[0].strip(),
+                             "filename": str(body.get("filename") or "")[:200], "kind": m["type"]}
+                    text = str(body.get("caption") or "").strip()
+                else:
+                    text = _message_text(m).strip()
+                if not text and media is None:
                     continue
                 messages.append(
                     IncomingMessage(
@@ -96,6 +105,7 @@ def parse_webhook(payload: dict) -> tuple[list[IncomingMessage], list[StatusUpda
                         message_id=m["id"],
                         text=text,
                         profile_name=names.get(m["from"]),
+                        media=media,
                     )
                 )
             for s in value.get("statuses") or []:
@@ -234,6 +244,11 @@ class WhatsAppSender(Protocol):
 
     def mark_read(self, company: Company, message_id: str) -> None: ...
 
+    def download_media(self, company: Company, media_id: str, max_bytes: int) -> tuple[bytes, str]: ...
+
+    def send_file(self, company: Company, to: str, data: bytes, content_type: str, filename: str,
+                  caption: str | None = None) -> str | None: ...
+
 
 class CloudAPISender:
     def _endpoint(self, company: Company) -> tuple[str, dict]:
@@ -263,6 +278,55 @@ class CloudAPISender:
                 detail = getattr(getattr(exc, "response", None), "text", "")
                 raise WhatsAppError(f"WhatsApp send failed: {exc} {detail}".strip()) from exc
         return last_id
+
+    def download_media(self, company: Company, media_id: str, max_bytes: int) -> tuple[bytes, str]:
+        """A photo or file the client sent: Meta gives a short-lived address, read with the same token."""
+        s = get_settings()
+        token = access_token_for(company)
+        if not token:
+            raise WhatsAppError("WhatsApp is not configured for this company")
+        headers = {"Authorization": f"Bearer {token}"}
+        try:
+            info = httpx.get(f"{s.whatsapp_graph_url}/{effective_api_version()}/{media_id}", headers=headers, timeout=15)
+            info.raise_for_status()
+            meta = info.json()
+            if int(meta.get("file_size") or 0) > max_bytes:
+                raise WhatsAppError("The file is too large")
+            url = str(meta.get("url") or "")
+            if not url.startswith("https://"):
+                raise WhatsAppError("WhatsApp gave no address for the file")
+            resp = httpx.get(url, headers=headers, timeout=30)
+            resp.raise_for_status()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise WhatsAppError(f"Could not download the file: {exc}") from exc
+        if len(resp.content) > max_bytes:
+            raise WhatsAppError("The file is too large")
+        return resp.content, str(meta.get("mime_type") or "").split(";")[0].strip()
+
+    def send_file(self, company: Company, to: str, data: bytes, content_type: str, filename: str,
+                  caption: str | None = None) -> str | None:
+        """Uploads the file to WhatsApp, then sends it (a photo as an image, anything else as a document)."""
+        url, headers = self._endpoint(company)
+        media_url = url.rsplit("/", 1)[0] + "/media"
+        try:
+            up = httpx.post(media_url, headers=headers, timeout=60,
+                            data={"messaging_product": "whatsapp", "type": content_type},
+                            files={"file": (filename, data, content_type)})
+            up.raise_for_status()
+            media_id = up.json()["id"]
+            kind = "image" if content_type.startswith("image/") else "document"
+            body: dict = {"id": media_id}
+            if caption:
+                body["caption"] = caption[:1000]
+            if kind == "document":
+                body["filename"] = filename
+            resp = httpx.post(url, headers=headers, timeout=20, json={
+                "messaging_product": "whatsapp", "recipient_type": "individual", "to": to, "type": kind, kind: body})
+            resp.raise_for_status()
+            return (resp.json().get("messages") or [{}])[0].get("id")
+        except (httpx.HTTPError, ValueError, KeyError) as exc:
+            detail = getattr(getattr(exc, "response", None), "text", "")
+            raise WhatsAppError(f"WhatsApp file send failed: {exc} {detail}".strip()) from exc
 
     def mark_read(self, company: Company, message_id: str) -> None:
         try:

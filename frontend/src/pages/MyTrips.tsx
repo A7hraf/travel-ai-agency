@@ -1,13 +1,16 @@
-import { CSSProperties, FormEvent, useCallback, useEffect, useState } from "react";
+import { ChangeEvent, CSSProperties, FormEvent, useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
-import { ApiError, get, post } from "../api";
-import { ChatCircleDots, Check, Crown, LockSimple, SignOut, Star, SuitcaseRolling, Translate, WhatsappLogo } from "../components/Icon";
+import { ApiError, download, get, post, readFileBase64 } from "../api";
+import { PART_LABELS } from "../components/requests/QuotePanel";
+import {
+  ArrowSquareOut, ChatCircleDots, Check, Crown, DownloadSimple, LockSimple, Paperclip, SignOut, Star, SuitcaseRolling, Translate, WhatsappLogo,
+} from "../components/Icon";
 import { moneyText } from "../components/Money";
 import { pageVars } from "../components/storefront/style";
 import { ErrorBox, Loading } from "../components/ui";
 import { useI18n } from "../lang";
 import { pinTheme } from "../themeMode";
-import type { PublicCompany } from "../types";
+import type { PublicCompany, ServicePart } from "../types";
 import { dateTime, shortDate } from "../util";
 
 interface Me { name: string | null; phone: string | null; company_name: string;
@@ -16,6 +19,12 @@ interface Trip {
   id: number; reference: string; title: string; departure_date: string | null; end_date: string | null; adults: number; children: number;
   total_price: number; currency: string; status: string; phase: "quotation" | "booking" | "upcoming" | "travelling" | "finished" | "cancelled";
   steps: { action: string; at: string }[]; rating: number | null; comment: string | null; can_rate: boolean;
+  service_en: string | null; service_ar: string | null;
+  choices: { number: number; part: ServicePart; title: string; provider: string | null; link: string | null; details: string | null; price: number | null; chosen: boolean }[];
+  payment_info: { en: string; ar: string } | null;
+  checklist: { label_en: string; label_ar: string; done: boolean }[];
+  files: { key: string; name: string; kind: string; size: number; content_type: string; at: string }[];
+  can_upload: boolean; upload_is_proof: boolean;
 }
 interface Chat { id: number; channel: string; created_at: string; last_message_at: string; messages: { sender: string; content: string; created_at: string }[] }
 
@@ -48,6 +57,7 @@ function saveToken(slug: string, token: string | null) {
 
 function SignIn({ slug, company, onToken }: { slug: string; company: PublicCompany; onToken: (t: string) => void }) {
   const { t } = useI18n();
+  const [reference, setReference] = useState("");
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);
@@ -57,7 +67,7 @@ function SignIn({ slug, company, onToken }: { slug: string; company: PublicCompa
   const send = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true); setError(null);
-    try { await post(`/api/public/companies/${slug}/me/code`, { phone }, { customerToken: null }); setSent(true); }
+    try { await post(`/api/public/companies/${slug}/me/code`, { phone, reference: reference.trim() }, { customerToken: null }); setSent(true); }
     catch (err) { setError((err as Error).message); } finally { setBusy(false); }
   };
   const verify = async (e: FormEvent) => {
@@ -71,8 +81,12 @@ function SignIn({ slug, company, onToken }: { slug: string; company: PublicCompa
       <LockSimple className="mt-lock" />
       <h1>{t("Your private trips page")}</h1>
       <p className="mt-muted">{t("Your bookings, the progress of each trip and your chats with us. Only you can open it, with your WhatsApp number.")}</p>
+      {!sent && <p className="mt-muted mt-small">{t("Write the request ID from our messages (it starts with TRV-) and the WhatsApp number you gave us. We send a code to that WhatsApp.")}</p>}
       {!sent ? (
         <form onSubmit={send} className="mt-form">
+          <label htmlFor="mt-ref">{t("Your request ID")}</label>
+          <input id="mt-ref" value={reference} onChange={(e) => setReference(e.target.value.toUpperCase().slice(0, 20))} dir="ltr"
+            placeholder="TRV-AB12CD" required minLength={6} autoComplete="off" />
           <label htmlFor="mt-phone">{t("Your WhatsApp number")}</label>
           <input id="mt-phone" value={phone} onChange={(e) => setPhone(e.target.value)} dir="ltr" inputMode="tel" placeholder="+968 9123 4567" required />
           <button className="sf-cta" disabled={busy}>{busy ? t("Sending…") : t("Send me a code on WhatsApp")}</button>
@@ -104,8 +118,27 @@ function Stars({ value, onPick }: { value: number; onPick?: (n: number) => void 
   );
 }
 
-function TripCard({ trip, onRate }: { trip: Trip; onRate: (id: number, rating: number, comment: string) => Promise<void> }) {
+function TripCard({ trip, onRate, slug, token, onTrips }: {
+  trip: Trip; onRate: (id: number, rating: number, comment: string) => Promise<void>;
+  slug: string; token: string; onTrips: (trips: Trip[]) => void;
+}) {
   const { t, lang } = useI18n();
+  const [uploading, setUploading] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const upload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setFileError(null);
+    if (file.size > 6_000_000) { setFileError(t("The file is too large (maximum 6 MB)")); return; }
+    setUploading(true);
+    try {
+      const data = await readFileBase64(file);
+      onTrips(await post<Trip[]>(`/api/public/companies/${slug}/me/trips/${trip.id}/files`,
+        { name: file.name, content_type: file.type, data_base64: data }, { customerToken: token }));
+    } catch (err) { setFileError((err as Error).message); } finally { setUploading(false); }
+  };
+  const parts = [...new Set(trip.choices.map((c) => c.part))];
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -122,7 +155,66 @@ function TripCard({ trip, onRate }: { trip: Trip; onRate: (id: number, rating: n
         <span>{travellers}</span>
         {trip.total_price > 0 && <strong>{moneyText(trip.total_price, trip.currency, lang)}</strong>}
       </div>
+      {(trip.service_en || trip.service_ar) && <div className="mt-service">{lang === "ar" ? trip.service_ar || trip.service_en : trip.service_en}</div>}
       {trip.phase === "quotation" && QUOTE_TEXT[trip.status] && <p className="mt-muted">{t(QUOTE_TEXT[trip.status])}</p>}
+      {trip.choices.length > 0 && (
+        <div className="mt-choices">
+          {parts.map((p) => (
+            <div key={p}>
+              <div className="mt-choices-part">{t(PART_LABELS[p] ?? "Other")}</div>
+              <ul>
+                {trip.choices.filter((c) => c.part === p).map((c) => (
+                  <li key={c.number} className={c.chosen ? "chosen" : ""}>
+                    <span className="mt-choice-n">{c.number}</span>
+                    <span className="mt-choice-main">
+                      <strong dir="auto">{c.title}</strong>{c.provider && <span className="mt-muted"> · {c.provider}</span>}
+                      {c.link && <a href={c.link} target="_blank" rel="noreferrer noopener" aria-label={t("Open link")}> <ArrowSquareOut /></a>}
+                      {c.details && <span className="mt-muted mt-small" dir="auto">{c.details}</span>}
+                    </span>
+                    {c.price !== null && <strong className="mt-choice-price">{moneyText(c.price, trip.currency, lang)}</strong>}
+                    {c.chosen && <Check className="mt-choice-ok" aria-label={t("Your choice")} />}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+          {trip.status === "quoted" && <p className="mt-muted mt-small">{t("Reply in our chat with the number of your choice for each part, or tell us what to change.")}</p>}
+        </div>
+      )}
+      {trip.payment_info && (trip.payment_info.en || trip.payment_info.ar) && (
+        <div className="mt-pay">
+          <div className="mt-choices-part">{t("How to pay")}</div>
+          <p dir="auto">{lang === "ar" ? trip.payment_info.ar || trip.payment_info.en : trip.payment_info.en || trip.payment_info.ar}</p>
+        </div>
+      )}
+      {trip.can_upload && (
+        <label className={`mt-upload ${trip.upload_is_proof ? "proof" : ""}`}>
+          <Paperclip />
+          <span>{uploading ? t("Sending…") : trip.upload_is_proof ? t("Send your transfer receipt (photo or PDF)") : t("Send a paper we asked for (photo or PDF)")}</span>
+          <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" hidden disabled={uploading} onChange={upload} />
+        </label>
+      )}
+      <ErrorBox error={fileError} />
+      {trip.checklist.length > 0 && (
+        <ul className="mt-checklist" aria-label={t("Booking steps")}>
+          {trip.checklist.map((c, i) => (
+            <li key={i} className={c.done ? "done" : ""}><span>{c.done ? <Check /> : i + 1}</span>{lang === "ar" ? c.label_ar || c.label_en : c.label_en}</li>
+          ))}
+        </ul>
+      )}
+      {trip.files.length > 0 && (
+        <ul className="mt-files" aria-label={t("Files")}>
+          {trip.files.map((f) => (
+            <li key={f.key}>
+              <span dir="auto">{f.name}</span>
+              <span className="mt-muted mt-small">{f.kind === "document" ? t("From us") : t("You sent it")}</span>
+              <button type="button" className="mt-file-btn" aria-label={t("Download {name}", { name: f.name })}
+                onClick={() => download(`/api/public/companies/${slug}/me/files/${f.key}`, f.name, { customerToken: token })
+                  .catch((err) => setFileError((err as Error).message))}><DownloadSimple /></button>
+            </li>
+          ))}
+        </ul>
+      )}
       {trip.phase !== "cancelled" && (
         <ol className="mt-track" aria-label={t("Trip progress")}>
           {TRACK.map((s, i) => <li key={s} className={i <= idx ? "done" : ""} aria-current={i === idx ? "step" : undefined}><span>{i < idx || (trip.phase === "finished" && i === idx) ? <Check /> : i + 1}</span>{t(s)}</li>)}
@@ -224,9 +316,9 @@ export default function MyTrips() {
             </div>
             {tab === "trips" && (trips.length === 0 ? <p className="mt-muted">{t("No bookings yet. Ask us in the chat and we'll plan your next trip.")}</p> : (<>
               {upcoming.length > 0 && <h2 className="mt-h2">{t("Current and upcoming")}</h2>}
-              {upcoming.map((x) => <TripCard key={x.id} trip={x} onRate={rate} />)}
+              {upcoming.map((x) => <TripCard key={x.id} trip={x} onRate={rate} slug={slug} token={token} onTrips={setTrips} />)}
               {past.length > 0 && <h2 className="mt-h2">{t("Past trips")}</h2>}
-              {past.map((x) => <TripCard key={x.id} trip={x} onRate={rate} />)}
+              {past.map((x) => <TripCard key={x.id} trip={x} onRate={rate} slug={slug} token={token} onTrips={setTrips} />)}
             </>))}
             {tab === "chats" && (chats.length === 0 ? <p className="mt-muted">{t("No chats yet.")}</p> : chats.map((c) => (
               <article key={c.id} className="mt-card mt-chat">

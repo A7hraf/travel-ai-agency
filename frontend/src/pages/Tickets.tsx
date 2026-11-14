@@ -12,6 +12,7 @@ import { pollWatcher } from "../errorReporter";
 import { trServer, useI18n } from "../lang";
 import type { Service, Ticket, TicketEvent, TicketStatus, User } from "../types";
 import MemberBadge from "../components/members/MemberBadge";
+import BookingPanel from "../components/requests/BookingPanel";
 import QuotePanel from "../components/requests/QuotePanel";
 import RequestCard from "../components/requests/RequestCard";
 import {
@@ -291,6 +292,8 @@ function TicketPanel({ id, onClose, onSaved }: { id: number; onClose: () => void
   const departed = !!ticket?.departure_date && ticket.departure_date < todayIso();
   const nexts = ticket
     ? (NEXT_TICKET_STATUSES[ticket.status] ?? []).filter((s) => (!["cancelled", "rejected"].includes(ticket.status) || isAdmin)
+      // A request with a service is confirmed by sending its documents (below), not by this button.
+      && !(s === "confirmed" && !!ticket.service)
       // A cancelled package booking reopens to "waiting for payment", a cancelled service request to "new".
       && (ticket.status !== "cancelled" || (s === "new") === (!!ticket.service && ticket.service.key !== "packages"))
       && !(departed && NEEDS_PAYMENT_REFERENCE.includes(s)))
@@ -438,6 +441,7 @@ function TicketPanel({ id, onClose, onSaved }: { id: number; onClose: () => void
           {ticket.urgency?.score ? <div className="gx-rq-urgency-line"><span className={`gx-rq-urgent ${(ticket.urgency.score ?? 0) >= 45 ? "high" : ""}`}>{t("Priority {n}/100", { n: ticket.urgency.score })}</span> {urgencyText(ticket.urgency.reasons ?? [], t, user?.company?.member_levels, lang)}</div> : null}
           <RequestCard ticket={ticket} services={services} />
           <QuotePanel ticket={ticket} onChange={(tk) => after(tk, true)} />
+          <BookingPanel ticket={ticket} onChange={(tk) => after(tk, true)} />
           {seatsReleased(ticket) && (
             <div className="tk-cancelled" role="note">
               {t("Not paid in time: the seats went back on sale. Marking it paid takes them again if seats are still left on this date.")}
@@ -540,7 +544,8 @@ function TicketHistory({ events, currency, lang }: { events: TicketEvent[] | nul
   const money = (v: string | null) => (v == null || v === "" || Number.isNaN(Number(v)) ? v ?? "—" : moneyText(Number(v), currency, lang));
 
   const describe = (ev: TicketEvent): string => {
-    const who = ev.actor === "AI" ? t("AI agent") : ev.actor === "System" ? t("System") : ev.actor;
+    const who = ev.actor === "AI" ? t("AI agent") : ev.actor === "System" ? t("System")
+      : ev.actor === "Client" ? t("The client") : ev.actor === "Client (trips page)" ? t("The client (trips page)") : ev.actor;
     switch (ev.action) {
       case "created":
         return ev.new_value
@@ -582,6 +587,20 @@ function TicketHistory({ events, currency, lang }: { events: TicketEvent[] | nul
         return t("{who} added to the final quotation: {new}", { who, new: ev.new_value ?? "" });
       case "moved":
         return t("Moved from the old requests");
+      case "payment_proof":
+        return t("{who} sent a payment proof: {new}", { who, new: ev.new_value ?? "" });
+      case "client_file":
+        return t("{who} sent a file: {new}", { who, new: ev.new_value ?? "" });
+      case "file_added":
+        return t("{who} added the file {new}", { who, new: ev.new_value ?? "" });
+      case "file_removed":
+        return t("{who} removed the file {new}", { who, new: ev.new_value ?? "" });
+      case "step_done":
+        return t("{who} ticked: {new}", { who, new: ev.new_value ?? "" });
+      case "step_undone":
+        return t("{who} unticked: {new}", { who, new: ev.new_value ?? "" });
+      case "documents_sent":
+        return t("{who} sent the documents: {new}", { who, new: ev.new_value ?? "" });
       default:
         return `${who}: ${ev.action}`;
     }
