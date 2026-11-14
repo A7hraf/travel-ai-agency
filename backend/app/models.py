@@ -171,6 +171,7 @@ class Company(Base):
     membership: Mapped[dict | None] = mapped_column(JSON)
     # How clients pay (bank details…), sent when they approve a quotation: {"en": "...", "ar": "..."}.
     payment_info: Mapped[dict | None] = mapped_column(JSON)
+    quote_settings: Mapped[dict | None] = mapped_column(JSON)  # the quotation design: intro, terms, footer
 
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 

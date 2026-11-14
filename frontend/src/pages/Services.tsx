@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { api, get, post, put } from "../api";
+import { useAuth } from "../auth";
 import { PageTitle, Switch } from "../components/admin/AdminUI";
 import { ArrowDown, ArrowUp, Plus, Sparkle, Trash } from "../components/Icon";
 import { PART_LABELS, PARTS } from "../components/requests/QuotePanel";
@@ -209,8 +210,56 @@ function PaymentCard() {
   );
 }
 
+interface QuoteDesign { intro_en: string; intro_ar: string; terms_en: string; terms_ar: string; footer_en: string; footer_ar: string; valid_days: number }
+
+function QuoteDesignCard() {
+  const { t } = useI18n();
+  const [d, setD] = useState<QuoteDesign | null>(null);
+  const [sample, setSample] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { get<QuoteDesign>("/api/quote-settings").then(setD).catch((e) => setError((e as Error).message)); }, []);
+  if (!d) return error ? <ErrorBox error={error} /> : null;
+  const set = (patch: Partial<QuoteDesign>) => { setD({ ...d, ...patch }); setSaved(false); };
+  const read = async () => {
+    setBusy(true); setError(null);
+    try { setD(await post<QuoteDesign>("/api/quote-settings/ai-draft", { text: sample })); setSaved(false); }
+    catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  };
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true); setError(null);
+    try { setD(await put<QuoteDesign>("/api/quote-settings", d)); setSaved(true); }
+    catch (err) { setError((err as Error).message); } finally { setBusy(false); }
+  };
+  return (
+    <form className="gx-card" onSubmit={save}>
+      <div className="gx-card-title">{t("Quotation design")}</div>
+      <p className="muted small">{t("Every quotation uses your logo and colours (Customer page design), and these texts. The AI fills in the trip, the choices, photos and prices.")}</p>
+      <Field label={t("Paste a sample of your quotation (the AI keeps your introduction, terms and footer)")}>
+        <textarea rows={3} value={sample} onChange={(e) => setSample(e.target.value)} maxLength={12000} dir="auto" />
+      </Field>
+      <div className="gx-form-actions"><button type="button" className="btn btn-soft" disabled={busy || sample.trim().length < 20} onClick={read}>
+        <Sparkle weight="fill" />{busy ? t("The AI is reading…") : t("Read my sample")}</button></div>
+      <div className="gx-grid-2">
+        <Field label={t("Introduction (English)")}><textarea rows={3} value={d.intro_en} onChange={(e) => set({ intro_en: e.target.value })} maxLength={3000} dir="ltr" /></Field>
+        <Field label={t("Introduction (Arabic)")}><textarea rows={3} value={d.intro_ar} onChange={(e) => set({ intro_ar: e.target.value })} maxLength={3000} dir="rtl" /></Field>
+        <Field label={t("Terms and conditions (English)")}><textarea rows={4} value={d.terms_en} onChange={(e) => set({ terms_en: e.target.value })} maxLength={4000} dir="ltr" /></Field>
+        <Field label={t("Terms and conditions (Arabic)")}><textarea rows={4} value={d.terms_ar} onChange={(e) => set({ terms_ar: e.target.value })} maxLength={4000} dir="rtl" /></Field>
+        <Field label={t("Footer (English)")}><input value={d.footer_en} onChange={(e) => set({ footer_en: e.target.value })} maxLength={500} dir="ltr" /></Field>
+        <Field label={t("Footer (Arabic)")}><input value={d.footer_ar} onChange={(e) => set({ footer_ar: e.target.value })} maxLength={500} dir="rtl" /></Field>
+        <Field label={t("Valid for (days)")}><input type="number" min={1} max={90} value={d.valid_days} onChange={(e) => set({ valid_days: Number(e.target.value) || 7 })} dir="ltr" /></Field>
+      </div>
+      <ErrorBox error={error} />
+      <div className="gx-form-actions">{saved && <span className="muted small">{t("Saved.")}</span>}<button className="btn btn-primary" disabled={busy}>{t("Save")}</button></div>
+    </form>
+  );
+}
+
 export default function Services() {
   const { t, lang } = useI18n();
+  const { user } = useAuth();
   const [list, setList] = useState<Service[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<number | "new" | null>(null);
@@ -286,6 +335,7 @@ export default function Services() {
       )}
 
       <PaymentCard />
+      {user?.company?.addons?.includes("quotes") && <QuoteDesignCard />}
     </div>
   );
 }

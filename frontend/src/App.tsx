@@ -35,6 +35,8 @@ const PartnerPortal = lazy(() => import("./pages/PartnerPortal"));
 const Requests = lazy(() => import("./pages/Requests"));
 const Services = lazy(() => import("./pages/Services"));
 const Library = lazy(() => import("./pages/Library"));
+const QuotationPage = lazy(() => import("./pages/QuotationPage"));
+const Reports = lazy(() => import("./pages/Reports"));
 const Members = lazy(() => import("./pages/Members"));
 const Feedback = lazy(() => import("./pages/Feedback"));
 const Insights = lazy(() => import("./pages/Insights"));
@@ -122,6 +124,9 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/c/:slug" element={<Storefront />} />
       <Route path="/c/:slug/me" element={<MyTrips />} />
+      <Route path="/c/:slug/me/quotation/:id" element={<QuotationPage client />} />
+      <Route path="/app/tickets/:id/quotation" element={<RequireUser system={false}><QuotationPage /></RequireUser>} />
+      <Route path="/app/reports" element={<RequireUser system={false} permission="reports.view"><Reports /></RequireUser>} />
       <Route path="/system/invoices/:id" element={<RequireUser system><Invoice owner /></RequireUser>} />
       <Route path="/app/plan/invoices/:id" element={<RequireUser system={false}><Invoice /></RequireUser>} />
 

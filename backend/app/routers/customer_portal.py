@@ -24,6 +24,7 @@ from ..netutil import client_ip
 from ..ratelimit import limiter
 from ..routers.public import _company
 from ..services import customer_portal as svc
+from ..services import quotes as quotes_svc
 from ..services import request_files as files_svc
 from ..services import requests as flow
 from ..services.conversations import is_customer_visible
@@ -98,6 +99,7 @@ class TripOut(BaseModel):
     files: list[dict] = []
     can_upload: bool = False
     upload_is_proof: bool = False
+    has_quotation: bool = False
 
 
 class FileIn(BaseModel):
@@ -223,6 +225,8 @@ def _trip(t: Ticket, company: Company, out: TripOut) -> TripOut:
                  for f in t.files if f.uploaded_by == "client" or (f.kind == "document" and f.sent_at is not None)]
     out.can_upload = t.status in files_svc.CLIENT_FILE_STATUSES
     out.upload_is_proof = t.status in files_svc.PROOF_STATUSES
+    out.has_quotation = has_addon(company, "quotes") and quotes_svc.kind_for_client(t) is not None and any(
+        o.sent_to_client for o in t.options)
     return out
 
 
@@ -255,6 +259,19 @@ def upload_file(ticket_id: int, body: FileIn, me: Customer = Depends(session), d
     files_svc.client_upload(db, ticket, body.name, body.content_type, data, actor="Client (trips page)")
     db.commit()
     return _trips(db, me)
+
+
+@router.get(f"{BASE}/trips/{{ticket_id}}/quotation")
+def trip_quotation(ticket_id: int, me: Customer = Depends(session), db: Session = Depends(get_db)):
+    """The client's own quotation page (choices sent, or the final quotation), when the company has it."""
+    ticket = db.get(Ticket, ticket_id)
+    company = db.get(Company, me.company_id)
+    if ticket is None or ticket.customer_id != me.id or ticket.company_id != me.company_id or not has_addon(company, "quotes"):
+        raise HTTPException(404, "Trip not found")
+    kind = quotes_svc.kind_for_client(ticket)
+    if kind is None:
+        raise HTTPException(404, "There is no quotation for this trip yet")
+    return quotes_svc.quotation(db, company, ticket, kind)
 
 
 @router.get(f"{BASE}/files/{{key}}")

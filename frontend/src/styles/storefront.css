@@ -774,3 +774,4 @@ body.sf-body { background: var(--bg-app); }
 .mt-files li { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 12px; background: var(--sf-surface); }
 .mt-files li > span[dir] { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
 .mt-file-btn { border: 0; background: none; color: var(--brand); font-size: 20px; cursor: pointer; padding: 4px; display: grid; }
+.mt-quote-link { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; color: var(--brand); }

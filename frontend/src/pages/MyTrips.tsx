@@ -3,7 +3,7 @@ import { Link, useLocation, useParams } from "react-router-dom";
 import { ApiError, download, get, post, readFileBase64 } from "../api";
 import { PART_LABELS } from "../components/requests/QuotePanel";
 import {
-  ArrowSquareOut, ChatCircleDots, Check, Crown, DownloadSimple, LockSimple, Paperclip, SignOut, Star, SuitcaseRolling, Translate, WhatsappLogo,
+  ArrowSquareOut, ChatCircleDots, Check, Crown, DownloadSimple, FilePdf, LockSimple, Paperclip, SignOut, Star, SuitcaseRolling, Translate, WhatsappLogo,
 } from "../components/Icon";
 import { moneyText } from "../components/Money";
 import { pageVars } from "../components/storefront/style";
@@ -24,7 +24,7 @@ interface Trip {
   payment_info: { en: string; ar: string } | null;
   checklist: { label_en: string; label_ar: string; done: boolean }[];
   files: { key: string; name: string; kind: string; size: number; content_type: string; at: string }[];
-  can_upload: boolean; upload_is_proof: boolean;
+  can_upload: boolean; upload_is_proof: boolean; has_quotation: boolean;
 }
 interface Chat { id: number; channel: string; created_at: string; last_message_at: string; messages: { sender: string; content: string; created_at: string }[] }
 
@@ -180,6 +180,9 @@ function TripCard({ trip, onRate, slug, token, onTrips }: {
           ))}
           {trip.status === "quoted" && <p className="mt-muted mt-small">{t("Reply in our chat with the number of your choice for each part, or tell us what to change.")}</p>}
         </div>
+      )}
+      {trip.has_quotation && (
+        <Link className="mt-quote-link" to={`/c/${slug}/me/quotation/${trip.id}`}><FilePdf />{t("View your quotation (with photos, printable)")}</Link>
       )}
       {trip.payment_info && (trip.payment_info.en || trip.payment_info.ar) && (
         <div className="mt-pay">

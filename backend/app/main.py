@@ -162,7 +162,7 @@ app.include_router(plans_router.router)
 
 # --- Business accounts (clients and vendors) ---
 from .routers import customer_portal as _customer_portal, insights as _insights, services as _services  # noqa: E402
-from .routers import library as _library  # noqa: E402
+from .routers import library as _library, quotes as _quotes  # noqa: E402
 from .routers import members as _members, partners as _partners, trip_requests as _trip_requests  # noqa: E402
 
 app.include_router(_partners.router)
@@ -172,6 +172,7 @@ app.include_router(_insights.router)
 app.include_router(_services.router)
 app.include_router(_services.payment_router)
 app.include_router(_library.router)
+app.include_router(_quotes.router)
 app.include_router(_trip_requests.router)
 
 

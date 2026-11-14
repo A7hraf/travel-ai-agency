@@ -1,0 +1,64 @@
+/* The branded quotation sheet (screen and print). Colours come from the company's page design. */
+.qt-page { min-height: 100vh; background: #e9e7e2; padding: 24px 16px 60px; }
+.qt-tools { max-width: 820px; margin: 0 auto 16px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.qt-tools .spacer { flex: 1; }
+.qt-tools select, .qt-tools input { width: auto; min-width: 0; }
+.qt-sheet { --qt-brand: #0088b0; --qt-accent: #c05; max-width: 820px; margin: 0 auto; background: #fff; color: #1d1d1b; padding: 48px 52px;
+  border-radius: 6px; box-shadow: 0 10px 40px rgba(0, 0, 0, .12); font-size: 14.5px; line-height: 1.55; }
+.qt-head { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; padding-bottom: 22px;
+  border-bottom: 3px solid var(--qt-brand); }
+.qt-logo { max-height: 64px; max-width: 220px; object-fit: contain; }
+.qt-name { font-size: 26px; color: var(--qt-brand); }
+.qt-meta { text-align: end; font-size: 13px; color: #555; }
+.qt-kind { font-size: 22px; font-weight: 700; color: var(--qt-brand); letter-spacing: .02em; margin-bottom: 4px; }
+.qt-trip { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 26px 0 18px; }
+.qt-label { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: #888; margin-bottom: 4px; }
+.qt-big { font-size: 20px; font-weight: 600; }
+.qt-muted { color: #666; }
+.qt-small { font-size: 12.5px; margin: 0 0 8px; }
+.qt-intro { white-space: pre-line; margin: 0 0 20px; padding: 14px 18px; border-inline-start: 3px solid var(--qt-accent); background: #faf9f7; }
+.qt-part { margin-top: 22px; break-inside: avoid-page; }
+.qt-part h2, .qt-terms h2 { font-size: 13px; letter-spacing: .18em; text-transform: uppercase; color: var(--qt-brand); margin: 0 0 10px;
+  padding-bottom: 6px; border-bottom: 1px solid #e5e2dc; }
+.qt-item { display: flex; gap: 16px; padding: 12px 0; border-bottom: 1px solid #f0eee9; break-inside: avoid; }
+.qt-photo { width: 150px; height: 104px; object-fit: cover; border-radius: 6px; flex: none; }
+.qt-item-main { flex: 1; min-width: 0; }
+.qt-item-title { font-weight: 700; font-size: 15.5px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.qt-num { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--qt-brand); color: #fff;
+  font-size: 12px; flex: none; }
+.qt-stars { color: #c99a2e; font-size: 12px; letter-spacing: 1px; }
+.qt-details { margin: 4px 0 0; white-space: pre-line; color: #444; }
+.qt-link { font-size: 12px; color: var(--qt-brand); margin-top: 4px; overflow-wrap: anywhere; }
+.qt-price { font-weight: 700; white-space: nowrap; font-size: 15.5px; }
+.qt-total { display: flex; justify-content: space-between; align-items: center; margin-top: 18px; padding: 16px 20px; border-radius: 6px;
+  background: var(--qt-brand); color: #fff; font-size: 18px; }
+.qt-total strong { font-size: 22px; }
+.qt-terms { margin-top: 28px; font-size: 12.5px; color: #555; break-inside: avoid; }
+.qt-terms p { white-space: pre-line; margin: 0; }
+.qt-foot { margin-top: 30px; padding-top: 14px; border-top: 1px solid #e5e2dc; font-size: 12px; color: #666; display: flex;
+  flex-direction: column; gap: 6px; white-space: pre-line; }
+.qt-contacts { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+[dir="rtl"] .qt-sheet { font-family: var(--font-ar, inherit); }
+@media (max-width: 640px) {
+  .qt-sheet { padding: 24px 18px; }
+  .qt-trip { grid-template-columns: 1fr; }
+  .qt-item { flex-direction: column; }
+  .qt-photo { width: 100%; height: 180px; }
+}
+@media print {
+  @page { size: A4; margin: 12mm; }
+  .qt-page { background: #fff; padding: 0; }
+  .qt-sheet { box-shadow: none; border-radius: 0; padding: 0; max-width: none; }
+  .no-print { display: none !important; }
+  .qt-total, .qt-num { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
+/* The report page */
+.rp-sheet .qt-trip { grid-template-columns: repeat(4, 1fr); }
+.rp-figure { padding: 12px 14px; border-radius: 6px; background: #faf9f7; }
+.rp-figure .qt-big { color: var(--qt-brand); }
+.rp-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.rp-table th { text-align: start; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #888; padding: 6px 8px; }
+.rp-table td { padding: 8px; border-top: 1px solid #f0eee9; }
+.rp-table td.n { text-align: end; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) { .rp-sheet .qt-trip { grid-template-columns: 1fr 1fr; } }

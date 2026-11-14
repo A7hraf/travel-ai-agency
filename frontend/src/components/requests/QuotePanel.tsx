@@ -4,7 +4,7 @@ import ImageUpload from "../ImageUpload";
 import { useAuth } from "../../auth";
 import { useI18n } from "../../lang";
 import type { ServicePart, Ticket, TicketOption } from "../../types";
-import { ArrowSquareOut, BookmarkSimple, Check, PaperPlaneRight, PencilSimple, Plus, Sparkle, Star, Trash } from "../Icon";
+import { ArrowSquareOut, BookmarkSimple, Check, FilePdf, PaperPlaneRight, PencilSimple, Plus, Sparkle, Star, Trash } from "../Icon";
 import { moneyText } from "../Money";
 import { ErrorBox } from "../ui";
 
@@ -123,6 +123,14 @@ export default function QuotePanel({ ticket, onChange }: { ticket: Ticket; onCha
     <section className="gx-rq-quote" aria-label={t("Quotation")}>
       <div className="gx-rq-quote-head">
         <h3>{t("Quotation")}</h3>
+        {addons.includes("quotes") && ticket.options.some((o) => o.price != null) && (
+          <span className="gx-rq-pdf">
+            <a className="btn btn-sm btn-ghost" href={`/app/tickets/${ticket.id}/quotation?kind=draft`} target="_blank" rel="noreferrer"><FilePdf />{t("Quotation PDF")}</a>
+            {ticket.options.some((o) => o.chosen) && (
+              <a className="btn btn-sm btn-ghost" href={`/app/tickets/${ticket.id}/quotation?kind=final`} target="_blank" rel="noreferrer"><FilePdf />{t("Final PDF")}</a>
+            )}
+          </span>
+        )}
         {editable && planner && parts.some((p) => p !== "other") && (
           <button type="button" className="btn btn-sm btn-soft" disabled={busy} onClick={() => safe(() => post<Ticket>(`${base}/ai-draft`))}>
             <Sparkle weight="fill" />{busy ? t("The AI is searching…") : t("Draft choices with AI")}

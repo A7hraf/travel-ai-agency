@@ -417,3 +417,4 @@ img.brand-logo { object-fit: contain; border-radius: 10px; }
 .gx-rq-lib { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 12px; }
 .gx-rq-lib .gx-chip { display: inline-flex; align-items: center; gap: 4px; }
 .gx-rq-lib .gx-chip svg[data-weight="fill"], .gx-rq-lib .gx-chip svg:last-child:not(:first-child) { color: var(--accent); }
+.gx-rq-pdf { display: inline-flex; gap: 4px; flex-wrap: wrap; margin-inline-start: auto; }

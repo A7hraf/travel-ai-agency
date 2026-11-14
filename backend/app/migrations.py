@@ -69,6 +69,7 @@ NEW_COLUMNS = [
     ("tickets", "last_client_at", "TIMESTAMP WITH TIME ZONE"),
     ("tickets", "legacy_ref", "VARCHAR(60)"),
     ("tickets", "checklist", "JSON"),
+    ("companies", "quote_settings", "JSON"),
     ("trip_options", "supplier_id", "INTEGER REFERENCES suppliers(id) ON DELETE SET NULL"),
     ("trip_options", "image_url", "VARCHAR(500)"),
     ("tickets", "documents_sent_at", "TIMESTAMP WITH TIME ZONE"),
