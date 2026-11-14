@@ -25,6 +25,8 @@ from ..b2b import effective_features
 from ..models import (
     Company,
     Conversation,
+    Customer,
+    RecommendationSignal,
     Message,
     MessageKind,
     Partner,
@@ -145,16 +147,22 @@ def _messages(req: TripRequest, thread: str | None) -> list[MessageOut]:
                        created_at=m.created_at) for m in req.messages if thread is None or m.thread == thread]
 
 
+def _kind(req: TripRequest) -> str:
+    return "business" if req.is_business else "individual"
+
+
 def staff_view(req: TripRequest, company: Company) -> StaffTripOut:
     return StaffTripOut(
-        **_common(req, company), source=req.source, client_id=req.client_id, client_name=req.client.name,
+        **_common(req, company), source=req.source, kind=_kind(req), client_id=req.client_id,
+        customer_id=req.customer_id, client_name=req.requester_name,
         vendor_id=req.vendor_id, vendor_name=req.vendor.name if req.vendor else None,
         vendor_accepted=req.vendor_accepted, traveller_names=req.traveller_names, budget=req.budget,
         notes=req.notes, vendor_brief=req.vendor_brief, markup_percent=req.markup_percent,
         booking_reference=req.booking_reference, booking_notes=req.booking_notes,
         total_price=_chosen_total(req.options, "price"), total_cost=_chosen_total(req.options, "cost_price"),
         options=[StaffOptionOut(id=o.id, category=o.category, title=o.title, provider=o.provider, details=o.details,
-                                cost_price=o.cost_price, price=o.price, added_by=o.added_by,
+                                cost_price=o.cost_price, price=o.price, estimate_price=o.estimate_price,
+                                ai_reason=o.ai_reason, added_by=o.added_by,
                                 sent_to_client=o.sent_to_client, chosen=o.chosen) for o in ordered(req.options)],
         events=[EventOut(action=e.action, created_at=e.created_at, actor_kind=e.actor_kind, actor_name=e.actor_name,
                          detail=e.detail) for e in req.events],
@@ -163,8 +171,8 @@ def staff_view(req: TripRequest, company: Company) -> StaffTripOut:
 
 
 def staff_row(req: TripRequest) -> StaffTripRow:
-    return StaffTripRow(id=req.id, reference=req.reference, status=req.status, source=req.source,
-                        client_name=req.client.name, vendor_name=req.vendor.name if req.vendor else None,
+    return StaffTripRow(id=req.id, reference=req.reference, status=req.status, source=req.source, kind=_kind(req),
+                        client_name=req.requester_name, vendor_name=req.vendor.name if req.vendor else None,
                         destination=req.destination, depart_date=req.depart_date, travellers=req.travellers,
                         updated_at=req.updated_at)
 
@@ -200,15 +208,20 @@ def vendor_view(req: TripRequest, company: Company) -> VendorTripOut:
 
 # --- Creating -----------------------------------------------------------------------------------------
 
-def create_request(db: Session, company: Company, client: Partner, data: TripRequestIn, actor: Actor, source: str,
-                   conversation_id: int | None = None) -> TripRequest:
-    if client.company_id != company.id or client.kind != PartnerKind.CLIENT:
-        raise HTTPException(404, "Business client not found")
-    if not client.is_active:
-        raise HTTPException(409, "This business client is paused")
+def create_request(db: Session, company: Company, client: Partner | None, data: TripRequestIn, actor: Actor,
+                   source: str, conversation_id: int | None = None, customer: Customer | None = None) -> TripRequest:
+    """A business client's request (``client``) or an individual traveller's custom trip (``customer`` only)."""
+    if client is not None:
+        if client.company_id != company.id or client.kind != PartnerKind.CLIENT:
+            raise HTTPException(404, "Business client not found")
+        if not client.is_active:
+            raise HTTPException(409, "This business client is paused")
+    elif customer is None or customer.company_id != company.id:
+        raise HTTPException(404, "Customer not found")
     for _ in range(5):
         req = TripRequest(
-            company_id=company.id, reference=ticket_reference().replace("TRV-", "BR-"), client_id=client.id,
+            company_id=company.id, reference=ticket_reference().replace("TRV-", "BR-" if client else "CT-"),
+            client_id=client.id if client else None, customer_id=customer.id if customer else None,
             status=S.NEW, source=source, created_by_id=actor.user_id, conversation_id=conversation_id,
             purpose=data.purpose, origin=data.origin, destination=data.destination, depart_date=data.depart_date,
             return_date=data.return_date, travellers=data.travellers, traveller_names=data.traveller_names,
@@ -289,6 +302,8 @@ def update_staff_option(db: Session, req: TripRequest, option_id: int, data: Opt
 def delete_option(db: Session, req: TripRequest, option_id: int, actor: Actor) -> TripRequest:
     _require(req, *EDITABLE_OPTIONS)
     option = _option(req, option_id)
+    if option.added_by == "ai":
+        signal(db, req, option, "removed")
     req.options.remove(option)
     _event(db, req, actor, "option_removed", f"{option.category}: {option.title}")
     db.commit()
@@ -301,6 +316,16 @@ def _option(req: TripRequest, option_id: int) -> TripOption:
     if option is None:
         raise HTTPException(404, "Option not found")
     return option
+
+
+def signal(db: Session, req: TripRequest, option: TripOption, event: str) -> None:
+    """Remember what happened to an option, so the AI planner learns the company's taste."""
+    provider = " ".join((option.provider or "").split())[:120]
+    if not provider:
+        return
+    db.add(RecommendationSignal(company_id=req.company_id, request_id=req.id, category=option.category,
+                                provider=provider, title=option.title[:200], destination=req.destination[:120],
+                                event=event, from_ai=option.added_by == "ai"))
 
 
 def _with_markup(cost: Decimal, markup: Decimal) -> Decimal:
@@ -324,6 +349,10 @@ def send_to_client(db: Session, req: TripRequest, option_ids: list[int], actor: 
     for o in req.options:
         o.sent_to_client = o.id in wanted
         o.chosen = False
+        if o.id in wanted:
+            signal(db, req, o, "sent")
+        elif o.added_by == "ai":
+            signal(db, req, o, "removed")  # staff did not keep the AI's idea
     req.status = S.WITH_CLIENT
     _event(db, req, actor, "sent_to_client", f"{len(picked)} options")
     db.commit()
@@ -380,6 +409,8 @@ def choose(db: Session, req: TripRequest, option_ids: list[int], actor: Actor) -
         raise HTTPException(422, "Choose exactly one option for each part")
     for o in req.options:
         o.chosen = o.id in wanted
+        if o.chosen:
+            signal(db, req, o, "chosen")
     req.status = S.CHOSEN
     _event(db, req, actor, "chosen", ", ".join(o.title for o in picked))
     db.commit()

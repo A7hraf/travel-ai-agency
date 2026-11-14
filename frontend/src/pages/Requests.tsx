@@ -2,7 +2,8 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { get, post, put, del } from "../api";
 import { PageTitle } from "../components/admin/AdminUI";
-import { ArrowLeft, Check, Plus, Trash, WhatsappLogo } from "../components/Icon";
+import { ArrowLeft, Check, Plus, Sparkle, Trash, WhatsappLogo } from "../components/Icon";
+import { useAuth } from "../auth";
 import { money, PART_LABEL, PARTS, PartChip, STATUS, StatusBadge, STEP_LABEL, Thread, TripFacts } from "../components/b2b/TripParts";
 import { Empty, ErrorBox, Field, Loading } from "../components/ui";
 import { useI18n } from "../lang";
@@ -17,14 +18,23 @@ function RequestList() {
   const [rows, setRows] = useState<StaffTripRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<TripStatus | "">("");
-  const load = () => get<StaffTripRow[]>(`/api/b2b/requests${status ? `?status=${status}` : ""}`)
-    .then((r) => { setRows(r); setError(null); }).catch((e) => setError((e as Error).message));
-  useEffect(() => { load(); }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [kind, setKind] = useState<"" | "business" | "individual">("");
+  const load = () => {
+    const q = new URLSearchParams({ ...(status ? { status } : {}), ...(kind ? { kind } : {}) }).toString();
+    return get<StaffTripRow[]>(`/api/b2b/requests${q ? `?${q}` : ""}`)
+      .then((r) => { setRows(r); setError(null); }).catch((e) => setError((e as Error).message));
+  };
+  useEffect(() => { load(); }, [status, kind]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div>
-      <PageTitle kicker={t("Agency workspace")} title={t("Business requests")}
-        subtitle={t("Trips your business clients ask for. Forward them to a vendor, send the client up to 3 choices per part, approve, and track the booking.")} />
+      <PageTitle kicker={t("Agency workspace")} title={t("Trip requests")}
+        subtitle={t("Tailor-made trips asked by business clients and individual travellers. Let the AI draft options or ask a vendor, send up to 3 choices per part, approve, and track the booking.")} />
+      <div className="seg gx-tabs" role="tablist" aria-label={t("Trip requests")}>
+        {([["", "All"], ["business", "Business clients"], ["individual", "Individual travellers"]] as const).map(([k, label]) => (
+          <button key={k || "all"} type="button" role="tab" aria-selected={kind === k} className={kind === k ? "active" : ""} onClick={() => setKind(k)}>{t(label)}</button>
+        ))}
+      </div>
       <div className="gx-chips" role="group" aria-label={t("Status")}>
         {FILTERS.map((f) => (
           <button key={f || "all"} type="button" className={`gx-chip ${status === f ? "on" : ""}`} aria-pressed={status === f} onClick={() => setStatus(f)}>
@@ -38,7 +48,7 @@ function RequestList() {
             <li key={r.id}>
               <Link to={`/app/requests/${r.id}`} className="gx-req-row">
                 <span className="gx-req-ref">{r.reference}</span>
-                <span className="gx-req-main" dir="auto"><strong>{r.client_name}</strong> · {r.destination} · {shortDate(r.depart_date)} · {t("{n} travellers", { n: r.travellers })}</span>
+                <span className="gx-req-main" dir="auto">{r.kind === "individual" && <span className="gx-ai-tag gx-kind-tag">{t("Individual")}</span>}<strong>{r.client_name}</strong> · {r.destination} · {shortDate(r.depart_date)} · {t("{n} travellers", { n: r.travellers })}</span>
                 <span className="muted small">{r.vendor_name ?? "—"}</span>
                 {r.source === "whatsapp" && <WhatsappLogo className="gx-req-wa" aria-label="WhatsApp" />}
                 <StatusBadge status={r.status} side="staff" />
@@ -123,6 +133,13 @@ function RequestDetail({ id }: { id: number }) {
     get<PartnerList>("/api/partners").then((d) => setVendors(d.partners.filter((p) => p.kind === "vendor" && p.is_active && p.active_features.includes("vendor.requests")))).catch(() => {});
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const { user } = useAuth();
+  const planner = !!user?.company?.addons?.includes("trip_planner");
+  const [drafting, setDrafting] = useState(false);
+  const draft = async () => {
+    setDrafting(true);
+    try { await run(() => post<StaffTrip>(`${base}/ai-draft`)); } catch { /* shown above */ } finally { setDrafting(false); }
+  };
   const run = async (fn: () => Promise<StaffTrip>) => {
     setActionError(null);
     try { show(await fn()); } catch (err) { setActionError((err as Error).message); throw err; }
@@ -141,8 +158,8 @@ function RequestDetail({ id }: { id: number }) {
       <button type="button" className="link-btn" onClick={() => navigate("/app/requests")}><ArrowLeft className="flip" />{t("All requests")}</button>
       <div className="gx-req-head">
         <div>
-          <div className="gx-kicker">{trip.reference}{trip.source === "whatsapp" && <> · <WhatsappLogo /> WhatsApp</>}</div>
-          <h1 dir="auto">{trip.client_name} · {trip.destination}</h1>
+          <div className="gx-kicker">{trip.reference} · {trip.kind === "individual" ? t("Individual traveller") : t("Business client")}{trip.source === "whatsapp" && <> · <WhatsappLogo /> WhatsApp</>}</div>
+          <h1 dir="auto">{trip.kind === "individual" && trip.customer_id ? <Link to={`/app/customers/${trip.customer_id}`}>{trip.client_name}</Link> : trip.client_name} · {trip.destination}</h1>
         </div>
         <StatusBadge status={trip.status} side="staff" />
       </div>
@@ -191,6 +208,12 @@ function RequestDetail({ id }: { id: number }) {
               )}
             </div>
             {editable && <p className="gx-card-note">{t("Tick up to 3 choices per part to send. Options without a client price get the cost plus your margin.")}</p>}
+            {editable && planner && (
+              <div className="gx-ai-bar">
+                <button type="button" className="btn btn-soft" disabled={drafting} onClick={draft}><Sparkle weight="fill" />{drafting ? t("The AI is searching…") : t("Draft options with AI")}</button>
+                <span className="muted small">{t("The AI suggests up to 3 airlines, hotels and more per part, with estimates for you only. Set the real price before sending; it learns from what you keep and what clients choose.")}</span>
+              </div>
+            )}
             {trip.options.length === 0 && <p className="muted">{t("No options yet. Wait for the vendor, or add them yourself.")}</p>}
             {PARTS.filter((p) => trip.options.some((o) => o.category === p)).map((p) => (
               <div key={p} className="gx-opt-group">
@@ -205,11 +228,14 @@ function RequestDetail({ id }: { id: number }) {
                     <div className="gx-opt-main">
                       <strong dir="auto">{o.title}</strong>{o.provider && <span className="muted"> · {o.provider}</span>}
                       {o.details && <div className="muted small gx-pre" dir="auto">{o.details}</div>}
-                      <div className="muted small">{o.added_by === "vendor" ? t("From the vendor") : t("Added by your team")}{o.sent_to_client && ` · ${t("sent to the client")}`}{o.chosen && ` · ${t("chosen")}`}</div>
+                      {o.ai_reason && <div className="muted small gx-ai-why" dir="auto"><Sparkle weight="fill" /> {o.ai_reason}</div>}
+                      <div className="muted small">{o.added_by === "ai" ? <span className="gx-ai-tag">{t("AI suggestion")}</span> : o.added_by === "vendor" ? t("From the vendor") : t("Added by your team")}{o.sent_to_client && ` · ${t("sent to the client")}`}{o.chosen && ` · ${t("chosen")}`}</div>
                     </div>
                     <div className="gx-opt-prices">
                       <span className="muted small">{t("Cost")} {money(o.cost_price, cur, lang)}</span>
-                      {o.price !== null || o.cost_price === null
+                      {o.price === null && o.cost_price === null && o.estimate_price != null
+                        ? <span className="muted" title={t("AI estimate: set the real price before sending")}>{t("AI est.")} ≈ {money(o.estimate_price, cur, lang)}</span>
+                        : o.price !== null || o.cost_price === null
                         ? <strong>{money(o.price, cur, lang)}</strong>
                         : <span className="muted" title={t("Price with your margin, set when you send")}>≈ {money(Number(o.cost_price) * (1 + Number(trip.markup_percent) / 100), cur, lang)}</span>}
                     </div>

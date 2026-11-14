@@ -539,7 +539,8 @@ def _add_members(db: Session, company: Company, members: tuple, with_people: boo
     from ..models import Customer, MemberRequest  # noqa: PLC0415
 
     config, requests = members
-    company.addons = {**(company.addons or {}), "members": True}
+    # The luxury demo shows every advanced feature: members, the AI trip planner and AI insights.
+    company.addons = {**(company.addons or {}), "members": True, "trip_planner": True, "insights": True}
     company.membership = config
     if not with_people:
         return
@@ -552,6 +553,15 @@ def _add_members(db: Session, company: Company, members: tuple, with_people: boo
     for customer, (title, details, status) in zip(customers[:len(requests)], requests):
         db.add(MemberRequest(company_id=company.id, customer_id=customer.id, kind="special",
                              level=customer.member_level, title=title, details=details, status=status))
+    if customers:
+        # A tailor-made trip waiting for the team: try "Draft options with AI" on it.
+        from ..models import TripRequest  # noqa: PLC0415
+
+        start = (now + timedelta(days=60)).date()
+        db.add(TripRequest(company_id=company.id, reference="CT-DEMO01", customer_id=customers[0].id, source="whatsapp",
+                           purpose="Family safari", origin="Muscat", destination="Masai Mara, Kenya", depart_date=start,
+                           return_date=start + timedelta(days=6), travellers=4, needs=["flight", "hotel", "transport", "activity"],
+                           budget="9,000 OMR", notes="Private lodge, game drives, a hot-air balloon at sunrise"))
     db.flush()
 
 

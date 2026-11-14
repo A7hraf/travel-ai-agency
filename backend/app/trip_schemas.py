@@ -189,6 +189,8 @@ class StaffOptionOut(BaseModel):
     details: str | None
     cost_price: Decimal | None
     price: Decimal | None
+    estimate_price: Decimal | None = None
+    ai_reason: str | None = None
     added_by: str
     sent_to_client: bool
     chosen: bool
@@ -232,7 +234,9 @@ class TripCommon(BaseModel):
 
 class StaffTripOut(TripCommon):
     source: str
-    client_id: int
+    kind: str  # business or individual
+    client_id: int | None
+    customer_id: int | None
     client_name: str
     vendor_id: int | None
     vendor_name: str | None
@@ -256,6 +260,7 @@ class StaffTripRow(BaseModel):
     reference: str
     status: str
     source: str
+    kind: str
     client_name: str
     vendor_name: str | None
     destination: str

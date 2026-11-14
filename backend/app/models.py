@@ -623,7 +623,9 @@ class TripRequest(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
     reference: Mapped[str] = mapped_column(String(20))
-    client_id: Mapped[int] = mapped_column(ForeignKey("partners.id", ondelete="CASCADE"), index=True)
+    # A business client's request (client_id), or an individual traveller's custom trip (customer_id only).
+    client_id: Mapped[int | None] = mapped_column(ForeignKey("partners.id", ondelete="CASCADE"), index=True)
+    customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id", ondelete="SET NULL"), index=True)
     vendor_id: Mapped[int | None] = mapped_column(ForeignKey("partners.id", ondelete="SET NULL"), index=True)
     status: Mapped[str] = mapped_column(String(20), default=TripRequestStatus.NEW, index=True)
     source: Mapped[str] = mapped_column(String(20), default="portal")  # portal, whatsapp, staff
@@ -650,8 +652,20 @@ class TripRequest(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, onupdate=utcnow)
 
-    client: Mapped["Partner"] = relationship(foreign_keys=[client_id])
+    client: Mapped["Partner | None"] = relationship(foreign_keys=[client_id])
+    customer: Mapped["Customer | None"] = relationship(foreign_keys=[customer_id])
     vendor: Mapped["Partner | None"] = relationship(foreign_keys=[vendor_id])
+
+    @property
+    def is_business(self) -> bool:
+        return self.client_id is not None
+
+    @property
+    def requester_name(self) -> str:
+        if self.client is not None:
+            return self.client.name
+        c = self.customer
+        return (c.name or (f"+{c.whatsapp_id}" if c.whatsapp_id else c.phone) or f"#{c.id}") if c else "—"
     options: Mapped[list["TripOption"]] = relationship(cascade="all, delete-orphan", passive_deletes=True,
                                                        order_by="TripOption.id")
     events: Mapped[list["TripRequestEvent"]] = relationship(cascade="all, delete-orphan", passive_deletes=True,
@@ -677,7 +691,10 @@ class TripOption(Base):
     details: Mapped[str | None] = mapped_column(Text)
     cost_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
     price: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
-    added_by: Mapped[str] = mapped_column(String(10), default="vendor")  # vendor or staff
+    added_by: Mapped[str] = mapped_column(String(10), default="vendor")  # vendor, staff or ai
+    # The AI planner's estimate (staff only; never sent to a client) and why it suggests this option.
+    estimate_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
+    ai_reason: Mapped[str | None] = mapped_column(Text)
     position: Mapped[int] = mapped_column(Integer, default=0)
     sent_to_client: Mapped[bool] = mapped_column(Boolean, default=False)
     chosen: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -773,3 +790,36 @@ class TripFeedback(Base):
 
     ticket: Mapped["Ticket"] = relationship()
     customer: Mapped["Customer"] = relationship()
+
+
+class RecommendationSignal(Base):
+    """What happened to an option: the AI suggested it, staff sent or removed it, the client chose it.
+    The AI planner learns each company's taste from these (see app/ai/planner.py)."""
+
+    __tablename__ = "recommendation_signals"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    request_id: Mapped[int | None] = mapped_column(ForeignKey("trip_requests.id", ondelete="SET NULL"))
+    category: Mapped[str] = mapped_column(String(20))
+    provider: Mapped[str] = mapped_column(String(120))
+    title: Mapped[str] = mapped_column(String(200))
+    destination: Mapped[str | None] = mapped_column(String(120))
+    event: Mapped[str] = mapped_column(String(10))  # suggested, sent, removed, chosen
+    from_ai: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
+
+
+class InsightReport(Base):
+    """A written analysis by the AI: of one company's business (company_id) or of the whole platform (None)."""
+
+    __tablename__ = "insight_reports"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    audience: Mapped[str] = mapped_column(String(10))  # company or owner
+    language: Mapped[str] = mapped_column(String(2), default="en")
+    content: Mapped[str] = mapped_column(Text)
+    metrics: Mapped[dict | None] = mapped_column(JSON)
+    created_by: Mapped[str | None] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)

@@ -14,7 +14,7 @@ from ..models import Company, Conversation, Message, MessageKind, Sender
 from ..timeutil import local_today
 from .llm import LLMClient, LLMError, get_llm_client, looks_like_tool_call
 from .prompts import FALLBACK_REPLY, build_system_prompt
-from .b2b_tools import B2B_TOOL_DEFINITIONS, b2b_prompt
+from .b2b_tools import B2B_TOOL_DEFINITIONS, CUSTOM_TOOL_DEFINITIONS, b2b_prompt, custom_prompt
 from .history_tools import HISTORY_TOOL_DEFINITIONS, history_prompt
 from .member_tools import MEMBER_TOOL_DEFINITIONS, member_prompt
 from .tools import TOOL_DEFINITIONS, ToolContext, run_tool
@@ -143,6 +143,10 @@ def run_agent(db: Session, conversation: Conversation, llm: LLMClient | None = N
     if business:
         system += "\n" + business
         tools = TOOL_DEFINITIONS + B2B_TOOL_DEFINITIONS
+    custom = custom_prompt(ctx)  # individual travellers: tailor-made trips (AI trip planner)
+    if custom:
+        system += "\n" + custom
+        tools = tools + CUSTOM_TOOL_DEFINITIONS
     members = member_prompt(ctx)  # the members community (the customer's level comes from our records)
     if members:
         system += "\n" + members

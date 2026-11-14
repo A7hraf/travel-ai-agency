@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..addons import has_addon
 from ..b2b import effective_features
 from ..database import get_db
 from ..deps import get_partner_user, require_permission
@@ -12,6 +13,8 @@ from ..models import Partner, PartnerKind, TripRequest, User
 from ..services import partners as partners_svc
 from ..services import trip_requests as svc
 from ..services.trip_requests import Actor
+from ..ai import planner
+from ..ratelimit import limiter
 from ..trip_schemas import (
     AssignVendorIn,
     BookedIn,
@@ -36,7 +39,10 @@ router = APIRouter(tags=["business requests"])
 # --- Travel company -----------------------------------------------------------------------------------
 
 def staff(user: User = Depends(require_permission("requests.manage"))) -> User:
-    partners_svc.require_enabled(user.company)
+    """Trip requests come from business clients (business accounts on) or individual travellers (AI trip
+    planner on); either switch, set by the platform owner, opens this page."""
+    if not has_addon(user.company, "trip_planner"):
+        partners_svc.require_enabled(user.company)
     return user
 
 
@@ -46,8 +52,13 @@ def _staff_out(db: Session, me: User, req: TripRequest) -> StaffTripOut:
 
 @router.get("/api/b2b/requests", response_model=list[StaffTripRow])
 def staff_list(status: str | None = Query(default=None, max_length=20), client_id: int | None = None,
+               kind: str | None = Query(default=None, pattern="^(business|individual)$"),
                me: User = Depends(staff), db: Session = Depends(get_db)):
     stmt = select(TripRequest).where(TripRequest.company_id == me.company_id)
+    if kind == "business":
+        stmt = stmt.where(TripRequest.client_id.is_not(None))
+    elif kind == "individual":
+        stmt = stmt.where(TripRequest.client_id.is_(None))
     if status:
         stmt = stmt.where(TripRequest.status == status)
     if client_id:
@@ -98,6 +109,16 @@ def staff_update_option(request_id: int, option_id: int, body: OptionIn, me: Use
 def staff_delete_option(request_id: int, option_id: int, me: User = Depends(staff), db: Session = Depends(get_db)):
     req = svc.get_for_company(db, me.company_id, request_id, lock=True)
     return _staff_out(db, me, svc.delete_option(db, req, option_id, Actor.of(me, "staff")))
+
+
+@router.post("/api/b2b/requests/{request_id}/ai-draft", response_model=StaffTripOut)
+def staff_ai_draft(request_id: int, me: User = Depends(staff), db: Session = Depends(get_db)):
+    """The AI planner drafts up to 3 options per part (with estimates for staff only)."""
+    if not has_addon(me.company, "trip_planner"):
+        raise HTTPException(403, "The AI trip planner is not switched on for your company. Ask the platform admin.")
+    limiter.check(f"ai-draft:{me.company_id}", 30, "The AI planner is busy: please try again in a few minutes", window=3600)
+    req = svc.get_for_company(db, me.company_id, request_id, lock=True)
+    return _staff_out(db, me, planner.draft_options(db, req, me.company, Actor.of(me, "staff")))
 
 
 @router.post("/api/b2b/requests/{request_id}/send", response_model=StaffTripOut)

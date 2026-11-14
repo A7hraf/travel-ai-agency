@@ -871,3 +871,28 @@ a.now-waiting:hover { background: color-mix(in srgb, var(--st-waiting-tint) 18%,
 .gx-fb p { margin: 0; font-style: italic; }
 .gx-fb-stars { display: inline-flex; gap: 2px; font-size: 18px; color: color-mix(in srgb, var(--text) 20%, transparent); }
 .gx-fb-stars .on { color: #e3b341; }
+
+/* AI planner and insights */
+.gx-ai-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; margin: 10px 0 4px; padding: 12px 14px; border-radius: 12px;
+  background: color-mix(in srgb, var(--brand) 8%, transparent); }
+.gx-ai-bar .muted { flex: 1; min-width: 220px; }
+.gx-ai-tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; color: var(--brand); background: var(--brand-soft); }
+.gx-kind-tag { margin-inline-end: 6px; }
+.gx-ai-why { margin: 3px 0; font-style: italic; }
+.gx-ai-why svg { color: var(--brand); vertical-align: -2px; }
+.gx-insight-cards { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.gx-insight-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; margin-bottom: 14px; }
+.gx-insight-grid .gx-card { margin: 0; }
+.gx-insight-h3 { font-size: 14px; margin: 16px 0 6px; }
+.gx-insight-list { margin: 0; padding-inline-start: 20px; }
+.gx-learned { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
+.gx-tips { margin: 0; padding-inline-start: 16px; display: flex; flex-direction: column; gap: 3px; min-width: 260px; }
+.gx-report .gx-card-title { display: flex; align-items: center; gap: 8px; margin: 0; }
+.gx-report .gx-card-title svg { color: var(--brand); }
+.gx-report-btns { width: auto; }
+.gx-md { line-height: 1.65; }
+.gx-md h2 { font-size: 19px; margin: 22px 0 8px; }
+.gx-md h3 { font-size: 16px; margin: 18px 0 6px; }
+.gx-md h4 { font-size: 15px; margin: 14px 0 4px; }
+.gx-md p { margin: 6px 0; }
+.gx-md ul, .gx-md ol { margin: 6px 0; padding-inline-start: 22px; display: flex; flex-direction: column; gap: 4px; }

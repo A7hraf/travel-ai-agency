@@ -697,12 +697,16 @@ export type Amount = string | number | null;
 
 export interface StaffTripOption {
   id: number; category: TripPart; title: string; provider: string | null; details: string | null;
-  cost_price: Amount; price: Amount; added_by: "vendor" | "staff"; sent_to_client: boolean; chosen: boolean;
+  cost_price: Amount; price: Amount; added_by: "vendor" | "staff" | "ai"; sent_to_client: boolean; chosen: boolean;
+  /** The AI planner's estimate and reason (staff only). */
+  estimate_price?: Amount; ai_reason?: string | null;
 }
 
 export interface StaffTrip extends TripCommon {
   source: string;
-  client_id: number;
+  kind: "business" | "individual";
+  customer_id: number | null;
+  client_id: number | null;
   client_name: string;
   vendor_id: number | null;
   vendor_name: string | null;
@@ -722,7 +726,7 @@ export interface StaffTrip extends TripCommon {
 }
 
 export interface StaffTripRow {
-  id: number; reference: string; status: TripStatus; source: string; client_name: string; vendor_name: string | null;
+  id: number; reference: string; status: TripStatus; source: string; kind: "business" | "individual"; client_name: string; vendor_name: string | null;
   destination: string; depart_date: string | null; travellers: number; updated_at: string;
 }
 

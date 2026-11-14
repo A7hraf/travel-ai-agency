@@ -1,0 +1,83 @@
+/** Arabic texts of the AI trip planner and the insights pages (pages/Insights.tsx, pages/system/Insights.tsx,
+ *  components/insights/*, pages/Requests.tsx). English text is the key. (ar.ts merges AR_BRAIN into AR.) */
+export const AR_BRAIN: Record<string, string> = {
+  // Company insights
+  "AI insights": "رؤى الذكاء الاصطناعي",
+  "Your business over the last 90 days, what your customers want, and a growth plan written by the AI.":
+    "أعمالك خلال آخر 90 يوماً، وما يريده عملاؤك، وخطة نمو يكتبها الذكاء الاصطناعي.",
+  "{p} handed to staff": "{p} حُوّلت للموظفين",
+  "Customers who booked": "عملاء حجزوا",
+  "Conversion {p}": "نسبة التحويل {p}",
+  "Paid bookings": "حجوزات مدفوعة",
+  "{n} cancelled": "{n} ملغاة",
+  "Revenue": "الإيرادات",
+  "Average {v}": "المتوسط {v}",
+  "Margin {v}": "الربح {v}",
+  "What customers search for": "ما يبحث عنه العملاء",
+  "Not enough chats yet.": "لا توجد محادثات كافية بعد.",
+  "Most booked packages": "الباقات الأكثر حجزاً",
+  "Packages nobody booked": "باقات لم يحجزها أحد",
+  "What the AI planner learned": "ما تعلّمه مخطط الرحلات الذكي",
+  "Nothing yet: it learns from the options your team sends and your clients choose.": "لا شيء بعد: يتعلّم من الخيارات التي يرسلها فريقك ويختارها عملاؤك.",
+  "chosen {c} of {s} sent": "اختير {c} من {s} مرسلة",
+  "dropped {n}": "استُبعد {n}",
+  "Recent low ratings": "تقييمات منخفضة حديثة",
+  "The AI's analysis and growth plan": "تحليل الذكاء الاصطناعي وخطة النمو",
+  "The AI reads your figures (never another agency's) and writes what your customers want, what to improve, a 90-day growth plan and marketing ideas.":
+    "يقرأ الذكاء الاصطناعي أرقامك (وليس أرقام أي وكالة أخرى) ويكتب ما يريده عملاؤك، وما يجب تحسينه، وخطة نمو لـ 90 يوماً، وأفكاراً تسويقية.",
+  // Owner insights
+  "Owner console": "لوحة المالك",
+  "Insights": "الرؤى",
+  "Every agency's last 30 days, who needs help or an upgrade, and what to build and market next. Totals only: never customers' chats or names.":
+    "آخر 30 يوماً لكل وكالة، ومن يحتاج مساعدة أو ترقية، وما يجب بناؤه وتسويقه لاحقاً. أرقام إجمالية فقط: دون محادثات العملاء أو أسمائهم.",
+  "Active agencies": "الوكالات النشطة",
+  "Chats (30 days)": "المحادثات (30 يوماً)",
+  "Bookings (30 days)": "الحجوزات (30 يوماً)",
+  "At risk": "معرّضة للخطر",
+  "Agencies": "الوكالات",
+  "Agency": "الوكالة",
+  "Handed over": "حُوّلت",
+  "Last activity": "آخر نشاط",
+  "What to do": "ما العمل",
+  "The AI's strategy report": "تقرير الاستراتيجية من الذكاء الاصطناعي",
+  "From the totals above: which agencies to act on, trends in the travel business, features to build next and how to market the platform.":
+    "من الأرقام أعلاه: الوكالات التي تحتاج تحركاً، واتجاهات قطاع السفر، والميزات التالية، وكيف تسوّق المنصة.",
+  "No chats in 30 days: at risk; call them and help them share their page and WhatsApp.": "لا محادثات منذ 30 يوماً: معرّضة للخطر؛ اتصل بهم وساعدهم في نشر صفحتهم وواتساب.",
+  "Chats but no bookings: offer AI training help and better packages (conversion coaching).": "محادثات بلا حجوزات: اعرض المساعدة في تدريب الذكاء الاصطناعي وتحسين الباقات.",
+  "Many chats, few bookings: review their packages and prices with them.": "محادثات كثيرة وحجوزات قليلة: راجع باقاتهم وأسعارهم معهم.",
+  "The AI hands over a lot: add trained answers and company knowledge for them.": "الذكاء الاصطناعي يحوّل كثيراً: أضف لهم إجابات مدرّبة ومعلومات الشركة.",
+  "Ratings below 4: service quality follow-up.": "تقييمات أقل من 4: متابعة جودة الخدمة.",
+  "High use on Starter: propose the Business plan.": "استخدام عالٍ على باقة Starter: اقترح باقة Business.",
+  "Has repeat customers: offer the Members community.": "لديهم عملاء متكررون: اعرض مجتمع الأعضاء.",
+  "Growing: offer AI insights.": "في نمو: اعرض رؤى الذكاء الاصطناعي.",
+  // Report card
+  "The AI is writing…": "الذكاء الاصطناعي يكتب…",
+  "Write a new report": "اكتب تقريراً جديداً",
+  "Write my report": "اكتب تقريري",
+  "Written {date} by the AI for {name}": "كتبه الذكاء الاصطناعي في {date} لـ {name}",
+  "No report yet.": "لا يوجد تقرير بعد.",
+  // Trip requests
+  "Tailor-made trips asked by business clients and individual travellers. Let the AI draft options or ask a vendor, send up to 3 choices per part, approve, and track the booking.":
+    "رحلات مصممة حسب الطلب من عملاء الأعمال والمسافرين الأفراد. دع الذكاء الاصطناعي يقترح خيارات أو اطلبها من مورّد، وأرسل حتى 3 خيارات لكل جزء، ثم وافق وتابع الحجز.",
+  "Individual travellers": "المسافرون الأفراد",
+  "Individual": "فرد",
+  "Individual traveller": "مسافر فرد",
+  "The AI is searching…": "الذكاء الاصطناعي يبحث…",
+  "Draft options with AI": "اقترح خيارات بالذكاء الاصطناعي",
+  "The AI suggests up to 3 airlines, hotels and more per part, with estimates for you only. Set the real price before sending; it learns from what you keep and what clients choose.":
+    "يقترح الذكاء الاصطناعي حتى 3 شركات طيران وفنادق وغيرها لكل جزء، بأسعار تقديرية لك فقط. حدّد السعر الحقيقي قبل الإرسال؛ ويتعلّم مما تبقيه ومما يختاره العملاء.",
+  "AI suggestion": "اقتراح الذكاء الاصطناعي",
+  "AI drafted options": "اقترح الذكاء الاصطناعي خيارات",
+  "AI estimate: set the real price before sending": "تقدير الذكاء الاصطناعي: حدّد السعر الحقيقي قبل الإرسال",
+  "AI est.": "تقدير",
+  // Owner switches
+  "AI trip planner: custom trips for individual travellers, AI-drafted options that learn": "مخطط الرحلات الذكي: رحلات حسب الطلب للأفراد، وخيارات يقترحها الذكاء الاصطناعي ويتعلّم منها",
+  "AI insights: business analysis, customer needs and growth plan": "رؤى الذكاء الاصطناعي: تحليل الأعمال، احتياجات العملاء وخطة النمو",
+  // Server messages
+  "The AI trip planner is not switched on for your company. Ask the platform admin.": "مخطط الرحلات الذكي غير مفعّل لوكالتك. تواصل مع مدير المنصة.",
+  "AI insights are not switched on for your company. Ask the platform admin.": "رؤى الذكاء الاصطناعي غير مفعّلة لوكالتك. تواصل مع مدير المنصة.",
+  "The AI could not draft options this time. Try again, or add them yourself.": "لم يتمكن الذكاء الاصطناعي من اقتراح خيارات هذه المرة. حاول مجدداً أو أضفها بنفسك.",
+  "The AI could not write the report right now. Please try again later.": "لم يتمكن الذكاء الاصطناعي من كتابة التقرير الآن. حاول لاحقاً.",
+  "The AI planner is busy: please try again in a few minutes": "مخطط الرحلات مشغول: حاول بعد دقائق",
+  "You can ask for a new report a few times per hour": "يمكنك طلب تقرير جديد بضع مرات في الساعة",
+};

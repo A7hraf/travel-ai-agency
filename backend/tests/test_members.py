@@ -27,7 +27,8 @@ def test_off_until_the_owner_switches_it_on(client, owner, company_a):
     switch_members(client, owner, company["id"])
     me = client.get("/api/auth/me", headers=admin).json()["company"]
     assert me["addons"] == ["members"] and me["member_levels"]["vip"]["priority"] is True
-    assert client.get(f"/api/system/companies/{company['id']}/addons", headers=owner).json()["addons"] == {"members": True}
+    assert client.get(f"/api/system/companies/{company['id']}/addons", headers=owner).json()["addons"] == {
+        "members": True, "trip_planner": False, "insights": False}
     page = client.get(f"/api/public/companies/{company['slug']}").json()["members"]
     assert [lv["key"] for lv in page] == ["level1", "level2", "level3", "vip"]
     assert page[0]["name_ar"] == "فضي" and page[0]["perks_en"] == ["Priority replies", "Member-only offers"]
@@ -137,3 +138,11 @@ def test_luxury_demo_has_members(client, owner):
     assert len(client.get("/api/members/requests", headers=h).json()) == 3
     page = client.get("/api/public/companies/werescape").json()["members"]
     assert [lv["name_en"] for lv in page] == ["Explorer", "Voyager", "Elite", "VIP"]
+    me = client.get("/api/auth/me", headers=h).json()["company"]
+    assert set(me["addons"]) == {"members", "trip_planner", "insights"}
+    trips = client.get("/api/b2b/requests?kind=individual", headers=h).json()
+    assert [t["reference"] for t in trips] == ["CT-DEMO01"]
+    # Without an AI server the planner still drafts (well-known names), so the demo can show it.
+    trip = client.post(f"/api/b2b/requests/{trips[0]['id']}/ai-draft", headers=h).json()
+    assert {o["category"] for o in trip["options"]} == {"flight", "hotel", "transport", "activity"}
+    assert client.get("/api/insights", headers=h).json()["metrics"]["bookings"]["total"] > 0

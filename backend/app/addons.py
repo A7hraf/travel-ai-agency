@@ -10,6 +10,8 @@ from .models import Company
 
 ADDONS: dict[str, str] = {
     "members": "Members community: ranks, VIP, perks and special requests",
+    "trip_planner": "AI trip planner: custom trips for individual travellers, AI-drafted options that learn",
+    "insights": "AI insights: business analysis, customer needs and growth plan",
 }
 
 
@@ -17,6 +19,8 @@ class AddonSettings(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     members: bool = False
+    trip_planner: bool = False
+    insights: bool = False
 
 
 def addon_settings(company: Company) -> AddonSettings:

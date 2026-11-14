@@ -52,6 +52,10 @@ NEW_COLUMNS = [
     # Private trips page and feedback
     ("customers", "portal_valid_after", "TIMESTAMP WITH TIME ZONE"),
     ("tickets", "feedback_requested_at", "TIMESTAMP WITH TIME ZONE"),
+    # Custom trips of individual travellers and the AI planner
+    ("trip_requests", "customer_id", "INTEGER REFERENCES customers(id) ON DELETE SET NULL"),
+    ("trip_options", "estimate_price", "NUMERIC(12, 3)"),
+    ("trip_options", "ai_reason", "TEXT"),
 ]
 
 # Unique indexes of the Instagram columns (same names create_all gives them on a new database).
@@ -166,6 +170,12 @@ def upgrade(engine: Engine) -> None:
         if {"users", "customers"} <= tables:
             for ddl in PARTNER_INDEXES:
                 conn.execute(text(ddl))
+        if "trip_requests" in tables:
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_trip_requests_customer_id ON trip_requests (customer_id)"))
+            if engine.dialect.name == "postgresql":
+                # Individual travellers' requests have no business client. (A SQLite development database
+                # made before this keeps the old rule: recreate it to try custom trips.)
+                conn.execute(text("ALTER TABLE trip_requests ALTER COLUMN client_id DROP NOT NULL"))
         # WhatsApp tokens saved before encryption existed are encrypted now.
         rows = conn.execute(
             text("SELECT id, whatsapp_access_token FROM companies WHERE whatsapp_access_token IS NOT NULL")
