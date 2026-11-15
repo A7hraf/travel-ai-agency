@@ -170,6 +170,9 @@ export default function QuotePanel({ ticket, onChange }: { ticket: Ticket; onCha
                   : o.estimate_price != null ? <span className="muted" title={t("AI estimate: set the real price before sending")}>{t("AI est.")} ≈ {m(o.estimate_price)}</span>
                     : <span className="muted">{t("No price")}</span>}
                 {o.cost_price != null && <span className="muted small">{t("Cost")} {m(o.cost_price)}</span>}
+                {o.cost_price != null && o.price != null && (
+                  <span className={`small gx-rq-profit ${Number(o.price) - Number(o.cost_price) < 0 ? "neg" : ""}`}>{t("Profit")} {m(Number(o.price) - Number(o.cost_price))}</span>
+                )}
               </div>
               {manage && library && !o.supplier_id && (
                 <button type="button" className="icon-btn" aria-label={t("Save to the library")} title={t("Save to the library")}

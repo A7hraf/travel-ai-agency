@@ -69,31 +69,41 @@ def _status(db: Session, ticket: Ticket, new: str, actor: str, user: User | None
 
 # --- Creating (the AI's request card) -----------------------------------------------------------------
 
+def fill_from_answers(ticket: Ticket, service: Service, clean: dict, customer: Customer) -> None:
+    """The request's standard fields (destination, dates, travellers, contact) from the answers."""
+    adults = int(clean["adults"]) if str(clean.get("adults", "")).isdigit() else (ticket.adults or 1)
+    kids = re.match(r"\s*(\d+)", str(clean.get("children", "")))
+    ticket.package_title = (service.name_en + (f" · {clean['destination']}" if clean.get("destination") else ""))[:200]
+    ticket.answers = clean
+    ticket.destination = (clean.get("destination") or "")[:120] or None
+    ticket.origin = (clean.get("origin") or "")[:120] or None
+    ticket.departure_date = clean.get("depart_date") or None
+    ticket.return_date = clean.get("return_date") or None
+    ticket.adults = max(1, min(adults, 500))
+    ticket.children = min(int(kids.group(1)), 50) if kids else 0
+    ticket.lead_traveler_name = (clean.get("full_name") or customer.name or "—")[:200]
+    ticket.contact_phone = clean.get("phone") or customer.phone
+    ticket.contact_email = clean.get("email") or customer.email
+
+
 def create_request(db: Session, company: Company, customer: Customer, service: Service, answers: dict,
-                   summary: str, conversation: Conversation | None, actor: str = "AI") -> Ticket:
+                   summary: str, conversation: Conversation | None, actor: str = "AI", strict: bool = True) -> Ticket:
+    """A new request. The AI must have every required answer (strict); staff may save what they know so far."""
     if service.company_id != company.id or not service.is_active or service.pricing == "packages":
         raise HTTPException(404, "Service not found")
     clean, missing = check_answers(service, answers)
-    if missing:
+    if missing and strict:
         raise HTTPException(422, "Missing: " + ", ".join(missing))
-    adults = int(clean["adults"]) if clean.get("adults", "").isdigit() else 1
-    kids = re.match(r"\s*(\d+)", clean.get("children", ""))
-    title = service.name_en + (f" · {clean['destination']}" if clean.get("destination") else "")
     fixed = service.pricing == "fixed" and service.price is not None
     for _ in range(5):
         ticket = Ticket(
             company_id=company.id, reference=ticket_reference(), conversation_id=conversation.id if conversation else None,
-            customer_id=customer.id, service_id=service.id, package_title=title[:200], answers=clean,
-            parts=list(service.parts or []), destination=clean.get("destination", "")[:120] or None,
-            origin=clean.get("origin", "")[:120] or None, departure_date=clean.get("depart_date") or None,
-            return_date=clean.get("return_date") or None, adults=max(1, min(adults, 500)),
-            children=min(int(kids.group(1)), 50) if kids else 0,
-            lead_traveler_name=(clean.get("full_name") or customer.name or "—")[:200],
-            contact_phone=clean.get("phone") or customer.phone, contact_email=clean.get("email") or customer.email,
+            customer_id=customer.id, service_id=service.id, parts=list(service.parts or []),
             special_requests=(summary or "").strip()[:4000],
             total_price=service.price if fixed else Decimal(0), currency=company.currency or "OMR",
             status=T.NEW, created_by="ai" if actor == "AI" else "staff", last_client_at=utcnow(),
         )
+        fill_from_answers(ticket, service, clean, customer)
         try:
             with db.begin_nested():
                 db.add(ticket)

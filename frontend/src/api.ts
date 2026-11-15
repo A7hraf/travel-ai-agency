@@ -18,6 +18,8 @@ export interface ApiOptions {
   quiet?: boolean;
   /** A customer's private trips page: their own session (sent instead of the staff login). */
   customerToken?: string | null;
+  /** Called with the answer's headers (e.g. X-Total-Count of a paged list). */
+  onHeaders?: (headers: Headers) => void;
 }
 
 /** Failed requests the owner should see on System health: server errors, the server not answering,
@@ -209,6 +211,7 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
       : tr("Could not reach the server. Check your internet connection and try again.")), method, path, opts);
   }
   if (res.status === 204) return undefined as T;
+  if (res.ok) opts?.onHeaders?.(res.headers);
   const raw = await res.text().catch(() => "");
   let data: unknown = null;
   let parsed = raw.trim() === "";

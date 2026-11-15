@@ -19,6 +19,7 @@ from ..ai.llm import LLMError, MockTravelLLM, get_llm_client
 from ..branding import clean_text, public_branding
 from ..models import Company, Supplier, Ticket, TicketStatus as T
 from ..timeutil import local_today
+from .request_desk import apply_dates_hint
 from ..trip_schemas import CATEGORIES
 
 AFTER_FINAL = (T.FINAL, T.PENDING_PAYMENT, T.IN_PROGRESS, T.PAID, T.CONFIRMED)
@@ -86,6 +87,7 @@ def quotation(db: Session, company: Company, ticket: Ticket, kind: str) -> dict:
                     "email": company.contact_email, "phone": company.contact_phone,
                     "whatsapp": company.whatsapp_display_number},
         "design": s.model_dump(),
+        "itinerary": apply_dates_hint(ticket.departure_date, ticket.itinerary or []),
     }
 
 

@@ -14,6 +14,7 @@ export interface QuotationData {
     image_url: string | null; stars: number | null; price: number | null; chosen: boolean }[];
   currency: string; total: number | null; issued_at: string; valid_until: string;
   company: { name: string; logo: string | null; primary: string; accent: string; email: string | null; phone: string | null; whatsapp: string | null };
+  itinerary?: { day: number; title: string; details: string; date?: string }[];
   design: { intro_en: string; intro_ar: string; terms_en: string; terms_ar: string; footer_en: string; footer_ar: string; valid_days: number };
 }
 
@@ -81,6 +82,18 @@ export default function QuotationSheet({ q }: { q: QuotationData }) {
 
       {q.kind === "final" && q.total != null && (
         <div className="qt-total"><span>{t("Total")}</span><strong>{money(q.total)}</strong></div>
+      )}
+
+      {(q.itinerary ?? []).length > 0 && (
+        <section className="qt-part qt-plan">
+          <h2>{t("Your day-by-day plan")}</h2>
+          {q.itinerary!.map((d) => (
+            <div key={d.day} className="qt-day">
+              <div className="qt-day-n">{t("Day {n}", { n: d.day })}{d.date && <span>{shortDate(d.date)}</span>}</div>
+              <div><strong dir="auto">{d.title}</strong>{d.details && <p className="qt-details" dir="auto">{d.details}</p>}</div>
+            </div>
+          ))}
+        </section>
       )}
 
       {pick(q.design.terms_en, q.design.terms_ar) && (

@@ -94,23 +94,51 @@ def file_response(f: RequestFile) -> Response:
 
 def file_out(f: RequestFile) -> dict:
     return {"id": f.id, "key": f.key, "kind": f.kind, "name": f.name, "content_type": f.content_type, "size": f.size,
-            "uploaded_by": f.uploaded_by, "sent_at": f.sent_at, "created_at": f.created_at}
+            "uploaded_by": f.uploaded_by, "sent_at": f.sent_at, "created_at": f.created_at, "requirement": f.requirement}
 
 
 # --- The client's files -------------------------------------------------------------------------------
 
+def guess_requirement(ticket: Ticket, hint: str | None) -> str | None:
+    """Which document a client file is, from its caption or name ("passport", "جواز"…), when it is clear."""
+    from .request_desk import documents_view  # noqa: PLC0415
+
+    words = set(re.findall(r"\w{4,}", (hint or "").lower()))
+    if not words:
+        return None
+    found = [i["key"] for i in documents_view(ticket)["items"]
+             if words & set(re.findall(r"\w{4,}", f"{i['key']} {i['label_en']} {i['label_ar']}".lower()))]
+    return found[0] if len(found) == 1 else None
+
+
 def client_upload(db: Session, ticket: Ticket, name: str | None, content_type: str, data: bytes,
-                  actor: str = "Client") -> RequestFile:
-    """A file from the client. After the quotation is approved it is the payment proof, and the request waits
-    for the team to check the payment."""
+                  actor: str = "Client", purpose: str = "auto", requirement: str | None = None,
+                  hint: str | None = None) -> RequestFile:
+    """A file from the client: one of the documents the service needs (passport copy…), or a payment receipt.
+    `purpose` "auto" decides from the stage: after the quotation is approved a file is a receipt, unless its
+    caption or name says which document it is. A receipt waits for the team to check it (a pending payment)."""
+    from .request_desk import add_client_proof, documents_view  # noqa: PLC0415
+
     if ticket.status not in CLIENT_FILE_STATUSES:
         raise HTTPException(409, "This request is closed: files can't be added any more")
-    kind = "payment_proof" if ticket.status in PROOF_STATUSES else "client_file"
+    if requirement and requirement not in {i["key"] for i in documents_view(ticket)["items"]}:
+        raise HTTPException(422, "This service has no such document")
+    if purpose == "auto" and not requirement:
+        requirement = guess_requirement(ticket, hint) or guess_requirement(ticket, name)
+    if purpose == "proof" or (purpose == "auto" and not requirement and ticket.status in PROOF_STATUSES):
+        if ticket.status not in PROOF_STATUSES:
+            raise HTTPException(409, "Send the payment receipt after approving the quotation")
+        kind = "payment_proof"
+    else:
+        kind = "client_file"
     f = store(db, ticket, kind, name, content_type, data, "client")
-    event(db, ticket, actor, kind, None, f.name)
+    f.requirement = requirement if kind == "client_file" else None
+    event(db, ticket, actor, kind, None, f.name + (f" ({requirement})" if f.requirement else ""))
     ticket.last_client_at = utcnow()
-    if kind == "payment_proof" and ticket.status == T.PENDING_PAYMENT:
-        _status(db, ticket, T.IN_PROGRESS, actor)
+    if kind == "payment_proof":
+        add_client_proof(db, ticket, f)
+        if ticket.status == T.PENDING_PAYMENT:
+            _status(db, ticket, T.IN_PROGRESS, actor)
     return f
 
 
@@ -143,7 +171,7 @@ def receive_whatsapp_file(db: Session, company: Company, conversation: Conversat
         return f"[The customer sent a {what} that could not be received (maybe too large). Ask them to send it again as a photo or PDF under 6 MB.]{tail}"
     content_type = mime or media.get("mime_type") or ""
     try:
-        f = client_upload(db, ticket, media.get("filename") or f"{ticket.reference}-{what}", content_type, data)
+        f = client_upload(db, ticket, media.get("filename") or f"{ticket.reference}-file", content_type, data, hint=caption)
         db.commit()
     except HTTPException as exc:
         db.rollback()
@@ -151,7 +179,14 @@ def receive_whatsapp_file(db: Session, company: Company, conversation: Conversat
     if f.kind == "payment_proof":
         return (f"[The customer sent a {what}: it was kept as the payment proof of request {ticket.reference}. "
                 f"Thank them and say the team will check the payment and confirm.]{tail}")
-    return f"[The customer sent a {what}: it was kept with request {ticket.reference} for the team.]{tail}"
+    from .request_desk import documents_view  # noqa: PLC0415
+
+    docs = documents_view(ticket)
+    label = next((i["label_en"] for i in docs["items"] if i["key"] == f.requirement), None)
+    missing = [i["label_en"] for i in docs["items"] if i["required"] and not i["done"]]
+    return (f"[The customer sent a {what}: it was kept with request {ticket.reference}"
+            + (f" as: {label}" if label else " for the team to sort") + "."
+            + (f" Still missing: {', '.join(missing)}." if missing else " All the documents needed are in.") + f"]{tail}")
 
 
 # --- The team's side ----------------------------------------------------------------------------------

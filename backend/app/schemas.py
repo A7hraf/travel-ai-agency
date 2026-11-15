@@ -456,6 +456,15 @@ class TicketOut(ORM):
     booking_steps: list[dict] = []
     documents_sent_at: datetime | None = None
     notice: str | None = None  # something the staff member should know about the step just done
+    # The pipeline stage (quote, client, payment, booking, confirmed, closed) and the money (price, cost, profit,
+    # paid, balance); on one request also its payments, the client's documents and the trip plan.
+    stage: str = ""
+    money: dict = {}
+    last_client_at: datetime | None = None
+    cost_price: float | None = None
+    payment_list: list[dict] = []
+    client_documents: dict = {}
+    itinerary: list[dict] | None = None
     departure_date: str | None
     adults: int
     children: int

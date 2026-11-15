@@ -965,3 +965,5 @@ a.now-waiting:hover { background: color-mix(in srgb, var(--st-waiting-tint) 18%,
 .gx-adv-form { display: flex; gap: 8px; align-items: flex-end; position: sticky; bottom: calc(var(--tabbar-h, 0px) + 8px); padding: 8px;
   border-radius: 18px; background: var(--surface-1); box-shadow: var(--ring); }
 .gx-adv-form textarea { flex: 1; resize: vertical; min-height: 44px; }
+.gx-svc-row.gx-svc-doc { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto auto; }
+@media (max-width: 640px) { .gx-svc-row.gx-svc-doc { grid-template-columns: 1fr 1fr; } }

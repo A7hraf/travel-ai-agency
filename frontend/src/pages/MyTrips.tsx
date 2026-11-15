@@ -25,6 +25,9 @@ interface Trip {
   checklist: { label_en: string; label_ar: string; done: boolean }[];
   files: { key: string; name: string; kind: string; size: number; content_type: string; at: string }[];
   can_upload: boolean; upload_is_proof: boolean; has_quotation: boolean;
+  documents: { key: string; label_en: string; label_ar: string; required: boolean; need: number; have: number; done: boolean }[];
+  paid: number | null; balance: number | null; receipts_waiting: number;
+  itinerary: { day: number; title: string; details: string; date?: string }[];
 }
 interface Chat { id: number; channel: string; created_at: string; last_message_at: string; messages: { sender: string; content: string; created_at: string }[] }
 
@@ -125,7 +128,7 @@ function TripCard({ trip, onRate, slug, token, onTrips }: {
   const { t, lang } = useI18n();
   const [uploading, setUploading] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
-  const upload = async (e: ChangeEvent<HTMLInputElement>) => {
+  const upload = async (e: ChangeEvent<HTMLInputElement>, purpose: "proof" | "document" | "auto" = "auto", requirement: string | null = null) => {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
@@ -135,7 +138,7 @@ function TripCard({ trip, onRate, slug, token, onTrips }: {
     try {
       const data = await readFileBase64(file);
       onTrips(await post<Trip[]>(`/api/public/companies/${slug}/me/trips/${trip.id}/files`,
-        { name: file.name, content_type: file.type, data_base64: data }, { customerToken: token }));
+        { name: file.name, content_type: file.type, data_base64: data, purpose, requirement }, { customerToken: token }));
     } catch (err) { setFileError((err as Error).message); } finally { setUploading(false); }
   };
   const parts = [...new Set(trip.choices.map((c) => c.part))];
@@ -190,12 +193,45 @@ function TripCard({ trip, onRate, slug, token, onTrips }: {
           <p dir="auto">{lang === "ar" ? trip.payment_info.ar || trip.payment_info.en : trip.payment_info.en || trip.payment_info.ar}</p>
         </div>
       )}
-      {trip.can_upload && (
-        <label className={`mt-upload ${trip.upload_is_proof ? "proof" : ""}`}>
+      {trip.paid != null && (trip.paid > 0 || trip.receipts_waiting > 0) && (
+        <p className="mt-muted">{t("Paid: {paid}", { paid: moneyText(trip.paid, trip.currency, lang) })}
+          {(trip.balance ?? 0) > 0 && ` · ${t("Left to pay: {v}", { v: moneyText(trip.balance ?? 0, trip.currency, lang) })}`}
+          {trip.receipts_waiting > 0 && ` · ${t("We are checking your receipt.")}`}</p>
+      )}
+      {trip.can_upload && trip.upload_is_proof && (
+        <label className="mt-upload proof">
           <Paperclip />
-          <span>{uploading ? t("Sending…") : trip.upload_is_proof ? t("Send your transfer receipt (photo or PDF)") : t("Send a paper we asked for (photo or PDF)")}</span>
-          <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" hidden disabled={uploading} onChange={upload} />
+          <span>{uploading ? t("Sending…") : t("Send your transfer receipt (photo or PDF)")}</span>
+          <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" hidden disabled={uploading} onChange={(e) => upload(e, "proof")} />
         </label>
+      )}
+      {trip.documents.length > 0 && trip.can_upload && (
+        <div className="mt-docs">
+          <div className="mt-choices-part">{t("Documents we need from you")}</div>
+          <ul>
+            {trip.documents.map((d) => (
+              <li key={d.key} className={d.done ? "done" : ""}>
+                <span className="mt-doc-state">{d.done ? <Check /> : `${d.have}/${d.need}`}</span>
+                <span className="mt-doc-name">{lang === "ar" ? d.label_ar || d.label_en : d.label_en}{!d.required && <span className="mt-muted mt-small"> · {t("optional")}</span>}
+                  {d.need > 1 && !d.done && <span className="mt-muted mt-small"> · {t("one for each traveller")}</span>}</span>
+                <label className="mt-doc-btn"><Paperclip /> {d.have ? t("Add") : t("Send")}
+                  <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" hidden disabled={uploading} onChange={(e) => upload(e, "document", d.key)} />
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {trip.itinerary.length > 0 && (
+        <details className="mt-plan">
+          <summary>{t("Your day-by-day plan ({n} days)", { n: trip.itinerary.length })}</summary>
+          <ol>
+            {trip.itinerary.map((d) => (
+              <li key={d.day}><strong>{t("Day {n}", { n: d.day })}{d.date ? ` · ${shortDate(d.date)}` : ""}: <span dir="auto">{d.title}</span></strong>
+                {d.details && <p dir="auto">{d.details}</p>}</li>
+            ))}
+          </ol>
+        </details>
       )}
       <ErrorBox error={fileError} />
       {trip.checklist.length > 0 && (

@@ -390,17 +390,35 @@ export interface Supplier {
 
 export interface ServiceField { key: string; label_en: string; label_ar: string; type: string; required: boolean; choices: string[] }
 export interface ServiceStep { key: string; label_en: string; label_ar: string }
+export interface ServiceDoc { key: string; label_en: string; label_ar: string; required: boolean; per_traveller: boolean }
 
 export interface Service {
   id: number; key: string | null; position: number;
   name_en: string; name_ar: string; description_en: string; description_ar: string;
   pricing: "fixed" | "dynamic" | "packages"; price: string | number | null; price_note: string;
-  parts: ServicePart[]; fields: ServiceField[]; steps: ServiceStep[]; rules: string; is_active: boolean;
+  parts: ServicePart[]; fields: ServiceField[]; steps: ServiceStep[]; documents: ServiceDoc[]; rules: string; is_active: boolean;
+}
+
+export type Stage = "quote" | "client" | "payment" | "booking" | "confirmed" | "closed";
+export interface TicketMoney {
+  total: number; choices_total: number; cost: number | null; cost_from: "manual" | "choices" | null;
+  profit: number | null; margin_pct: number | null; paid: number; balance: number | null; pending_proofs: number;
+}
+export interface TicketPayment {
+  id: number; amount: number | null; method: "bank_transfer" | "cash" | "card" | "link" | "other"; reference: string | null;
+  file_id: number | null; status: "pending" | "approved" | "rejected"; note: string | null; created_by: string;
+  reviewed_by: string | null; reviewed_at: string | null; created_at: string;
+}
+export interface ClientDoc { key: string; label_en: string; label_ar: string; required: boolean; need: number; have: number; done: boolean; files: number[] }
+export interface PlanDay { day: number; title: string; details: string; date?: string }
+export interface PipelineSummary {
+  stages: Record<Stage, number>; urgent: number; unassigned: number; proofs_to_check: number;
+  pipeline_value: number; to_collect: number; sales_this_month: number; profit_this_month: number; currency: string;
 }
 
 export interface RequestFile {
   id: number; key: string; kind: "payment_proof" | "client_file" | "document"; name: string; content_type: string; size: number;
-  uploaded_by: string; sent_at: string | null; created_at: string;
+  uploaded_by: string; sent_at: string | null; created_at: string; requirement?: string | null;
 }
 
 export interface Ticket {
@@ -425,6 +443,14 @@ export interface Ticket {
   booking_steps: { key: string; label_en: string; label_ar: string; done: boolean; at: string | null; by: string | null }[];
   documents_sent_at: string | null;
   notice: string | null;
+  /** Pipeline stage and money (every request); payments, client documents and trip plan (one request). */
+  stage: Stage;
+  money: TicketMoney;
+  last_client_at: string | null;
+  cost_price: number | null;
+  payment_list: TicketPayment[];
+  client_documents: { items: ClientDoc[]; unsorted: number[]; missing: number };
+  itinerary: PlanDay[] | null;
   departure_date: string | null;
   adults: number;
   children: number;

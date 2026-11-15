@@ -35,19 +35,17 @@ export default function BookingPanel({ ticket, onChange }: { ticket: Ticket; onC
   const { can } = useAuth();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [kind, setKind] = useState<RequestFile["kind"]>("document");
   const [note, setNote] = useState("");
   const manage = can("tickets.manage");
   const base = `/api/tickets/${ticket.id}`;
   const closed = ticket.status === "cancelled" || ticket.status === "rejected";
-  const files = ticket.request_files ?? [];
+  // Our travel documents (the client's papers and receipts have their own tabs).
+  const files = (ticket.request_files ?? []).filter((f) => f.kind === "document");
   const steps = ticket.booking_steps ?? [];
   const paid = ticket.status === "paid";
   const unsent = files.filter((f) => f.kind === "document" && !f.sent_at);
   const stepsLeft = steps.filter((s) => s.key !== DOCS_STEP && !s.done);
   const canSend = manage && (paid ? stepsLeft.length === 0 : ticket.status === "confirmed" && unsent.length > 0);
-  const show = files.length > 0 || ["pending_payment", "in_progress", "paid", "confirmed"].includes(ticket.status);
-  if (!show) return null;
 
   const run = async (fn: () => Promise<Ticket>) => {
     setBusy(true);
@@ -61,7 +59,7 @@ export default function BookingPanel({ ticket, onChange }: { ticket: Ticket; onC
       if (file.size > 6_000_000) { setError(t("The file is too large (maximum 6 MB)")); continue; }
       const data = await readFileBase64(file).catch(() => null);
       if (data === null) continue;
-      await run(() => post<Ticket>(`${base}/files`, { kind, name: file.name, content_type: file.type, data_base64: data }));
+      await run(() => post<Ticket>(`${base}/files`, { kind: "document", name: file.name, content_type: file.type, data_base64: data }));
     }
   };
 
@@ -69,7 +67,7 @@ export default function BookingPanel({ ticket, onChange }: { ticket: Ticket; onC
     <section className="gx-rq-booking" aria-label={t("Payment and booking")}>
       {files.length > 0 && (
         <>
-          <h3>{t("Files")}</h3>
+          <h3>{t("Travel documents")}</h3>
           <ul className="gx-rq-files">
             {files.map((f) => (
               <li key={f.id} className={`gx-rq-file ${f.kind}`}>
@@ -93,13 +91,11 @@ export default function BookingPanel({ ticket, onChange }: { ticket: Ticket; onC
           </ul>
         </>
       )}
-      {ticket.status === "in_progress" && files.some((f) => f.kind === "payment_proof") && (
-        <p className="gx-rq-hint" role="note"><Receipt weight="fill" /> {t("The client sent a payment proof: check it, write the transfer number in Payment reference, then mark as paid.")}</p>
-      )}
 
-      {steps.length > 0 && ["paid", "confirmed"].includes(ticket.status) && (
+      {steps.length > 0 && (
         <>
           <h3>{t("Booking checklist")}</h3>
+          {!["paid", "confirmed"].includes(ticket.status) && <p className="muted small">{t("These steps start once the payment is complete.")}</p>}
           <ul className="gx-rq-steps">
             {steps.map((s) => (
               <li key={s.key} className={s.done ? "done" : ""}>
@@ -119,13 +115,8 @@ export default function BookingPanel({ ticket, onChange }: { ticket: Ticket; onC
 
       {manage && !closed && (
         <div className="gx-rq-upload">
-          <select value={kind} onChange={(e) => setKind(e.target.value as RequestFile["kind"])} aria-label={t("Kind of file")}>
-            <option value="document">{t("Travel document")}</option>
-            <option value="payment_proof">{t("Payment proof")}</option>
-            <option value="client_file">{t("From the client")}</option>
-          </select>
           <label className="btn btn-sm btn-soft">
-            <Paperclip />{t("Add files (photo or PDF)")}
+            <Paperclip />{t("Add travel documents (tickets, vouchers, visa…)")}
             <input type="file" accept={ACCEPT} multiple hidden disabled={busy} onChange={upload} />
           </label>
         </div>

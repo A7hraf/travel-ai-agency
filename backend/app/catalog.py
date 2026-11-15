@@ -69,6 +69,23 @@ class StepDef(BaseModel):
         return _line(v)
 
 
+class DocDef(BaseModel):
+    """A document the client sends (passport copy, photo, bank statement…), as a photo or PDF."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    key: str = Field(pattern=KEY)
+    label_en: str = Field(min_length=1, max_length=80)
+    label_ar: str = Field(min_length=1, max_length=80)
+    required: bool = True
+    per_traveller: bool = False  # one for each traveller (passports)
+
+    @field_validator("label_en", "label_ar")
+    @classmethod
+    def one_line(cls, v: str) -> str:
+        return _line(v)
+
+
 class ServiceIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -83,6 +100,7 @@ class ServiceIn(BaseModel):
         default_factory=list, max_length=8)
     fields: list[FieldDef] = Field(default_factory=list, max_length=MAX_FIELDS)
     steps: list[StepDef] = Field(default_factory=list, max_length=MAX_STEPS)
+    documents: list[DocDef] = Field(default_factory=list, max_length=15)
     rules: str = Field(default="", max_length=4000)
     is_active: bool = True
 
@@ -103,6 +121,8 @@ class ServiceIn(BaseModel):
             raise ValueError("Two questions have the same key")
         if len({s.key for s in self.steps}) != len(self.steps):
             raise ValueError("Two booking steps have the same key")
+        if len({d.key for d in self.documents}) != len(self.documents):
+            raise ValueError("Two documents have the same key")
         self.parts = [p for p in PARTS if p in self.parts]
         if self.pricing == "fixed" and self.price is None:
             raise ValueError("A fixed-price service needs its price")
@@ -120,7 +140,8 @@ def service_out(s: Service) -> ServiceOut:
                       description_en=s.description_en, description_ar=s.description_ar, pricing=s.pricing,
                       price=s.price, price_note=s.price_note, parts=list(s.parts or []),
                       fields=[FieldDef.model_validate(f) for f in s.fields or []],
-                      steps=[StepDef.model_validate(x) for x in s.steps or []], rules=s.rules, is_active=s.is_active)
+                      steps=[StepDef.model_validate(x) for x in s.steps or []],
+                      documents=[DocDef.model_validate(x) for x in s.documents or []], rules=s.rules, is_active=s.is_active)
 
 
 def apply(service: Service, data: ServiceIn) -> None:
@@ -138,6 +159,13 @@ def _s(key, en, ar) -> dict:
     return {"key": key, "label_en": en, "label_ar": ar}
 
 
+def _d(key, en, ar, required=True, per_traveller=False) -> dict:
+    return {"key": key, "label_en": en, "label_ar": ar, "required": required, "per_traveller": per_traveller}
+
+
+PASSPORT = _d("passport", "Passport copy", "صورة جواز السفر", True, True)
+
+
 TRAVELLERS = [_f("adults", "Adults", "البالغون", "number"), _f("children", "Children (ages)", "الأطفال (أعمارهم)", required=False)]
 CONTACT = [_f("full_name", "Full name", "الاسم الكامل"), _f("phone", "WhatsApp number", "رقم واتساب", "phone")]
 DOCS = _s("documents", "Send all travel documents to the client", "إرسال كل وثائق السفر للعميل")
@@ -145,7 +173,7 @@ DOCS = _s("documents", "Send all travel documents to the client", "إرسال ك
 BUILT_IN: list[dict] = [
     {"key": "packages", "name_en": "Holiday packages", "name_ar": "الباقات السياحية", "pricing": "packages",
      "description_en": "Our ready-made trips with fixed prices.", "description_ar": "رحلاتنا الجاهزة بأسعار ثابتة.",
-     "parts": [], "fields": [], "steps": [_s("book", "Book the package", "حجز الباقة"), DOCS]},
+     "parts": [], "fields": [], "steps": [_s("book", "Book the package", "حجز الباقة"), DOCS], "documents": [PASSPORT]},
     {"key": "custom_trip", "name_en": "Tailor-made trip", "name_ar": "رحلة حسب الطلب", "pricing": "dynamic",
      "description_en": "A trip planned around the client: flights, hotels, transport and activities.",
      "description_ar": "رحلة نخططها حول العميل: طيران وفنادق ومواصلات وأنشطة.",
@@ -156,13 +184,14 @@ BUILT_IN: list[dict] = [
                 _f("preferences", "Preferences (hotel style, activities…)", "التفضيلات (نوع الفندق، الأنشطة…)", "long_text", False),
                 *CONTACT],
      "steps": [_s("flights", "Book the flights", "حجز الطيران"), _s("hotel", "Book the hotels", "حجز الفنادق"),
-               _s("transport", "Arrange the transport", "ترتيب المواصلات"), _s("activities", "Book the activities", "حجز الأنشطة"), DOCS]},
+               _s("transport", "Arrange the transport", "ترتيب المواصلات"), _s("activities", "Book the activities", "حجز الأنشطة"), DOCS],
+     "documents": [PASSPORT]},
     {"key": "flights", "name_en": "Flight tickets", "name_ar": "تذاكر الطيران", "pricing": "dynamic", "parts": ["flight"],
      "description_en": "Flight tickets on any airline.", "description_ar": "تذاكر طيران على أي شركة طيران.",
      "fields": [_f("origin", "From", "من"), _f("destination", "To", "إلى"), _f("depart_date", "Departure date", "تاريخ المغادرة", "date"),
                 _f("return_date", "Return date (empty for one way)", "تاريخ العودة (فارغ لذهاب فقط)", "date", False), *TRAVELLERS,
                 _f("cabin", "Class", "الدرجة", "choice", True, ["Economy", "Premium economy", "Business", "First"]), *CONTACT],
-     "steps": [_s("issue", "Issue the tickets", "إصدار التذاكر"), DOCS]},
+     "steps": [_s("issue", "Issue the tickets", "إصدار التذاكر"), DOCS], "documents": [PASSPORT]},
     {"key": "hotel", "name_en": "Hotel booking", "name_ar": "حجز فندق", "pricing": "dynamic", "parts": ["hotel"],
      "description_en": "Hotels and resorts worldwide.", "description_ar": "فنادق ومنتجعات حول العالم.",
      "fields": [_f("destination", "City", "المدينة"), _f("depart_date", "Check-in", "تاريخ الدخول", "date"),
@@ -175,7 +204,10 @@ BUILT_IN: list[dict] = [
                 _f("depart_date", "Travel date", "تاريخ السفر", "date"), *TRAVELLERS, *CONTACT],
      "rules": "Passports must be valid for at least 6 months after the travel date.",
      "steps": [_s("docs", "Collect the documents", "جمع المستندات"), _s("submit", "Submit the application", "تقديم الطلب"),
-               _s("deliver", "Send the visa to the client", "إرسال التأشيرة للعميل")]},
+               _s("deliver", "Send the visa to the client", "إرسال التأشيرة للعميل")],
+     "documents": [PASSPORT, _d("photo", "Personal photo (white background)", "صورة شخصية (خلفية بيضاء)", True, True),
+                   _d("bank_statement", "Bank statement (last 3 months)", "كشف حساب بنكي (آخر 3 أشهر)"),
+                   _d("booking", "Flight and hotel bookings", "حجوزات الطيران والفندق", False)]},
     {"key": "concierge", "name_en": "Special request", "name_ar": "طلب خاص", "pricing": "dynamic", "parts": ["other"],
      "description_en": "Anything beyond our packages: private transfers, restaurants, events, surprises.",
      "description_ar": "أي شيء خارج باقاتنا: تنقلات خاصة، مطاعم، فعاليات، مفاجآت.",
@@ -194,6 +226,11 @@ def ensure_built_in(db: Session, company: Company) -> None:
         service = Service(company_id=company.id, key=raw["key"], position=i)
         apply(service, data)
         db.add(service)
+    # Built-in services made before client documents existed get their usual documents once.
+    defaults = {raw["key"]: raw.get("documents", []) for raw in BUILT_IN}
+    for service in db.scalars(select(Service).where(Service.company_id == company.id, Service.key.is_not(None),
+                                                    Service.documents.is_(None))).all():
+        service.documents = defaults.get(service.key, [])
     db.flush()
 
 

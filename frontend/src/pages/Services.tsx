@@ -22,12 +22,12 @@ const empty = (): Draft => ({
   parts: [], fields: [
     { key: "full_name", label_en: "Full name", label_ar: "الاسم الكامل", type: "text", required: true, choices: [] },
     { key: "phone", label_en: "WhatsApp number", label_ar: "رقم واتساب", type: "phone", required: true, choices: [] },
-  ], steps: [], rules: "", is_active: true,
+  ], steps: [], documents: [], rules: "", is_active: true,
 });
 const toDraft = (s: Service | Draft): Draft => ({
   name_en: s.name_en, name_ar: s.name_ar, description_en: s.description_en, description_ar: s.description_ar, pricing: s.pricing,
   price: s.price, price_note: s.price_note, parts: [...s.parts], fields: s.fields.map((f) => ({ ...f, choices: [...f.choices] })),
-  steps: s.steps.map((x) => ({ ...x })), rules: s.rules, is_active: s.is_active,
+  steps: s.steps.map((x) => ({ ...x })), documents: (s.documents ?? []).map((x) => ({ ...x })), rules: s.rules, is_active: s.is_active,
 });
 /** "Passport copy" → "passport_copy" (the key the AI and the answers use). */
 const keyOf = (label: string, taken: string[]) => {
@@ -166,6 +166,28 @@ function Editor({ initial, id, builtIn, onSaved, onCancel, onDelete }: {
           </button>
         </>
       )}
+
+      <div className="gx-section-label">{t("Documents the client sends")}</div>
+      <p className="muted small">{t("Passport copies, photos, statements… The AI asks for them, the client sends them on WhatsApp or their trips page, and the request shows what is missing.")}</p>
+      <div className="gx-svc-list">
+        {d.documents.map((doc, i) => (
+          <div key={i} className="gx-svc-row gx-svc-doc">
+            <input value={doc.label_en} aria-label={t("Document (English)")} placeholder={t("Document (English)")} dir="ltr" required maxLength={80}
+              onChange={(e) => setD({ ...d, documents: d.documents.map((x, j) => (j === i ? { ...x, label_en: e.target.value } : x)) })} />
+            <input value={doc.label_ar} aria-label={t("Document (Arabic)")} placeholder={t("Document (Arabic)")} dir="rtl" required maxLength={80}
+              onChange={(e) => setD({ ...d, documents: d.documents.map((x, j) => (j === i ? { ...x, label_ar: e.target.value } : x)) })} />
+            <label className="gx-svc-req"><input type="checkbox" checked={doc.required}
+              onChange={(e) => setD({ ...d, documents: d.documents.map((x, j) => (j === i ? { ...x, required: e.target.checked } : x)) })} />{t("Required")}</label>
+            <label className="gx-svc-req"><input type="checkbox" checked={doc.per_traveller}
+              onChange={(e) => setD({ ...d, documents: d.documents.map((x, j) => (j === i ? { ...x, per_traveller: e.target.checked } : x)) })} />{t("One per traveller")}</label>
+            <button type="button" className="icon-btn" aria-label={t("Remove")} onClick={() => setD({ ...d, documents: d.documents.filter((_, j) => j !== i) })}><Trash /></button>
+          </div>
+        ))}
+      </div>
+      <button type="button" className="btn btn-sm btn-ghost" disabled={d.documents.length >= 15}
+        onClick={() => setD({ ...d, documents: [...d.documents, { key: keyOf(`document ${d.documents.length + 1}`, d.documents.map((x) => x.key)), label_en: "", label_ar: "", required: true, per_traveller: false }] })}>
+        <Plus />{t("Add a document")}
+      </button>
 
       <Field label={t("Rules and exceptions (the AI follows them)")}>
         <textarea rows={3} value={d.rules} onChange={(e) => setD({ ...d, rules: e.target.value })} maxLength={4000} dir="auto"

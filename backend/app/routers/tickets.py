@@ -5,8 +5,10 @@ import base64
 import binascii
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import or_, select
+from datetime import timedelta
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..audit import audit
@@ -23,10 +25,12 @@ from ..models import (
     TicketEvent,
     TicketStatus,
     User,
+    utcnow,
 )
 from ..permissions import effective_permissions
 from ..schemas import TicketEventOut, TicketOut, TicketUpdate
 from ..services import library
+from ..services import request_desk as desk
 from ..services import request_files as files
 from .media import media_belongs_to
 from ..services.request_files import file_response
@@ -50,45 +54,125 @@ def _get(db: Session, me: User, ticket_id: int, lock: bool = False) -> Ticket:
 
 def ticket_out(ticket: Ticket, me: User, detail: bool = False) -> TicketOut:
     out = TicketOut.model_validate(ticket)
+    out.stage = desk.stage_of(ticket)
+    out.money = desk.money(ticket)
     if detail:
         out.request_files = [files.file_out(f) for f in ticket.files]
         out.booking_steps = files.checklist_view(ticket)
+        out.payment_list = [desk.payment_out(p) for p in ticket.payments]
+        out.client_documents = desk.documents_view(ticket)
+        out.itinerary = desk.apply_dates_hint(ticket.departure_date, ticket.itinerary or [])
     out.options = sorted(out.options, key=lambda o: (flow.CATEGORIES.index(o.category) if o.category in flow.CATEGORIES else 99, o.id))
     out.urgency = flow.urgency(ticket, me.company, local_today())
     return out
 
 
-@router.get("", response_model=list[TicketOut])
-def list_tickets(
-    status: str | None = None,
-    mine: bool = False,
-    q: str | None = Query(default=None, max_length=100),
-    limit: int = Query(default=200, le=1000),
-    sort: Literal["newest", "urgency"] = "newest",
-    me: User = Depends(require_permission("tickets.view")),
-    db: Session = Depends(get_db),
-):
-    # Unpaid bookings past their hold time give their seats back (shown in their history).
-    if seats.release_expired(db, company_id=me.company_id):
-        db.commit()
-    stmt = select(Ticket).where(Ticket.company_id == me.company_id).options(
-        selectinload(Ticket.customer), selectinload(Ticket.assigned_to)
-    )
+def _filtered(db: Session, me: User, *, status=None, stage=None, mine=False, assigned=None, service_id=None, q=None):
+    stmt = select(Ticket).where(Ticket.company_id == me.company_id)
     if status:
         stmt = stmt.where(Ticket.status == status)
-    if mine:
+    if stage == "open":
+        stmt = stmt.where(Ticket.status.notin_(desk.STAGES["confirmed"] + desk.STAGES["closed"]))
+    elif stage:
+        stmt = stmt.where(Ticket.status.in_(desk.STAGES[stage]))
+    if mine or assigned == "me":
         stmt = stmt.where(Ticket.assigned_to_id == me.id)
+    elif assigned == "none":
+        stmt = stmt.where(Ticket.assigned_to_id.is_(None))
+    elif assigned and assigned.isdigit():
+        stmt = stmt.where(Ticket.assigned_to_id == int(assigned))
+    if service_id:
+        stmt = stmt.where(Ticket.service_id == service_id)
     if q:
         # % and _ are searched as typed, not as wildcards.
         like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
         stmt = stmt.where(
             or_(Ticket.reference.ilike(like, escape="\\"), Ticket.lead_traveler_name.ilike(like, escape="\\"),
-                Ticket.contact_phone.ilike(like, escape="\\"))
+                Ticket.contact_phone.ilike(like, escape="\\"), Ticket.destination.ilike(like, escape="\\"),
+                Ticket.package_title.ilike(like, escape="\\"))
         )
-    rows = [ticket_out(t, me) for t in db.scalars(stmt.order_by(Ticket.id.desc()).limit(limit)).all()]
+    return stmt
+
+
+@router.get("", response_model=list[TicketOut])
+def list_tickets(
+    response: Response,
+    status: str | None = None,
+    stage: Literal["open", "quote", "client", "payment", "booking", "confirmed", "closed"] | None = None,
+    mine: bool = False,
+    assigned: str | None = Query(default=None, max_length=12),
+    service_id: int | None = None,
+    urgent: bool = False,
+    q: str | None = Query(default=None, max_length=100),
+    limit: int = Query(default=200, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    sort: Literal["newest", "urgency", "departure"] = "newest",
+    me: User = Depends(require_permission("tickets.view")),
+    db: Session = Depends(get_db),
+):
+    """Requests, filtered and in pages (X-Total-Count gives the number of matches)."""
+    # Unpaid bookings past their hold time give their seats back (shown in their history).
+    if seats.release_expired(db, company_id=me.company_id):
+        db.commit()
+    stmt = _filtered(db, me, status=status, stage=stage, mine=mine, assigned=assigned, service_id=service_id, q=q)
+    stmt = stmt.options(selectinload(Ticket.customer), selectinload(Ticket.assigned_to), selectinload(Ticket.service),
+                        selectinload(Ticket.options), selectinload(Ticket.payments))
+    if sort == "newest" and not urgent:
+        response.headers["X-Total-Count"] = str(db.scalar(select(func.count()).select_from(stmt.subquery())) or 0)
+        rows = db.scalars(stmt.order_by(Ticket.id.desc()).offset(offset).limit(limit)).all()
+        return [ticket_out(t, me) for t in rows]
+    # Priority and departure need every match (priority is worked out per request), then one page of them.
+    rows = [ticket_out(t, me) for t in db.scalars(stmt.order_by(Ticket.id.desc()).limit(3000)).all()]
+    if urgent:
+        rows = [r for r in rows if (r.urgency.get("score") or 0) >= 45]
     if sort == "urgency":
         rows.sort(key=lambda t: -t.urgency.get("score", 0))
-    return rows
+    elif sort == "departure":
+        rows.sort(key=lambda t: (t.departure_date is None, t.departure_date or ""))
+    response.headers["X-Total-Count"] = str(len(rows))
+    return rows[offset:offset + limit]
+
+
+@router.get("/summary")
+def summary(me: User = Depends(require_permission("tickets.view")), db: Session = Depends(get_db)):
+    """The pipeline at a glance: requests per stage, what needs the team now, and the money."""
+    rows = db.scalars(select(Ticket).where(Ticket.company_id == me.company_id, or_(
+        Ticket.status.notin_(desk.STAGES["closed"] + desk.STAGES["confirmed"]),
+        Ticket.updated_at >= utcnow() - timedelta(days=62)))
+        .options(selectinload(Ticket.options), selectinload(Ticket.payments), selectinload(Ticket.customer))).all()
+    today = local_today()
+    month = today.replace(day=1).isoformat()
+    stages = {k: 0 for k in desk.STAGES}
+    pipeline = Decimal(0)
+    to_collect = Decimal(0)
+    profit_month = Decimal(0)
+    sales_month = Decimal(0)
+    urgent = unassigned = proofs = 0
+    for t in rows:
+        stage = desk.stage_of(t)
+        stages[stage] += 1
+        m = desk.money(t)
+        if stage in ("quote", "client"):
+            pipeline += Decimal(str(m["total"] or m["choices_total"] or 0))
+        if stage == "payment":
+            to_collect += Decimal(str(m["balance"] or 0))
+        if stage in ("booking", "confirmed") and t.updated_at and t.updated_at.date().isoformat() >= month:
+            sales_month += Decimal(str(m["total"] or 0))
+            profit_month += Decimal(str(m["profit"] or 0))
+        if stage not in ("closed", "confirmed"):
+            if (flow.urgency(t, me.company, today).get("score") or 0) >= 45:
+                urgent += 1
+            if t.assigned_to_id is None:
+                unassigned += 1
+        proofs += m["pending_proofs"]
+    # Confirmed and closed are counted for all time (the list shows them all).
+    for stage in ("confirmed", "closed"):
+        stages[stage] = db.scalar(select(func.count(Ticket.id)).where(
+            Ticket.company_id == me.company_id, Ticket.status.in_(desk.STAGES[stage]))) or 0
+    f = lambda v: float(round(v, 3))  # noqa: E731
+    return {"stages": stages, "urgent": urgent, "unassigned": unassigned, "proofs_to_check": proofs,
+            "pipeline_value": f(pipeline), "to_collect": f(to_collect), "sales_this_month": f(sales_month),
+            "profit_this_month": f(profit_month), "currency": me.company.currency or "OMR"}
 
 
 @router.get("/{ticket_id}", response_model=TicketOut)
@@ -477,3 +561,204 @@ def send_documents(ticket_id: int, body: DocumentsIn, me: User = Depends(manage)
     if failed:
         out.notice = f"{failed} documents could not be sent on WhatsApp: the client can open them on their trips page"
     return out
+
+
+# --- A request made by staff (a call, a walk-in, an email) ------------------------------------------------
+
+class NewRequestIn(BaseModel):
+    service_id: int
+    customer_id: int | None = None
+    name: str | None = Field(default=None, max_length=200)
+    phone: str | None = Field(default=None, max_length=30)
+    email: str | None = Field(default=None, max_length=200)
+    answers: dict[str, str] = Field(default_factory=dict, max_length=40)
+    summary: str = Field(default="", max_length=4000)
+
+
+@router.post("", response_model=TicketOut, status_code=201)
+def create_ticket(body: NewRequestIn, me: User = Depends(manage), db: Session = Depends(get_db)):
+    """A request the team takes outside the chat. The client is found by phone (or made), so their private
+    trips page shows it after they confirm the code on WhatsApp. Missing answers can be added later."""
+    from ..models import Customer, Service  # noqa: PLC0415
+    from ..services.whatsapp import normalize_phone  # noqa: PLC0415
+
+    service = db.get(Service, body.service_id)
+    if service is None or service.company_id != me.company_id or service.pricing == "packages":
+        raise HTTPException(404, "Service not found")
+    if body.customer_id is not None:
+        customer = db.get(Customer, body.customer_id)
+        if customer is None or customer.company_id != me.company_id:
+            raise HTTPException(404, "Customer not found")
+    else:
+        phone = normalize_phone(body.phone or "") if body.phone else None
+        if body.phone and not phone:
+            raise HTTPException(422, "Write the phone with the country code, for example +968 9123 4567")
+        if not phone and not (body.name or "").strip():
+            raise HTTPException(422, "Give the client's name or phone")
+        customer = db.scalar(select(Customer).where(Customer.company_id == me.company_id, Customer.whatsapp_id == phone)) if phone else None
+        if customer is None:
+            customer = Customer(company_id=me.company_id, name=(body.name or "").strip()[:200] or None,
+                                whatsapp_id=phone, phone=f"+{phone}" if phone else None, email=(body.email or None))
+            db.add(customer)
+            db.flush()
+    answers = {k: str(v) for k, v in body.answers.items()}
+    if body.name and not answers.get("full_name"):
+        answers["full_name"] = body.name
+    if customer.phone and not answers.get("phone"):
+        answers["phone"] = customer.phone
+    conversation = None
+    if customer.whatsapp_id and me.company.whatsapp_phone_number_id:
+        # Updates (choices, quotation, payment details) then reach the client on WhatsApp like any request.
+        from ..services.conversations import _channel_conversation  # noqa: PLC0415
+        from ..models import Channel  # noqa: PLC0415
+
+        conversation = _channel_conversation(db, me.company, customer, Channel.WHATSAPP)
+    ticket = flow.create_request(db, me.company, customer, service, answers, body.summary, conversation,
+                                 actor=me.full_name, strict=False)
+    ticket.assigned_to_id = me.id
+    ticket.created_by = "staff"
+    audit(db, me, "ticket.created", target=ticket.reference)
+    return _done(db, ticket, me)
+
+
+class DetailsIn(BaseModel):
+    answers: dict[str, str] = Field(default_factory=dict, max_length=40)
+    special_requests: str | None = Field(default=None, max_length=4000)
+
+
+@router.put("/{ticket_id}/details", response_model=TicketOut)
+def update_details(ticket_id: int, body: DetailsIn, me: User = Depends(manage), db: Session = Depends(get_db)):
+    """Staff correct or complete what the client asked (dates, travellers, names…)."""
+    from ..catalog import check_answers  # noqa: PLC0415
+
+    ticket = _get(db, me, ticket_id, lock=True)
+    if ticket.status in (TicketStatus.CANCELLED, TicketStatus.REJECTED, TicketStatus.CONFIRMED):
+        raise HTTPException(409, "This request is closed: reopen it to change it")
+    if ticket.service is None or ticket.service.pricing == "packages":
+        raise HTTPException(409, "A package booking keeps the package's details")
+    clean, _missing = check_answers(ticket.service, {**(ticket.answers or {}), **body.answers})
+    flow.fill_from_answers(ticket, ticket.service, clean, ticket.customer)
+    if body.special_requests is not None:
+        ticket.special_requests = body.special_requests.strip()
+    flow.event(db, ticket, me.full_name, "details_changed", None, ", ".join(sorted(body.answers)) or None, me)
+    return _done(db, ticket, me)
+
+
+class MoneyIn(BaseModel):
+    total_price: Decimal | None = Field(default=None, ge=0, le=Decimal("100000000"), decimal_places=3)
+    cost_price: Decimal | None = Field(default=None, ge=0, le=Decimal("100000000"), decimal_places=3)
+    clear_cost: bool = False
+
+
+@router.put("/{ticket_id}/money", response_model=TicketOut)
+def update_money(ticket_id: int, body: MoneyIn, me: User = Depends(manage), db: Session = Depends(get_db)):
+    """The client price (until the payment is complete) and the company's cost, for the profit."""
+    ticket = _get(db, me, ticket_id, lock=True)
+    if body.total_price is not None and body.total_price != ticket.total_price:
+        if ticket.status in (TicketStatus.PAID, TicketStatus.CONFIRMED) and me.role != Role.COMPANY_ADMIN:
+            raise HTTPException(403, "Only a company admin can change the price of a paid booking")
+        if ticket.status in (TicketStatus.CANCELLED, TicketStatus.REJECTED):
+            raise HTTPException(409, "This request is closed: reopen it to change it")
+        flow.event(db, ticket, me.full_name, "price", ticket.total_price, body.total_price, me)
+        audit(db, me, "ticket.price", target=ticket.reference, detail=f"{ticket.total_price} → {body.total_price} {ticket.currency}")
+        ticket.total_price = body.total_price
+    if body.clear_cost and ticket.cost_price is not None:
+        flow.event(db, ticket, me.full_name, "cost", ticket.cost_price, None, me)
+        ticket.cost_price = None
+    elif body.cost_price is not None and body.cost_price != ticket.cost_price:
+        flow.event(db, ticket, me.full_name, "cost", ticket.cost_price, body.cost_price, me)
+        ticket.cost_price = body.cost_price
+    return _done(db, ticket, me)
+
+
+# --- Payments -------------------------------------------------------------------------------------------
+
+class PaymentIn(BaseModel):
+    amount: Decimal = Field(gt=0, le=Decimal("100000000"), decimal_places=3)
+    method: Literal["bank_transfer", "cash", "card", "link", "other"] = "bank_transfer"
+    reference: str | None = Field(default=None, max_length=200)
+    note: str | None = Field(default=None, max_length=500)
+    file_id: int | None = None
+
+
+def _after_payment(db: Session, ticket: Ticket, me: User, became_paid: bool) -> TicketOut:
+    out = _done(db, ticket, me)
+    if became_paid:
+        flow.notify_status(db, ticket)  # the client hears the payment was received
+        db.refresh(ticket)
+        out = ticket_out(ticket, me, detail=True)
+    return out
+
+
+@router.post("/{ticket_id}/payments", response_model=TicketOut, status_code=201)
+def add_payment(ticket_id: int, body: PaymentIn, me: User = Depends(manage), db: Session = Depends(get_db)):
+    """A payment received (deposit, balance, cash at the office…). Fully paid moves the request to booking."""
+    ticket = _get(db, me, ticket_id, lock=True)
+    paid = desk.record(db, ticket, body.amount, body.method, (body.reference or "").strip() or None, body.note, body.file_id, me)
+    audit(db, me, "ticket.payment", target=ticket.reference, detail=f"{body.amount} {ticket.currency} recorded")
+    return _after_payment(db, ticket, me, paid)
+
+
+class ApproveIn(BaseModel):
+    amount: Decimal = Field(gt=0, le=Decimal("100000000"), decimal_places=3)
+    method: Literal["bank_transfer", "cash", "card", "link", "other"] = "bank_transfer"
+    reference: str | None = Field(default=None, max_length=200)
+
+
+@router.post("/{ticket_id}/payments/{payment_id}/approve", response_model=TicketOut)
+def approve_payment(ticket_id: int, payment_id: int, body: ApproveIn, me: User = Depends(manage),
+                    db: Session = Depends(get_db)):
+    ticket = _get(db, me, ticket_id, lock=True)
+    paid = desk.approve(db, ticket, payment_id, body.amount, body.method, (body.reference or "").strip() or None, me)
+    audit(db, me, "ticket.payment", target=ticket.reference, detail=f"receipt approved: {body.amount} {ticket.currency}")
+    return _after_payment(db, ticket, me, paid)
+
+
+class RejectIn(BaseModel):
+    note: str = Field(min_length=3, max_length=500)
+
+
+@router.post("/{ticket_id}/payments/{payment_id}/reject", response_model=TicketOut)
+def reject_payment(ticket_id: int, payment_id: int, body: RejectIn, me: User = Depends(manage),
+                   db: Session = Depends(get_db)):
+    ticket = _get(db, me, ticket_id, lock=True)
+    desk.reject(db, ticket, payment_id, body.note.strip(), me)
+    db.refresh(ticket)
+    return ticket_out(ticket, me, detail=True)
+
+
+# --- Sorting files, and the trip plan --------------------------------------------------------------------
+
+class SortIn(BaseModel):
+    kind: Literal["payment_proof", "client_file", "document"]
+    requirement: str | None = Field(default=None, max_length=40)
+
+
+@router.patch("/{ticket_id}/files/{file_id}", response_model=TicketOut)
+def sort_file(ticket_id: int, file_id: int, body: SortIn, me: User = Depends(manage), db: Session = Depends(get_db)):
+    ticket = _get(db, me, ticket_id, lock=True)
+    desk.classify(db, ticket, file_id, body.kind, body.requirement, me)
+    return _done(db, ticket, me)
+
+
+class PlanIn(BaseModel):
+    days: list[desk.PlanDay] = Field(default_factory=list, max_length=60)
+
+
+@router.put("/{ticket_id}/itinerary", response_model=TicketOut)
+def save_plan(ticket_id: int, body: PlanIn, me: User = Depends(manage), db: Session = Depends(get_db)):
+    ticket = _get(db, me, ticket_id, lock=True)
+    if ticket.status in (TicketStatus.CANCELLED, TicketStatus.REJECTED):
+        raise HTTPException(409, "This request is closed: reopen it to change it")
+    days = sorted((d.model_dump() for d in body.days), key=lambda d: d["day"])
+    ticket.itinerary = days or None
+    flow.event(db, ticket, me.full_name, "plan_saved", None, f"{len(days)} days", me)
+    return _done(db, ticket, me)
+
+
+@router.post("/{ticket_id}/itinerary/ai-draft")
+def draft_plan(ticket_id: int, me: User = Depends(manage), db: Session = Depends(get_db)):
+    """The AI drafts the day-by-day plan (not saved: staff check it first)."""
+    limiter.check(f"plan-draft:{me.company_id}", 60, "The AI is busy: please try again in a few minutes", window=3600)
+    ticket = _get(db, me, ticket_id)
+    return {"days": desk.draft_plan(ticket)}

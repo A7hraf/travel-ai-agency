@@ -5,6 +5,7 @@ staff login in the same browser is never mixed up with it). Every answer is abou
 """
 
 import base64
+from typing import Literal
 import binascii
 from datetime import date, datetime
 
@@ -25,6 +26,7 @@ from ..ratelimit import limiter
 from ..routers.public import _company
 from ..services import customer_portal as svc
 from ..services import quotes as quotes_svc
+from ..services import request_desk as desk
 from ..services import request_files as files_svc
 from ..services import requests as flow
 from ..services.conversations import is_customer_visible
@@ -100,9 +102,17 @@ class TripOut(BaseModel):
     can_upload: bool = False
     upload_is_proof: bool = False
     has_quotation: bool = False
+    # What the client still has to send, what they paid and what is left, and the day-by-day plan.
+    documents: list[dict] = []
+    paid: float | None = None
+    balance: float | None = None
+    receipts_waiting: int = 0
+    itinerary: list[dict] = []
 
 
 class FileIn(BaseModel):
+    purpose: Literal["auto", "proof", "document"] = "auto"
+    requirement: str | None = Field(default=None, max_length=40)
     name: str | None = Field(default=None, max_length=200)
     content_type: str = Field(max_length=60)
     data_base64: str = Field(max_length=files_svc.MAX_FILE_BYTES * 4 // 3 + 16)
@@ -225,6 +235,13 @@ def _trip(t: Ticket, company: Company, out: TripOut) -> TripOut:
                  for f in t.files if f.uploaded_by == "client" or (f.kind == "document" and f.sent_at is not None)]
     out.can_upload = t.status in files_svc.CLIENT_FILE_STATUSES
     out.upload_is_proof = t.status in files_svc.PROOF_STATUSES
+    docs = desk.documents_view(t)
+    out.documents = [{k: i[k] for k in ("key", "label_en", "label_ar", "required", "need", "have", "done")} for i in docs["items"]]
+    m = desk.money(t)
+    if t.status in desk.PAYABLE:
+        out.paid, out.balance, out.receipts_waiting = m["paid"], m["balance"], m["pending_proofs"]
+    if t.status not in (TicketStatus.CANCELLED, TicketStatus.REJECTED):
+        out.itinerary = desk.apply_dates_hint(t.departure_date, t.itinerary or [])
     out.has_quotation = has_addon(company, "quotes") and quotes_svc.kind_for_client(t) is not None and any(
         o.sent_to_client for o in t.options)
     return out
@@ -256,7 +273,8 @@ def upload_file(ticket_id: int, body: FileIn, me: Customer = Depends(session), d
         data = base64.b64decode(body.data_base64, validate=True)
     except (binascii.Error, ValueError):
         raise HTTPException(400, "The file data is not valid") from None
-    files_svc.client_upload(db, ticket, body.name, body.content_type, data, actor="Client (trips page)")
+    files_svc.client_upload(db, ticket, body.name, body.content_type, data, actor="Client (trips page)",
+                            purpose=body.purpose, requirement=body.requirement)
     db.commit()
     return _trips(db, me)
 

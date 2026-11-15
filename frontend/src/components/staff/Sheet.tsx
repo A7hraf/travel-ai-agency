@@ -131,7 +131,8 @@ export function ConfirmSheet({ req, onClose }: { req: ConfirmRequest; onClose: (
  * Detail screen: full screen and pushed in from the inline end on phones (above the tab bar),
  * a side panel with a backdrop on wide screens.
  */
-export function PushPanel({ backLabel, title, onClose, children, labelledBy }: {
+export function PushPanel({ backLabel, title, onClose, children, labelledBy, wide }: {
+  wide?: boolean;
   backLabel: string;
   title?: string;
   onClose: () => void;
@@ -143,7 +144,7 @@ export function PushPanel({ backLabel, title, onClose, children, labelledBy }: {
   useLayerFocus(box, onClose);
   return (
     <div className="gp-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div ref={box} className="gp-panel" role="dialog" aria-modal="true" aria-labelledby={labelledBy} tabIndex={-1}>
+      <div ref={box} className={`gp-panel ${wide ? "wide" : ""}`} role="dialog" aria-modal="true" aria-labelledby={labelledBy} tabIndex={-1}>
         <div className="gp-head">
           <button type="button" className="gp-back" onClick={onClose} aria-label={t("Back")}>
             <ArrowLeft className="flip" size={21} />

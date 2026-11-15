@@ -53,6 +53,10 @@
   .qt-total, .qt-num { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 
+.qt-day { display: grid; grid-template-columns: 90px 1fr; gap: 14px; padding: 10px 0; border-bottom: 1px solid #f0eee9; break-inside: avoid; }
+.qt-day-n { font-weight: 700; color: var(--qt-brand); font-size: 13px; display: flex; flex-direction: column; }
+.qt-day-n span { font-weight: 400; color: #777; font-size: 12px; }
+
 /* The report page */
 .rp-sheet .qt-trip { grid-template-columns: repeat(4, 1fr); }
 .rp-figure { padding: 12px 14px; border-radius: 6px; background: #faf9f7; }

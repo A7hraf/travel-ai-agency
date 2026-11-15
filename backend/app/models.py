@@ -399,6 +399,10 @@ class Ticket(Base):
     legacy_ref: Mapped[str | None] = mapped_column(String(60), index=True)
     # The booking steps of the service done after payment (step key → {"at": iso time, "by": name}).
     checklist: Mapped[dict | None] = mapped_column(JSON)
+    # What the trip costs the company (when not taken from the chosen choices): the profit is price − cost.
+    cost_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
+    # The day-by-day plan of a tailor-made trip: [{"day": 1, "title": "...", "details": "..."}].
+    itinerary: Mapped[list | None] = mapped_column(JSON)
     documents_sent_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     departure_date: Mapped[str | None] = mapped_column(String(20))
     adults: Mapped[int] = mapped_column(Integer, default=1)
@@ -433,6 +437,8 @@ class Ticket(Base):
     conversation: Mapped[Conversation | None] = relationship()
     files: Mapped[list["RequestFile"]] = relationship(cascade="all, delete-orphan", passive_deletes=True,
                                                       order_by="RequestFile.id", back_populates="ticket")
+    payments: Mapped[list["TicketPayment"]] = relationship(cascade="all, delete-orphan", passive_deletes=True,
+                                                          order_by="TicketPayment.id", back_populates="ticket")
 
 
 class Supplier(Base):
@@ -503,6 +509,29 @@ class AdvisorMessage(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
 
 
+class TicketPayment(Base):
+    """One payment of a request (a deposit, the balance, a full payment). A transfer receipt the client sends is
+    a pending payment until staff check it and write the amount and reference."""
+
+    __tablename__ = "ticket_payments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    ticket_id: Mapped[int] = mapped_column(ForeignKey("tickets.id", ondelete="CASCADE"), index=True)
+    amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))  # unknown until staff check a receipt
+    method: Mapped[str] = mapped_column(String(20), default="bank_transfer")  # bank_transfer, cash, card, link, other
+    reference: Mapped[str | None] = mapped_column(String(200))
+    file_id: Mapped[int | None] = mapped_column(ForeignKey("request_files.id", ondelete="SET NULL"))
+    status: Mapped[str] = mapped_column(String(10), default="pending")  # pending, approved, rejected
+    note: Mapped[str | None] = mapped_column(String(500))
+    created_by: Mapped[str] = mapped_column(String(200))  # "client" or the staff member's name
+    reviewed_by: Mapped[str | None] = mapped_column(String(200))
+    reviewed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+    ticket: Mapped["Ticket"] = relationship(back_populates="payments")
+
+
 class RequestFile(Base):
     """A private file of a request: the client's payment proof or papers (passport copy…), or a travel document
     the team sends (tickets, vouchers, plan). Never public: only the company's staff and that client can open it."""
@@ -519,6 +548,7 @@ class RequestFile(Base):
     size: Mapped[int] = mapped_column(Integer)
     data: Mapped[bytes] = mapped_column(LargeBinary, deferred=True)  # read only when the file is opened
     uploaded_by: Mapped[str] = mapped_column(String(200))  # "client" or the staff member's name
+    requirement: Mapped[str | None] = mapped_column(String(40))  # client papers: which document it is (passport…)
     sent_at: Mapped[datetime | None] = mapped_column(UTCDateTime())  # documents: when the client got it
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
@@ -941,6 +971,8 @@ class Service(Base):
     parts: Mapped[list[str]] = mapped_column(JSON, default=list)
     fields: Mapped[list[dict]] = mapped_column(JSON, default=list)
     steps: Mapped[list[dict]] = mapped_column(JSON, default=list)
+    # Documents the client sends (passport copy…): [{"key", "label_en", "label_ar", "required", "per_traveller"}].
+    documents: Mapped[list[dict] | None] = mapped_column(JSON)
     rules: Mapped[str] = mapped_column(Text, default="")  # conditions and exceptions, for the AI
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     position: Mapped[int] = mapped_column(Integer, default=0)
