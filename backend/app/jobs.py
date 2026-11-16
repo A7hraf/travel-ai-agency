@@ -29,6 +29,12 @@ def run_once() -> None:
         from .services.advisor import daily_findings  # noqa: PLC0415
 
         _last_findings = local_today()
+        from .workflow import pass_finished_trips  # noqa: PLC0415
+
+        with SessionLocal() as db:
+            moved = pass_finished_trips(db, local_today())
+            if moved:
+                log.info("%s requests moved on after their trip", moved)
         with SessionLocal() as db:
             found = daily_findings(db)
             if found:

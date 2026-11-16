@@ -49,7 +49,7 @@ LINK_MINUTES = 30
 CODE_TRIES = 5
 WINDOW = timedelta(hours=24)
 FEEDBACK_DAYS = 30  # feedback can be given up to this many days after the trip
-PAID = (TicketStatus.PAID, TicketStatus.CONFIRMED)
+PAID = (TicketStatus.PAID, TicketStatus.CONFIRMED, TicketStatus.COMPLETED)
 
 
 def _hash(secret: str) -> str:

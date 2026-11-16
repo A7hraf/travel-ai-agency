@@ -21,8 +21,8 @@ const STAGE_TABS: { key: View; label: string; hint: string }[] = [
   { key: "quote", label: "To quote", hint: "New, changes asked, client chose: the team prepares choices or the final quotation" },
   { key: "client", label: "Client deciding", hint: "Choices or final quotation sent: waiting for the client" },
   { key: "payment", label: "Payment", hint: "Approved: waiting for the money, or receipts to check" },
-  { key: "booking", label: "Booking", hint: "Paid: book everything and send the travel documents" },
-  { key: "confirmed", label: "Confirmed", hint: "Booked trips" },
+  { key: "booking", label: "Team working", hint: "Documents, appointments, booking and the travel documents" },
+  { key: "confirmed", label: "Confirmed", hint: "Booked trips, then finished ones" },
   { key: "closed", label: "Closed", hint: "Cancelled or rejected" },
   { key: "all", label: "All", hint: "Every request" },
 ];
@@ -182,6 +182,8 @@ export default function Tickets() {
                   </span>
                   <span role="cell" className="rq-c-status">
                     <span className={`pill st-${tk.status}`}>{t(TICKET_STATUS_LABELS[tk.status])}</span>
+                    {tk.current_step && <small className="muted rq-step"><bdi>{lang === "ar" ? tk.current_step.label_ar : tk.current_step.label_en}</bdi>
+                      {tk.current_step.started_at && ` · ${ago(tk.current_step.started_at, t)}`}</small>}
                     {m.pending_proofs > 0 && <small className="rq-flag"><Receipt weight="fill" /> {t("receipt to check")}</small>}
                     {score >= 20 && <small className={`rq-flag ${score >= 45 ? "hot" : ""}`}><Lightning weight="fill" /> {score >= 45 ? t("Urgent") : t("Soon")}</small>}
                   </span>

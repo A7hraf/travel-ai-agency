@@ -267,7 +267,7 @@ def update_branding(body: BrandingUpdate, me: User = Depends(require_permission(
     return branding
 
 
-PAID = (TicketStatus.PAID, TicketStatus.CONFIRMED)
+PAID = (TicketStatus.PAID, TicketStatus.CONFIRMED, TicketStatus.COMPLETED)
 # The dashboard's conversations-per-day series of each channel.
 CHANNEL_SERIES = {Channel.WHATSAPP: "whatsapp", Channel.INSTAGRAM: "instagram"}
 

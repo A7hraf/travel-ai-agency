@@ -22,7 +22,7 @@ from ..timeutil import business_tz, start_of_local_day
 
 log = logging.getLogger(__name__)
 
-TRIP_STATUSES = (T.PENDING_PAYMENT, T.IN_PROGRESS, T.PAID, T.CONFIRMED)
+TRIP_STATUSES = (T.PENDING_PAYMENT, T.IN_PROGRESS, T.PAID, T.WORKING, T.CONFIRMED, T.COMPLETED)
 WINDOW = timedelta(hours=24)
 
 

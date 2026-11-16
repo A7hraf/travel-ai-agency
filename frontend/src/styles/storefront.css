@@ -726,6 +726,10 @@ body.sf-body { background: var(--bg-app); }
 .mt-track li.done { color: var(--text); }
 .mt-track li.done span { background: var(--brand); color: var(--on-brand, #fff); }
 .mt-track li.done::before { background: var(--brand); }
+.mt-track-flow { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(64px, 1fr); overflow-x: auto; padding-bottom: 4px; }
+.mt-track li.now { color: var(--text); font-weight: 600; }
+.mt-track li.now span { box-shadow: inset 0 0 0 2px var(--brand); }
+.mt-due { margin: 0; font-weight: 700; }
 .mt-stars { display: inline-flex; gap: 4px; font-size: 22px; color: color-mix(in srgb, var(--sf-text) 22%, transparent); }
 .mt-stars button { border: 0; background: none; padding: 2px; cursor: pointer; color: inherit; font-size: 28px; line-height: 0; }
 .mt-stars .on, .mt-stars button.on { color: #e3b341; }

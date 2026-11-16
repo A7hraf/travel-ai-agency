@@ -40,7 +40,9 @@ export const TICKET_STATUS_LABELS: Record<string, string> = {
   pending_payment: "Waiting for payment",
   in_progress: "Checking payment",
   paid: "Paid",
+  working: "Team working",
   confirmed: "Confirmed",
+  completed: "Completed",
   cancelled: "Cancelled",
 };
 

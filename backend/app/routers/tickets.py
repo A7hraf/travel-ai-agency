@@ -5,7 +5,7 @@ import base64
 import binascii
 from decimal import Decimal
 
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import func, or_, select
@@ -15,6 +15,7 @@ from ..audit import audit
 from ..database import get_db
 from ..deps import require_permission
 from ..models import (
+    Appointment,
     Message,
     MessageKind,
     RequestFile,
@@ -36,9 +37,11 @@ from .media import media_belongs_to
 from ..services.request_files import file_response
 from ..services import requests as flow
 from ..services import seats
+from ..services.calendar import local_text as calendar_local
 from ..timeutil import local_today
 from ..addons import has_addon, require_addon, use
 from ..ratelimit import limiter
+from .. import workflow
 from pydantic import BaseModel, Field, field_validator
 from typing import Literal
 
@@ -56,7 +59,10 @@ def ticket_out(ticket: Ticket, me: User, detail: bool = False) -> TicketOut:
     out = TicketOut.model_validate(ticket)
     out.stage = desk.stage_of(ticket)
     out.money = desk.money(ticket)
+    out.current_step = workflow.current(ticket)
     if detail:
+        out.process = workflow.view(ticket)
+        out.current_step = workflow.current(ticket)
         out.request_files = [files.file_out(f) for f in ticket.files]
         out.booking_steps = files.checklist_view(ticket)
         out.payment_list = [desk.payment_out(p) for p in ticket.payments]
@@ -194,7 +200,9 @@ NEXT_STATUSES: dict[str, set[str]] = {
     TicketStatus.PENDING_PAYMENT: {TicketStatus.IN_PROGRESS, TicketStatus.PAID, TicketStatus.CANCELLED},
     TicketStatus.IN_PROGRESS: {TicketStatus.PENDING_PAYMENT, TicketStatus.PAID, TicketStatus.CANCELLED},
     TicketStatus.PAID: {TicketStatus.CONFIRMED, TicketStatus.CANCELLED},
-    TicketStatus.CONFIRMED: {TicketStatus.CANCELLED},
+    TicketStatus.WORKING: {TicketStatus.PENDING_PAYMENT, TicketStatus.CONFIRMED, TicketStatus.CANCELLED},
+    TicketStatus.CONFIRMED: {TicketStatus.COMPLETED, TicketStatus.CANCELLED},
+    TicketStatus.COMPLETED: {TicketStatus.CONFIRMED},
     TicketStatus.CANCELLED: {TicketStatus.PENDING_PAYMENT, TicketStatus.NEW},
 }
 NEEDS_PAYMENT_REFERENCE = {TicketStatus.PAID, TicketStatus.CONFIRMED}
@@ -282,6 +290,7 @@ def update_ticket(ticket_id: int, body: TicketUpdate,
                                      "this booking can only be cancelled")
         if new == TicketStatus.CANCELLED:
             seats.release(db, ticket)
+            workflow.record_close(ticket, "team", body.cancel_reason, me.full_name)
         elif new == TicketStatus.NEW:
             pass  # reopened: the quotation starts again
         else:
@@ -299,6 +308,11 @@ def update_ticket(ticket_id: int, body: TicketUpdate,
         _event(db, ticket, me, "status", old, new)
         audit(db, me, "ticket.status", target=ticket.reference, detail=f"{old} → {new}")
         chat_events.append(f"Ticket {ticket.reference}: {old} → {new} by {me.full_name}")
+        if old in workflow.CLOSED:
+            workflow.reopened(db, ticket, new)
+        elif new != TicketStatus.CANCELLED:
+            workflow.ensure(ticket)
+            workflow.place(ticket, new)
         ticket.status = new
         if new == TicketStatus.IN_PROGRESS and ticket.assigned_to_id is None:
             ticket.assigned_to_id = me.id
@@ -371,6 +385,7 @@ manage = require_permission("tickets.view", "tickets.manage")
 
 def _done(db: Session, ticket: Ticket, me: User) -> TicketOut:
     db.commit()
+    flow.announce(db, me.company, ticket)  # the client hears about the steps that just started
     db.refresh(ticket)
     return ticket_out(ticket, me, detail=True)
 
@@ -488,9 +503,123 @@ def client_answer(ticket_id: int, body: ClientAnswerIn, me: User = Depends(manag
     elif body.action == "reject":
         flow.client_reject(db, ticket, actor, body.note)
     elif body.action == "cancel":
-        flow.client_cancel(db, ticket, actor)
+        flow.client_cancel(db, ticket, actor, body.note)
     else:
         flow.client_paid(db, ticket, body.transfer_reference or "", actor)
+    return _done(db, ticket, me)
+
+
+# --- The request's workflow -------------------------------------------------------------------------------
+
+class StepDoneIn(BaseModel):
+    key: str = Field(min_length=2, max_length=40)
+    note: str | None = Field(default=None, max_length=500)
+    skip: bool = False
+
+
+class WorkflowIn(BaseModel):
+    steps: list[workflow.StepIn] = Field(min_length=1, max_length=workflow.MAX_STEPS)
+
+
+class CloseIn(BaseModel):
+    by: Literal["client", "team"] = "team"
+    reason: str = Field(min_length=2, max_length=500)
+
+
+class AppointmentIn(BaseModel):
+    """The time the team booked for the client (embassy, airport…), or what the client said about times."""
+
+    starts_at: datetime | None = None
+    ends_at: datetime | None = None
+    location: str = Field(default="", max_length=200)
+    notes: str = Field(default="", max_length=1000)
+    client_times: str | None = Field(default=None, max_length=1000)
+    tell_client: bool = True
+
+
+@router.post("/{ticket_id}/workflow/done", response_model=TicketOut)
+def step_done(ticket_id: int, body: StepDoneIn, me: User = Depends(manage), db: Session = Depends(get_db)):
+    """The team finished the current step (or skips it)."""
+    ticket = _get(db, me, ticket_id, lock=True)
+    workflow.complete(db, ticket, me.full_name, me, body.key, body.note, body.skip)
+    return _done(db, ticket, me)
+
+
+@router.put("/{ticket_id}/workflow", response_model=TicketOut)
+def edit_workflow(ticket_id: int, body: WorkflowIn, me: User = Depends(manage), db: Session = Depends(get_db)):
+    """This request's own steps (the ones not started yet can be added, removed, reordered or changed)."""
+    ticket = _get(db, me, ticket_id, lock=True)
+    if ticket.status in workflow.CLOSED:
+        raise HTTPException(409, "This request is closed: reopen it to change it")
+    workflow.edit(db, ticket, body.steps, me.full_name, me)
+    return _done(db, ticket, me)
+
+
+@router.post("/{ticket_id}/close", response_model=TicketOut)
+def close_request(ticket_id: int, body: CloseIn, me: User = Depends(manage), db: Session = Depends(get_db)):
+    """Cancels the request, with who asked for it and why (kept with the step it was at)."""
+    ticket = _get(db, me, ticket_id, lock=True)
+    if ticket.status in (TicketStatus.CONFIRMED, TicketStatus.COMPLETED) and me.role != Role.COMPANY_ADMIN:
+        raise HTTPException(403, "Only a company admin can cancel a confirmed booking")
+    workflow.cancel(db, ticket, body.by, body.reason, f"{me.full_name} (for the client)" if body.by == "client" else me.full_name, me)
+    audit(db, me, "ticket.status", target=ticket.reference, detail=f"cancelled ({body.by}): {body.reason}")
+    out = _done(db, ticket, me)
+    flow.notify_status(db, ticket)
+    return out
+
+
+@router.put("/{ticket_id}/workflow/{key}/appointment", response_model=TicketOut)
+def set_appointment(ticket_id: int, key: str, body: AppointmentIn, me: User = Depends(manage),
+                    db: Session = Depends(get_db)):
+    """An appointment step: the client's possible times, then the time the team booked (put on the calendar,
+    with the client asked to confirm it)."""
+    ticket = _get(db, me, ticket_id, lock=True)
+    workflow.ensure(ticket)
+    step = next((s for s in workflow.steps(ticket) if s["key"] == key), None)
+    if step is None or step["type"] != "schedule":
+        raise HTTPException(404, "Step not found")
+    if step.get("state") in ("done", "skipped") or ticket.status in workflow.CLOSED:
+        raise HTTPException(409, "This step is finished")
+    if body.client_times is not None:
+        workflow.set_step(ticket, key, client_times=body.client_times.strip()[:1000])
+    text = None
+    if body.starts_at is not None:
+        starts = body.starts_at if body.starts_at.tzinfo else body.starts_at.replace(tzinfo=timezone.utc)
+        if body.ends_at is not None and body.ends_at <= body.starts_at:
+            raise HTTPException(422, "The end must be after the start")
+        appt = db.get(Appointment, step["appointment_id"]) if step.get("appointment_id") else None
+        if appt is None or appt.ticket_id != ticket.id:
+            skey = (ticket.service.key if ticket.service else None) or ""
+            appt = Appointment(company_id=ticket.company_id, ticket_id=ticket.id, customer_id=ticket.customer_id,
+                               created_by=me.full_name, kind="airport" if "airport" in skey else "visit" if skey else "meeting")
+            db.add(appt)
+        appt.assigned_to_id = ticket.assigned_to_id or me.id
+        appt.title = f"{step['label_en']} · {ticket.lead_traveler_name or ticket.reference}"[:200]
+        appt.starts_at, appt.ends_at = starts, body.ends_at
+        appt.location, appt.notes, appt.status = body.location.strip(), body.notes.strip(), "planned"
+        appt.remind_client = True
+        db.flush()
+        when = calendar_local(starts)
+        workflow.set_step(ticket, key, appointment_id=appt.id, appointment={"at": starts.isoformat(), "text": when,
+                          "location": appt.location}, confirmed_at=None)
+        flow.event(db, ticket, me.full_name, "appointment", None, f"{step['label_en']}: {when}", me)
+        if body.tell_client:
+            place = f" · {appt.location}" if appt.location else ""
+            text = (f"*{ticket.reference}* · {step['label_en']}: *{when}*{place}\nPlease reply *confirm* if this time suits you.\n"
+                    f"*{ticket.reference}* · {step['label_ar']}: *{when}*{place}\nيرجى الرد بـ *تأكيد* إذا كان الموعد مناسبًا.")
+    out = _done(db, ticket, me)
+    if text:
+        flow.say_in_chat(db, ticket.company_id, ticket.conversation_id, text)
+    return out
+
+
+@router.post("/{ticket_id}/workflow/{key}/confirm", response_model=TicketOut)
+def confirm_appointment(ticket_id: int, key: str, me: User = Depends(manage), db: Session = Depends(get_db)):
+    """The client confirmed the appointment (staff write it down): the step is done."""
+    ticket = _get(db, me, ticket_id, lock=True)
+    text = flow.confirm_appointment(db, ticket, key, f"{me.full_name} (for the client)")
+    db.commit()
+    flow.say_in_chat(db, ticket.company_id, ticket.conversation_id, text)  # then the next step (a payment…)
     return _done(db, ticket, me)
 
 
@@ -654,7 +783,7 @@ def update_money(ticket_id: int, body: MoneyIn, me: User = Depends(manage), db: 
     """The client price (until the payment is complete) and the company's cost, for the profit."""
     ticket = _get(db, me, ticket_id, lock=True)
     if body.total_price is not None and body.total_price != ticket.total_price:
-        if ticket.status in (TicketStatus.PAID, TicketStatus.CONFIRMED) and me.role != Role.COMPANY_ADMIN:
+        if desk.money(ticket)["paid"] and me.role != Role.COMPANY_ADMIN:
             raise HTTPException(403, "Only a company admin can change the price of a paid booking")
         if ticket.status in (TicketStatus.CANCELLED, TicketStatus.REJECTED):
             raise HTTPException(409, "This request is closed: reopen it to change it")
@@ -681,12 +810,7 @@ class PaymentIn(BaseModel):
 
 
 def _after_payment(db: Session, ticket: Ticket, me: User, became_paid: bool) -> TicketOut:
-    out = _done(db, ticket, me)
-    if became_paid:
-        flow.notify_status(db, ticket)  # the client hears the payment was received
-        db.refresh(ticket)
-        out = ticket_out(ticket, me, detail=True)
-    return out
+    return _done(db, ticket, me)
 
 
 @router.post("/{ticket_id}/payments", response_model=TicketOut, status_code=201)

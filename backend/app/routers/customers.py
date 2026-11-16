@@ -24,7 +24,7 @@ router = APIRouter(prefix="/api/customers", tags=["customers"])
 can_view = require_permission("conversations.view")
 can_manage = require_permission("conversations.view", "customers.manage")
 
-PAID = (TicketStatus.PAID, TicketStatus.CONFIRMED)
+PAID = (TicketStatus.PAID, TicketStatus.CONFIRMED, TicketStatus.COMPLETED)
 SORTS = ("last_contact", "first_contact", "name", "bookings", "booked", "conversations")
 MAX_TAGS = 10
 _EMAIL = TypeAdapter(EmailStr)

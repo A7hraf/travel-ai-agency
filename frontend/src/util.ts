@@ -38,7 +38,9 @@ export const NEXT_TICKET_STATUSES: Record<string, string[]> = {
   pending_payment: ["in_progress", "paid", "cancelled"],
   in_progress: ["pending_payment", "paid", "cancelled"],
   paid: ["confirmed", "cancelled"],
+  working: ["cancelled"],
   confirmed: ["cancelled"],
+  completed: [],
   cancelled: ["pending_payment", "new"], // company admins only
 };
 

@@ -28,11 +28,14 @@ interface Trip {
   documents: { key: string; label_en: string; label_ar: string; required: boolean; need: number; have: number; done: boolean }[];
   paid: number | null; balance: number | null; receipts_waiting: number;
   itinerary: { day: number; title: string; details: string; date?: string }[];
+  /** The request's steps (names and progress) and what to pay now. */
+  progress: { label_en: string; label_ar: string; state: "pending" | "active" | "done" | "skipped" }[];
+  due_now: number | null;
 }
 interface Chat { id: number; channel: string; created_at: string; last_message_at: string; messages: { sender: string; content: string; created_at: string }[] }
 
 const PHASE: Record<Trip["phase"], string> = {
-  quotation: "Quotation", booking: "Waiting for payment", upcoming: "Upcoming", travelling: "Travelling now", finished: "Finished", cancelled: "Cancelled",
+  quotation: "Quotation", booking: "In progress", upcoming: "Upcoming", travelling: "Travelling now", finished: "Finished", cancelled: "Cancelled",
 };
 const TRACK = ["Requested", "Paid", "Confirmed", "Travelling", "Back home"];
 // Where the quotation is, in the client's words.
@@ -193,6 +196,9 @@ function TripCard({ trip, onRate, slug, token, onTrips }: {
           <p dir="auto">{lang === "ar" ? trip.payment_info.ar || trip.payment_info.en : trip.payment_info.en || trip.payment_info.ar}</p>
         </div>
       )}
+      {trip.due_now != null && trip.due_now > 0 && trip.receipts_waiting === 0 && (
+        <p className="mt-due">{t("To pay now: {v}", { v: moneyText(trip.due_now, trip.currency, lang) })}</p>
+      )}
       {trip.paid != null && (trip.paid > 0 || trip.receipts_waiting > 0) && (
         <p className="mt-muted">{t("Paid: {paid}", { paid: moneyText(trip.paid, trip.currency, lang) })}
           {(trip.balance ?? 0) > 0 && ` · ${t("Left to pay: {v}", { v: moneyText(trip.balance ?? 0, trip.currency, lang) })}`}
@@ -254,7 +260,16 @@ function TripCard({ trip, onRate, slug, token, onTrips }: {
           ))}
         </ul>
       )}
-      {trip.phase !== "cancelled" && (
+      {trip.phase !== "cancelled" && trip.progress?.length > 0 && (
+        <ol className="mt-track mt-track-flow" aria-label={t("Trip progress")}>
+          {trip.progress.map((s, i) => (
+            <li key={i} className={s.state === "done" || s.state === "skipped" ? "done" : s.state === "active" ? "now" : ""} aria-current={s.state === "active" ? "step" : undefined}>
+              <span>{s.state === "done" ? <Check /> : i + 1}</span>{lang === "ar" ? s.label_ar : s.label_en}
+            </li>
+          ))}
+        </ol>
+      )}
+      {trip.phase !== "cancelled" && !trip.progress?.length && (
         <ol className="mt-track" aria-label={t("Trip progress")}>
           {TRACK.map((s, i) => <li key={s} className={i <= idx ? "done" : ""} aria-current={i === idx ? "step" : undefined}><span>{i < idx || (trip.phase === "finished" && i === idx) ? <Check /> : i + 1}</span>{t(s)}</li>)}
         </ol>

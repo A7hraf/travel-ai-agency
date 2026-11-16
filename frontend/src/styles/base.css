@@ -371,9 +371,9 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); opaci
 /* --- Status pills and badges (always with text) --------------------------------- */
 .badge, .pill { display: inline-flex; align-items: center; gap: .35rem; font-size: .76rem; font-weight: 600; padding: .2rem .6rem; border-radius: 999px; white-space: nowrap; line-height: 1.3; }
 .badge-amber, .st-pending_payment, .st-needs, .st-changes { color: var(--st-waiting); background: color-mix(in srgb, var(--st-waiting-tint) 16%, transparent); }
-.badge-blue, .st-in_progress, .st-new, .st-chosen { color: var(--st-progress); background: color-mix(in srgb, var(--st-progress) 16%, transparent); }
+.badge-blue, .st-in_progress, .st-new, .st-chosen, .st-working { color: var(--st-progress); background: color-mix(in srgb, var(--st-progress) 16%, transparent); }
 .badge-teal, .st-paid, .st-ai, .st-quoted, .st-final { color: var(--st-paid); background: color-mix(in srgb, var(--st-paid) 16%, transparent); }
-.badge-green, .st-confirmed { color: var(--st-confirmed); background: color-mix(in srgb, var(--ok) 16%, transparent); }
+.badge-green, .st-confirmed, .st-completed { color: var(--st-confirmed); background: color-mix(in srgb, var(--ok) 16%, transparent); }
 .badge-gray, .st-cancelled, .st-closed, .st-rejected { color: var(--st-cancelled); background: rgba(var(--fg-rgb), .08); }
 .badge-red { color: var(--accent); background: var(--accent-soft); }
 .badge-cyan, .st-mine { color: var(--brand); background: var(--brand-soft); }

@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from ..models import Supplier, Ticket, TicketStatus, TripOption, User, utcnow
 
-PAID = (TicketStatus.PAID, TicketStatus.CONFIRMED)
+PAID = (TicketStatus.PAID, TicketStatus.CONFIRMED, TicketStatus.COMPLETED)
 MAX_SUPPLIERS = 2000
 
 

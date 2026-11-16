@@ -18,6 +18,7 @@ from ..addons import has_addon
 from ..database import get_db
 from ..deps import require_permission
 from ..members import level_of
+from .. import workflow
 from ..models import (
     Company, Conversation, Customer, Message, RequestFile, Ticket, TicketStatus, TripFeedback, User, utcnow,
 )
@@ -108,6 +109,9 @@ class TripOut(BaseModel):
     balance: float | None = None
     receipts_waiting: int = 0
     itinerary: list[dict] = []
+    # The request's steps as the client sees them (names and progress only) and what to pay now.
+    progress: list[dict] = []
+    due_now: float | None = None
 
 
 class FileIn(BaseModel):
@@ -227,7 +231,7 @@ def _trip(t: Ticket, company: Company, out: TripOut) -> TripOut:
                        for n, o in flow.numbered(t)]
     if t.status in (TicketStatus.PENDING_PAYMENT, TicketStatus.IN_PROGRESS) and isinstance(company.payment_info, dict):
         out.payment_info = {"en": company.payment_info.get("en") or "", "ar": company.payment_info.get("ar") or ""}
-    if t.status in (TicketStatus.PAID, TicketStatus.CONFIRMED):
+    if t.status in (TicketStatus.PAID, TicketStatus.WORKING, TicketStatus.CONFIRMED, TicketStatus.COMPLETED):
         out.checklist = [{"label_en": c["label_en"], "label_ar": c["label_ar"], "done": c["done"]}
                          for c in files_svc.checklist_view(t)]
     out.files = [{"key": f.key, "name": f.name, "kind": f.kind, "size": f.size, "content_type": f.content_type,
@@ -242,6 +246,10 @@ def _trip(t: Ticket, company: Company, out: TripOut) -> TripOut:
         out.paid, out.balance, out.receipts_waiting = m["paid"], m["balance"], m["pending_proofs"]
     if t.status not in (TicketStatus.CANCELLED, TicketStatus.REJECTED):
         out.itinerary = desk.apply_dates_hint(t.departure_date, t.itinerary or [])
+        workflow.ensure(t)
+        out.progress = [{"label_en": s["label_en"], "label_ar": s["label_ar"], "state": s.get("state", "pending")}
+                        for s in workflow.steps(t)]
+        out.due_now = workflow.due_now(t)
     out.has_quotation = has_addon(company, "quotes") and quotes_svc.kind_for_client(t) is not None and any(
         o.sent_to_client for o in t.options)
     return out
@@ -258,6 +266,8 @@ def give_feedback(ticket_id: int, body: FeedbackIn, me: Customer = Depends(sessi
     if ticket is None or ticket.customer_id != me.id or ticket.company_id != me.company_id:
         raise HTTPException(404, "Trip not found")
     svc.save_feedback(db, me, ticket, body.rating, body.comment, "portal", local_today())
+    db.flush()
+    workflow.refresh(db, ticket, "Client (trips page)")
     db.commit()
     return _trips(db, me)
 
@@ -276,6 +286,7 @@ def upload_file(ticket_id: int, body: FileIn, me: Customer = Depends(session), d
     files_svc.client_upload(db, ticket, body.name, body.content_type, data, actor="Client (trips page)",
                             purpose=body.purpose, requirement=body.requirement)
     db.commit()
+    flow.announce(db, db.get(Company, me.company_id), ticket)
     return _trips(db, me)
 
 

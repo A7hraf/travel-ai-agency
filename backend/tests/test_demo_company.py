@@ -73,10 +73,10 @@ def test_demo_company_has_realistic_data(client, owner):
     assert any("؀" <= ch <= "ۿ" for ch in training[0]["question"] + training[1]["question"])
 
     tickets = client.get("/api/tickets", headers=admin).json()
-    assert 16 <= len(tickets) <= 21
+    assert 16 <= len(tickets) <= 23
     assert {t["status"] for t in tickets} == ALL_STATUSES  # every stage, from the request card to confirmed
     quotes = [t for t in tickets if t["service"] and t["service"]["key"] != "packages"]
-    assert len(quotes) == 6 and all(t["answers"]["full_name"] for t in quotes)
+    assert len(quotes) == 8 and all(t["answers"]["full_name"] for t in quotes)
     assert any(len(t["options"]) == 3 for t in quotes if t["status"] == "quoted")
     for t in tickets:
         if t["status"] in ("paid", "confirmed"):

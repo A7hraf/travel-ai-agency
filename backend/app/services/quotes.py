@@ -22,7 +22,7 @@ from ..timeutil import local_today
 from .request_desk import apply_dates_hint
 from ..trip_schemas import CATEGORIES
 
-AFTER_FINAL = (T.FINAL, T.PENDING_PAYMENT, T.IN_PROGRESS, T.PAID, T.CONFIRMED)
+AFTER_FINAL = (T.FINAL, T.PENDING_PAYMENT, T.IN_PROGRESS, T.PAID, T.WORKING, T.CONFIRMED, T.COMPLETED)
 SHOWS_CHOICES = (T.QUOTED, T.CHANGES, T.CHOSEN)
 
 

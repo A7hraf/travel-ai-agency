@@ -110,8 +110,10 @@ class TicketStatus(StrEnum):
     FINAL = "final"  # final quotation sent: waiting for the client's approval
     PENDING_PAYMENT = "pending_payment"  # approved (or a package booked): waiting for the payment
     IN_PROGRESS = "in_progress"  # the client says they paid: staff check the payment
-    PAID = "paid"  # payment checked: staff book every part
-    CONFIRMED = "confirmed"  # everything booked and sent to the client
+    PAID = "paid"  # the payments before the team's work are in: staff book every part
+    WORKING = "working"  # the team works on a step before (or without) a payment: documents, appointment, task
+    CONFIRMED = "confirmed"  # everything booked and sent to the client: the trip is ahead or on
+    COMPLETED = "completed"  # every step done
     REJECTED = "rejected"  # the client turned the final quotation down
     CANCELLED = "cancelled"
 
@@ -400,6 +402,8 @@ class Ticket(Base):
     legacy_ref: Mapped[str | None] = mapped_column(String(60), index=True)
     # The booking steps of the service done after payment (step key → {"at": iso time, "by": name}).
     checklist: Mapped[dict | None] = mapped_column(JSON)
+    workflow: Mapped[list[dict] | None] = mapped_column(JSON)  # this request's steps (see workflow.py)
+    cancel_info: Mapped[dict | None] = mapped_column(JSON)  # who closed it, why and at which step
     # What the trip costs the company (when not taken from the chosen choices): the profit is price − cost.
     cost_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
     # The day-by-day plan of a tailor-made trip: [{"day": 1, "title": "...", "details": "..."}].
@@ -987,6 +991,7 @@ class Service(Base):
     steps: Mapped[list[dict]] = mapped_column(JSON, default=list)
     # Documents the client sends (passport copy…): [{"key", "label_en", "label_ar", "required", "per_traveller"}].
     documents: Mapped[list[dict] | None] = mapped_column(JSON)
+    workflow: Mapped[list[dict] | None] = mapped_column(JSON)  # the default steps of its requests (None: built-in)
     rules: Mapped[str] = mapped_column(Text, default="")  # conditions and exceptions, for the AI
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     position: Mapped[int] = mapped_column(Integer, default=0)

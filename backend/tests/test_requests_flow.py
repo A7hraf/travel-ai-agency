@@ -180,8 +180,14 @@ def test_full_loop_from_choices_to_booked(client, wa, scripted):
     assert "Total · الإجمالي: 1,490.000 OMR" in fake.sent[-1][2]
     ok = ToolCall("a", "answer_quotation", {"reference": ref, "decision": "approve"})
     wa_say(client, "approve", "wamid.4", [LLMResponse(None, [ok]), LLMResponse("Thanks!")], scripted)
-    assert client.get(base, headers=admin).json()["status"] == "pending_payment"
-    assert any("IBAN OM00" in m[2] for m in fake.sent)
+    # The next step of this service is the client's documents: the client is asked for them first.
+    t = client.get(base, headers=admin).json()
+    assert t["status"] == "working" and t["current_step"]["type"] == "documents"
+    assert any("Passport copy" in m[2] for m in fake.sent) and not any("IBAN OM00" in m[2] for m in fake.sent)
+    # The team has what it needs: the client is asked to pay.
+    r = client.post(f"{base}/workflow/done", headers=admin, json={"key": "documents"}).json()
+    assert r["status"] == "pending_payment" and r["process"]["due_now"] == 1490
+    assert "IBAN OM00" in fake.sent[-1][2] and "1,490.000 OMR" in fake.sent[-1][2]
     # The client reports the transfer; staff check it and book.
     paid = ToolCall("p", "report_payment", {"reference": ref, "transfer_reference": "TRX-998877"})
     wa_say(client, "paid, TRX-998877", "wamid.5", [LLMResponse(None, [paid]), LLMResponse("Thanks")], scripted)
@@ -207,7 +213,8 @@ def test_staff_write_down_answers_given_by_phone(client, wa, scripted):
     r = client.post(f"{base}/client-answer", headers=admin, json={"action": "choose", "option_ids": [oid]})
     assert r.json()["status"] == "chosen"
     client.post(f"{base}/send-final", headers=admin, json={"total": "150"})
-    assert client.post(f"{base}/client-answer", headers=admin, json={"action": "approve"}).json()["status"] == "pending_payment"
+    r = client.post(f"{base}/client-answer", headers=admin, json={"action": "approve"}).json()
+    assert r["status"] == "working" and r["current_step"]["type"] == "documents"
     events = client.get(f"{base}/events", headers=admin).json()
     assert any("(for the client)" in e["actor"] for e in events)
 

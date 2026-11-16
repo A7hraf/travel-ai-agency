@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .. import workflow as wf
 from ..ai.llm import LLMError, MockTravelLLM, get_llm_client
 from ..addons import use
 from ..audit import audit
@@ -91,7 +92,14 @@ their AI consultant and staff. Answer with JSON only, in this shape:
  "parts": subset of {parts} (what the quotation contains),
  "fields": [{{"key": "snake_case", "label_en": "...", "label_ar": "...", "type": one of text|long_text|number|date|choice|phone|email,
    "required": true/false, "choices": []}}],
- "steps": [{{"key": "snake_case", "label_en": "...", "label_ar": "..."}}] (booking steps after payment),
+ "steps": [{{"key": "snake_case", "label_en": "...", "label_ar": "..."}}] (the booking checklist),
+ "documents": [{{"key": "snake_case", "label_en": "...", "label_ar": "...", "required": true/false, "per_traveller": true/false}}]
+   (papers the client must send, like a passport copy),
+ "workflow": [{{"key": "snake_case", "type": one of {types}, "label_en": "...", "label_ar": "...",
+   "pay_mode": "percent"|"fixed"|"rest" (payment steps only), "pay_value": number or null}}]
+   (the request's process in order: start with intake then review; quote when the price depends on the request;
+   documents when papers are needed; schedule for an appointment; one or more payment steps, the last one "rest";
+   then booking, delivery, trip and feedback as they apply),
  "rules": "conditions and exceptions, in English"}}
 Use these keys when they apply: destination, origin, depart_date, return_date, adults, children, budget, full_name, \
 phone, email. Always ask full_name and phone. Arabic: Gulf-friendly Modern Standard Arabic."""
@@ -107,7 +115,8 @@ def _mock_service(text: str) -> dict:
                         "required": True, "choices": []},
                        {"key": "phone", "label_en": "WhatsApp number", "label_ar": "رقم واتساب", "type": "phone",
                         "required": True, "choices": []}],
-            "steps": [{"key": "arrange", "label_en": "Arrange it", "label_ar": "الترتيب"}], "rules": ""}
+            "steps": [{"key": "arrange", "label_en": "Arrange it", "label_ar": "الترتيب"}], "rules": "",
+            "workflow": wf.GENERIC}
 
 
 @router.post("/ai-draft", response_model=ServiceIn)
@@ -122,7 +131,7 @@ def ai_build(body: DescribeIn, me: User = Depends(manager), db: Session = Depend
     else:
         try:
             resp = llm.chat([{"role": "system", "content": BUILDER.format(currency=me.company.currency or "OMR",
-                                                                         parts=list(PARTS))},
+                                                                         parts=list(PARTS), types="|".join(wf.TYPES))},
                              {"role": "user", "content": body.text}], [])
         except LLMError as exc:
             raise HTTPException(502, "The AI could not build the service right now. Please try again.") from exc
@@ -135,6 +144,9 @@ def ai_build(body: DescribeIn, me: User = Depends(manager), db: Session = Depend
     raw = raw if isinstance(raw, dict) else {}
     raw["fields"] = [f for f in raw.get("fields") or [] if isinstance(f, dict)]
     raw["steps"] = [s for s in raw.get("steps") or [] if isinstance(s, dict)]
+    raw["documents"] = [d for d in raw.get("documents") or [] if isinstance(d, dict)]
+    if not isinstance(raw.get("workflow"), list) or not raw["workflow"]:
+        raw.pop("workflow", None)
     raw["parts"] = [p for p in raw.get("parts") or [] if p in PARTS]
     if raw.get("pricing") not in ("fixed", "dynamic"):
         raw["pricing"] = "dynamic"
@@ -145,7 +157,9 @@ def ai_build(body: DescribeIn, me: User = Depends(manager), db: Session = Depend
         except ValidationError as exc:
             for err in exc.errors():
                 loc = err.get("loc", ())
-                if loc and loc[0] in ("fields", "steps") and len(loc) > 1 and isinstance(loc[1], int):
+                if not loc or loc[0] == "workflow":
+                    raw.pop("workflow", None)  # a process that doesn't hold together: the default is used
+                elif loc[0] in ("fields", "steps", "documents") and len(loc) > 1 and isinstance(loc[1], int):
                     raw[loc[0]][loc[1]] = None
                 elif loc and loc[0] == "price":
                     raw["price"], raw["pricing"] = None, "dynamic"
@@ -153,6 +167,7 @@ def ai_build(body: DescribeIn, me: User = Depends(manager), db: Session = Depend
                     raw.pop(loc[0], None)
             raw["fields"] = [f for f in raw.get("fields", []) if f]
             raw["steps"] = [s for s in raw.get("steps", []) if s]
+            raw["documents"] = [d for d in raw.get("documents", []) if d]
     raise HTTPException(502, "The AI could not build the service right now. Please try again.")
 
 

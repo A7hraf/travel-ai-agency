@@ -11,10 +11,12 @@ import re
 from decimal import Decimal
 from typing import Literal
 
+from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from . import workflow as wf
 from .branding import clean_text
 from .models import Company, Service
 
@@ -101,6 +103,8 @@ class ServiceIn(BaseModel):
     fields: list[FieldDef] = Field(default_factory=list, max_length=MAX_FIELDS)
     steps: list[StepDef] = Field(default_factory=list, max_length=MAX_STEPS)
     documents: list[DocDef] = Field(default_factory=list, max_length=15)
+    # The steps of its requests (None: the built-in default for this kind of service).
+    workflow: list[wf.StepIn] | None = Field(default=None, max_length=wf.MAX_STEPS)
     rules: str = Field(default="", max_length=4000)
     is_active: bool = True
 
@@ -126,6 +130,11 @@ class ServiceIn(BaseModel):
         self.parts = [p for p in PARTS if p in self.parts]
         if self.pricing == "fixed" and self.price is None:
             raise ValueError("A fixed-price service needs its price")
+        if self.workflow is not None:
+            try:
+                wf.validate(self.workflow)
+            except HTTPException as exc:
+                raise ValueError(exc.detail) from None
         return self
 
 
@@ -133,6 +142,7 @@ class ServiceOut(ServiceIn):
     id: int
     key: str | None
     position: int
+    workflow_custom: bool = False  # the owner changed its steps (else the built-in default)
 
 
 def service_out(s: Service) -> ServiceOut:
@@ -141,12 +151,19 @@ def service_out(s: Service) -> ServiceOut:
                       price=s.price, price_note=s.price_note, parts=list(s.parts or []),
                       fields=[FieldDef.model_validate(f) for f in s.fields or []],
                       steps=[StepDef.model_validate(x) for x in s.steps or []],
-                      documents=[DocDef.model_validate(x) for x in s.documents or []], rules=s.rules, is_active=s.is_active)
+                      documents=[DocDef.model_validate(x) for x in s.documents or []],
+                      workflow=[wf.StepIn.model_validate(x) for x in wf.template_for(s)], workflow_custom=bool(s.workflow),
+                      rules=s.rules, is_active=s.is_active)
 
 
 def apply(service: Service, data: ServiceIn) -> None:
-    for key, value in data.model_dump().items():
+    for key, value in data.model_dump(exclude={"workflow"}).items():
         setattr(service, key, value)
+    if "workflow" in data.model_fields_set:
+        steps = [x.model_dump(mode="json") for x in data.workflow] if data.workflow else None
+        service.workflow = None
+        # Saving the default as it is keeps the service on the default (it follows later improvements).
+        service.workflow = steps if steps and steps != wf.template_for(service) else None
 
 
 # --- Built-in services --------------------------------------------------------------------------------
@@ -208,6 +225,33 @@ BUILT_IN: list[dict] = [
      "documents": [PASSPORT, _d("photo", "Personal photo (white background)", "صورة شخصية (خلفية بيضاء)", True, True),
                    _d("bank_statement", "Bank statement (last 3 months)", "كشف حساب بنكي (آخر 3 أشهر)"),
                    _d("booking", "Flight and hotel bookings", "حجوزات الطيران والفندق", False)]},
+    {"key": "embassy", "name_en": "Embassy appointment", "name_ar": "موعد السفارة", "pricing": "dynamic", "parts": ["other"],
+     "description_en": "We book your embassy or visa-centre appointment and can go with you.",
+     "description_ar": "نحجز موعدك في السفارة أو مركز التأشيرات ويمكننا مرافقتك.",
+     "fields": [_f("destination", "Embassy of (country)", "سفارة (الدولة)"), _f("nationality", "Nationality", "الجنسية"),
+                _f("purpose", "Purpose (visa, passport, papers…)", "الغرض (تأشيرة، جواز، أوراق…)"),
+                _f("preferred_times", "Days and times that suit you", "الأيام والأوقات المناسبة لك", "long_text"),
+                _f("impossible_times", "Times that are not possible", "الأوقات غير الممكنة", "long_text", False),
+                *TRAVELLERS, *CONTACT],
+     "steps": [], "documents": [PASSPORT]},
+    {"key": "airport_assist", "name_en": "Airport assistance", "name_ar": "خدمة المساعدة في المطار", "pricing": "dynamic",
+     "parts": ["other"],
+     "description_en": "Meet and assist at the airport: check-in, passport control, lounge and luggage.",
+     "description_ar": "استقبال ومساعدة في المطار: إنهاء إجراءات السفر والجوازات والصالة والأمتعة.",
+     "fields": [_f("origin", "Airport", "المطار"), _f("direction", "Arrival or departure", "وصول أو مغادرة", "choice", True,
+                                                     ["Arrival", "Departure", "Transit"]),
+                _f("depart_date", "Date", "التاريخ", "date"), _f("flight_number", "Flight number", "رقم الرحلة"),
+                _f("preferred_times", "Time that suits you", "الوقت المناسب لك", "text", False), *TRAVELLERS, *CONTACT],
+     "steps": [], "documents": []},
+    {"key": "airport_transfer", "name_en": "Airport transfer", "name_ar": "التوصيل من وإلى المطار", "pricing": "dynamic",
+     "parts": ["transport"],
+     "description_en": "A private car between the airport and your hotel or home. Can be added to your flights.",
+     "description_ar": "سيارة خاصة بين المطار والفندق أو المنزل. يمكن إضافتها إلى رحلتك.",
+     "fields": [_f("origin", "Pick-up place", "مكان الاستقبال"), _f("destination", "Drop-off place", "مكان التوصيل"),
+                _f("depart_date", "Date", "التاريخ", "date"), _f("preferred_times", "Pick-up time", "وقت الاستقبال"),
+                _f("flight_number", "Flight number", "رقم الرحلة", "text", False),
+                _f("car", "Car", "السيارة", "choice", False, ["Sedan", "SUV", "Van", "Luxury"]), *TRAVELLERS, *CONTACT],
+     "steps": [], "documents": []},
     {"key": "concierge", "name_en": "Special request", "name_ar": "طلب خاص", "pricing": "dynamic", "parts": ["other"],
      "description_en": "Anything beyond our packages: private transfers, restaurants, events, surprises.",
      "description_ar": "أي شيء خارج باقاتنا: تنقلات خاصة، مطاعم، فعاليات، مفاجآت.",

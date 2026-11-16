@@ -21,7 +21,7 @@ router = APIRouter(prefix="/api/exports", tags=["exports"])
 can_export = require_permission("reports.view", "tickets.view")
 STATUSES = "^(pending_payment|in_progress|paid|confirmed|cancelled|open)$"
 OPEN = (TicketStatus.PENDING_PAYMENT, TicketStatus.IN_PROGRESS)
-PAID = (TicketStatus.PAID, TicketStatus.CONFIRMED)
+PAID = (TicketStatus.PAID, TicketStatus.CONFIRMED, TicketStatus.COMPLETED)
 
 
 EARLIEST, LATEST = date(2000, 1, 1), date(2100, 12, 31)

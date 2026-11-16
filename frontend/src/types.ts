@@ -371,7 +371,7 @@ export interface ConversationDetail extends ConversationSummary {
 }
 
 export type TicketStatus = "new" | "quoted" | "changes" | "chosen" | "final" | "rejected"
-  | "pending_payment" | "in_progress" | "paid" | "confirmed" | "cancelled";
+  | "pending_payment" | "in_progress" | "paid" | "working" | "confirmed" | "completed" | "cancelled";
 
 export type ServicePart = "flight" | "hotel" | "transport" | "activity" | "food" | "visa" | "insurance" | "other";
 
@@ -398,7 +398,22 @@ export interface Service {
   name_en: string; name_ar: string; description_en: string; description_ar: string;
   pricing: "fixed" | "dynamic" | "packages"; price: string | number | null; price_note: string;
   parts: ServicePart[]; fields: ServiceField[]; steps: ServiceStep[]; documents: ServiceDoc[]; rules: string; is_active: boolean;
+  /** The steps of its requests; workflow_custom is false while it follows the built-in default. */
+  workflow: WorkflowStep[]; workflow_custom?: boolean;
 }
+
+export type StepType = "intake" | "review" | "quote" | "documents" | "payment" | "schedule" | "booking" | "delivery"
+  | "trip" | "feedback" | "task";
+export interface WorkflowStep {
+  key: string; type: StepType; label_en: string; label_ar: string;
+  pay_mode?: "percent" | "fixed" | "rest" | null; pay_value?: number | string | null;
+  /** On one request only. */
+  state?: "pending" | "active" | "done" | "skipped"; started_at?: string; done_at?: string; by?: string; note?: string;
+  client_times?: string; appointment?: { at: string; text: string; location: string }; confirmed_at?: string | null;
+}
+export interface Installment { key: string; label_en: string; label_ar: string; amount: number; through: number; state?: string; covered: boolean }
+export interface CloseInfo { by: "client" | "team"; name: string; reason: string; step: string | null; step_en: string | null; step_ar: string | null; at: string }
+export interface Process { steps: WorkflowStep[]; installments: Installment[]; due_now: number | null; cancel: CloseInfo | null }
 
 export type Stage = "quote" | "client" | "payment" | "booking" | "confirmed" | "closed";
 export interface TicketMoney {
@@ -452,6 +467,9 @@ export interface Ticket {
   payment_list: TicketPayment[];
   client_documents: { items: ClientDoc[]; unsorted: number[]; missing: number };
   itinerary: PlanDay[] | null;
+  /** The step the request is at (every request) and its whole process (one request). */
+  current_step: Pick<WorkflowStep, "key" | "type" | "label_en" | "label_ar" | "started_at"> | null;
+  process?: Process | null;
   departure_date: string | null;
   adults: number;
   children: number;

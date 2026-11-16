@@ -6,9 +6,18 @@ import { ArrowDown, ArrowUp, Plus, Sparkle, Trash } from "../components/Icon";
 import { PART_LABELS, PARTS } from "../components/requests/QuotePanel";
 import { ErrorBox, Field, Loading } from "../components/ui";
 import { useI18n } from "../lang";
-import type { Service, ServiceField, ServicePart, ServiceStep } from "../types";
+import WorkflowEditor, { stepBody, workflowProblems } from "../components/workflow/WorkflowEditor";
+import type { Service, ServiceField, ServicePart, ServiceStep, WorkflowStep } from "../types";
 
-type Draft = Omit<Service, "id" | "key" | "position">;
+/** workflow null: the built-in default steps (saved as such). */
+type Draft = Omit<Service, "id" | "key" | "position" | "workflow" | "workflow_custom"> & { workflow: WorkflowStep[] | null };
+const st = (type: WorkflowStep["type"], label_en: string, label_ar: string): WorkflowStep => ({ key: type, type, label_en, label_ar });
+// The server's default for a new service (workflow.py GENERIC).
+const NEW_SERVICE_STEPS: WorkflowStep[] = [
+  st("intake", "Request details", "تفاصيل الطلب"), st("review", "Team review", "مراجعة الفريق"), st("quote", "Quotation", "عرض السعر"),
+  st("documents", "Client documents", "مستندات العميل"), { ...st("payment", "Payment", "الدفع"), pay_mode: "rest" },
+  st("booking", "Booking", "الحجز"), st("delivery", "Travel documents", "وثائق السفر"), st("feedback", "Feedback", "التقييم"),
+];
 const FIELD_TYPES = ["text", "long_text", "number", "date", "choice", "phone", "email"] as const;
 const TYPE_LABELS: Record<string, string> = {
   text: "Short text", long_text: "Long text", number: "Number", date: "Date", choice: "Choice", phone: "Phone", email: "Email",
@@ -22,12 +31,13 @@ const empty = (): Draft => ({
   parts: [], fields: [
     { key: "full_name", label_en: "Full name", label_ar: "الاسم الكامل", type: "text", required: true, choices: [] },
     { key: "phone", label_en: "WhatsApp number", label_ar: "رقم واتساب", type: "phone", required: true, choices: [] },
-  ], steps: [], documents: [], rules: "", is_active: true,
+  ], steps: [], documents: [], rules: "", is_active: true, workflow: NEW_SERVICE_STEPS.map((x) => ({ ...x })),
 });
 const toDraft = (s: Service | Draft): Draft => ({
   name_en: s.name_en, name_ar: s.name_ar, description_en: s.description_en, description_ar: s.description_ar, pricing: s.pricing,
   price: s.price, price_note: s.price_note, parts: [...s.parts], fields: s.fields.map((f) => ({ ...f, choices: [...f.choices] })),
   steps: s.steps.map((x) => ({ ...x })), documents: (s.documents ?? []).map((x) => ({ ...x })), rules: s.rules, is_active: s.is_active,
+  workflow: s.workflow ? s.workflow.map((x) => ({ ...x })) : null,
 });
 /** "Passport copy" → "passport_copy" (the key the AI and the answers use). */
 const keyOf = (label: string, taken: string[]) => {
@@ -46,10 +56,11 @@ function move<T>(list: T[], i: number, by: number): T[] {
   return next;
 }
 
-function Editor({ initial, id, builtIn, onSaved, onCancel, onDelete }: {
-  initial: Draft; id: number | null; builtIn: boolean; onSaved: () => void; onCancel: () => void; onDelete?: () => void;
+function Editor({ initial, id, builtIn, custom, onSaved, onCancel, onDelete }: {
+  initial: Draft; id: number | null; builtIn: boolean; custom?: boolean; onSaved: () => void; onCancel: () => void; onDelete?: () => void;
 }) {
   const { t } = useI18n();
+  const { user } = useAuth();
   const [d, setD] = useState<Draft>(initial);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -61,7 +72,8 @@ function Editor({ initial, id, builtIn, onSaved, onCancel, onDelete }: {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const body = { ...d, price: d.pricing === "fixed" && d.price !== null && d.price !== "" ? d.price : null };
+    const body = { ...d, price: d.pricing === "fixed" && d.price !== null && d.price !== "" ? d.price : null,
+      workflow: d.workflow ? d.workflow.map(stepBody) : null };
     try {
       if (id) await put(`/api/services/${id}`, body); else await post("/api/services", body);
       onSaved();
@@ -144,7 +156,7 @@ function Editor({ initial, id, builtIn, onSaved, onCancel, onDelete }: {
 
       {!packages && (
         <>
-          <div className="gx-section-label">{t("Booking steps after payment")}</div>
+          <div className="gx-section-label">{t("Booking checklist")}</div>
           <div className="gx-svc-list">
             {d.steps.map((s, i) => (
               <div key={i} className="gx-svc-row gx-svc-step">
@@ -189,6 +201,15 @@ function Editor({ initial, id, builtIn, onSaved, onCancel, onDelete }: {
         <Plus />{t("Add a document")}
       </button>
 
+      <div className="gx-section-label">{t("Steps of each request")}</div>
+      <p className="muted small">{t("Every new request of this service follows these steps, in this order. The team can still change the steps of one request.")}</p>
+      {d.workflow ? (
+        <WorkflowEditor steps={d.workflow} onChange={(w) => setD({ ...d, workflow: w })} currency={user?.company?.currency ?? "OMR"} />
+      ) : <p className="muted small">{t("The default steps will be used.")}</p>}
+      {builtIn && custom && d.workflow && (
+        <button type="button" className="btn btn-sm btn-ghost" onClick={() => setD({ ...d, workflow: null })}>{t("Use the default steps again")}</button>
+      )}
+
       <Field label={t("Rules and exceptions (the AI follows them)")}>
         <textarea rows={3} value={d.rules} onChange={(e) => setD({ ...d, rules: e.target.value })} maxLength={4000} dir="auto"
           placeholder={t("e.g. Visa requests need 10 working days. No refunds after the visa is issued.")} />
@@ -199,7 +220,7 @@ function Editor({ initial, id, builtIn, onSaved, onCancel, onDelete }: {
       <div className="gx-form-actions">
         {id && !builtIn && onDelete && <button type="button" className="btn btn-ghost btn-danger-text" onClick={onDelete}><Trash />{t("Delete")}</button>}
         <button type="button" className="btn btn-ghost" onClick={onCancel}>{t("Cancel")}</button>
-        <button className="btn btn-primary" disabled={busy}>{busy ? t("Saving…") : t("Save the service")}</button>
+        <button className="btn btn-primary" disabled={busy || (!!d.workflow && workflowProblems(d.workflow).length > 0)}>{busy ? t("Saving…") : t("Save the service")}</button>
       </div>
     </form>
   );
@@ -338,7 +359,7 @@ export default function Services() {
       {!list ? (!error && <Loading height={200} />) : (
         <div className="gx-svc-cards">
           {list.map((s) => open === s.id ? (
-            <Editor key={s.id} initial={toDraft(s)} id={s.id} builtIn={!!s.key} onSaved={done} onCancel={() => setOpen(null)} onDelete={() => remove(s.id)} />
+            <Editor key={s.id} initial={toDraft(s)} id={s.id} builtIn={!!s.key} custom={s.workflow_custom} onSaved={done} onCancel={() => setOpen(null)} onDelete={() => remove(s.id)} />
           ) : (
             <button key={s.id} type="button" className={`gx-card gx-svc-card ${s.is_active ? "" : "off"}`} onClick={() => setOpen(s.id)}>
               <span className="gx-row-between">

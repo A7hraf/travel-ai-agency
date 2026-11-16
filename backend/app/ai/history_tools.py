@@ -8,6 +8,7 @@ from __future__ import annotations
 from fastapi import HTTPException
 from sqlalchemy import select
 
+from .. import workflow
 from ..models import Channel, Ticket
 from ..services import customer_portal as portal
 
@@ -82,6 +83,8 @@ def record_trip_feedback(ctx, reference="", rating=None, comment="", **_) -> dic
         return {"error": "No booking with this reference for this customer. Call my_requests."}
     try:
         portal.save_feedback(ctx.db, ctx.customer, ticket, int(rating), comment, "chat", ctx.today)
+        ctx.db.flush()
+        workflow.refresh(ctx.db, ticket, "Client (chat)", today=ctx.today)
     except (HTTPException, ValueError, TypeError) as exc:
         return {"error": str(getattr(exc, "detail", "The rating must be from 1 to 5."))}
     return {"saved": True, "next": "Thank the customer warmly."}

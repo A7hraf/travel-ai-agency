@@ -73,6 +73,9 @@ export default function MoneyBox({ ticket, onChange }: { ticket: Ticket; onChang
               <dt>{t("Balance")}</dt><dd className={m.balance ? "rw-due" : ""}>{money(m.balance ?? 0)}</dd>
             </>
           )}
+          {ticket.process?.due_now != null && ticket.process.due_now > 0 && ticket.process.due_now !== m.balance && (
+            <><dt>{t("Due now")}</dt><dd className="rw-due">{money(ticket.process.due_now)}</dd></>
+          )}
         </dl>
       )}
       {!edit && m.cost == null && !closed && <p className="muted small rw-hint">{t("Write the cost on each choice, or here, to see the profit.")}</p>}

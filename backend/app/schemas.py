@@ -466,6 +466,8 @@ class TicketOut(ORM):
     payment_list: list[dict] = []
     client_documents: dict = {}
     itinerary: list[dict] | None = None
+    current_step: dict | None = None
+    process: dict | None = None  # detail only: the workflow steps, installments, amount due now, why it was closed
     departure_date: str | None
     adults: int
     children: int
@@ -501,6 +503,7 @@ class TicketUpdate(BaseModel):
     internal_notes: str | None = Field(default=None, max_length=10000)
     payment_reference: str | None = Field(default=None, max_length=200)
     total_price: float | None = Field(default=None, ge=0, le=MAX_MONEY)
+    cancel_reason: str | None = Field(default=None, max_length=500)
 
 
 class TicketEventOut(ORM):

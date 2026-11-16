@@ -32,6 +32,7 @@ from ..models import (
     Service,
     Ticket,
     TicketEvent,
+    TicketPayment,
     TicketStatus as T,
     TripOption,
     User,
@@ -39,13 +40,14 @@ from ..models import (
 )
 from ..security import ticket_reference
 from ..trip_schemas import CATEGORIES, MAX_CHOICES, MAX_OPTIONS
+from .. import workflow
 from . import trip_requests as shared
 from .notify import say_in_chat
 
 QUOTING = (T.NEW, T.QUOTED, T.CHANGES, T.CHOSEN, T.FINAL)  # before the client approves
 EDITABLE = (T.NEW, T.CHANGES, T.CHOSEN)  # staff can change the choices
-CLIENT_CAN_CANCEL = (*QUOTING, T.PENDING_PAYMENT)
-WAITING_FOR_STAFF = (T.NEW, T.CHANGES, T.CHOSEN, T.IN_PROGRESS, T.PAID)
+CLIENT_CAN_CANCEL = (*QUOTING, T.PENDING_PAYMENT, T.WORKING)
+WAITING_FOR_STAFF = (T.NEW, T.CHANGES, T.CHOSEN, T.IN_PROGRESS, T.PAID, T.WORKING)
 
 
 def _aware(dt: datetime | None) -> datetime | None:
@@ -119,6 +121,7 @@ def create_request(db: Session, company: Company, customer: Customer, service: S
         customer.phone = clean["phone"][:50]
     event(db, ticket, actor, "created", None, service.name_en)
     db.flush()
+    workflow.start(db, ticket, actor)
     return ticket
 
 
@@ -200,6 +203,7 @@ def ai_draft(db: Session, ticket: Ticket, company: Company, user: User) -> None:
 
 
 def send_choices(db: Session, company: Company, ticket: Ticket, option_ids: list[int], user: User) -> None:
+    workflow.reach(db, ticket, "quote", user.full_name, user)
     _require(ticket, *EDITABLE)
     wanted = set(option_ids)
     picked = [o for o in ticket.options if o.id in wanted]
@@ -227,6 +231,7 @@ def send_choices(db: Session, company: Company, ticket: Ticket, option_ids: list
 
 def send_final(db: Session, company: Company, ticket: Ticket, total: Decimal | None, note: str | None, user: User) -> None:
     """The final quotation: the client's picks (or a fixed price) with the final total."""
+    workflow.reach(db, ticket, "quote", user.full_name, user)
     if ticket.status == T.NEW and ticket.service is not None and ticket.service.pricing == "fixed":
         pass  # a fixed-price service goes straight to its final quotation
     else:
@@ -278,25 +283,24 @@ def client_changes(db: Session, ticket: Ticket, note: str, actor: str) -> None:
 
 
 def client_approve(db: Session, company: Company, ticket: Ticket, actor: str) -> None:
+    """The client approved the final quotation: the workflow moves to its next step (documents, a payment…)."""
     _require(ticket, T.FINAL)
     ticket.last_client_at = utcnow()
-    _status(db, ticket, T.PENDING_PAYMENT, actor)
+    event(db, ticket, actor, "approved", None, f"{ticket.total_price} {ticket.currency}")
+    workflow.finish_quote(db, ticket, actor)
     db.commit()
-    say_in_chat(db, ticket.company_id, ticket.conversation_id, payment_text(ticket, company))
+    announce(db, company, ticket)
 
 
 def client_reject(db: Session, ticket: Ticket, actor: str, note: str | None = None) -> None:
     _require(ticket, T.FINAL, T.QUOTED)
     ticket.client_note = (note or "").strip()[:2000] or None
-    _status(db, ticket, T.REJECTED, actor)
+    workflow.cancel(db, ticket, "client", note, actor, rejected=True)
 
 
-def client_cancel(db: Session, ticket: Ticket, actor: str) -> None:
-    from . import seats  # noqa: PLC0415
-
+def client_cancel(db: Session, ticket: Ticket, actor: str, reason: str | None = None) -> None:
     _require(ticket, *CLIENT_CAN_CANCEL)
-    seats.release(db, ticket)
-    _status(db, ticket, T.CANCELLED, actor)
+    workflow.cancel(db, ticket, "client", reason, actor)
 
 
 def client_paid(db: Session, ticket: Ticket, transfer_reference: str, actor: str) -> None:
@@ -305,10 +309,34 @@ def client_paid(db: Session, ticket: Ticket, transfer_reference: str, actor: str
     ref = " ".join((transfer_reference or "").split())[:200]
     if len(ref) < 3:
         raise HTTPException(422, "Give the transfer or receipt number")
+    if any(p.status == "pending" and p.reference == ref for p in ticket.payments):
+        return
+    due = workflow.due_now(ticket)
+    ticket.payments.append(TicketPayment(company_id=ticket.company_id, ticket_id=ticket.id, reference=ref,
+                                         amount=Decimal(str(due)) if due else None, created_by="client"))
     ticket.payment_reference = ref
     ticket.last_client_at = utcnow()
     event(db, ticket, actor, "payment_reference", None, ref)
-    _status(db, ticket, T.IN_PROGRESS, actor)
+    db.flush()
+    workflow.refresh(db, ticket, actor)
+
+
+def confirm_appointment(db: Session, ticket: Ticket, key: str, actor: str) -> str:
+    """The client confirmed the time the team booked: the appointment step is done. Returns the confirmation
+    for the client's chat (sent after the commit)."""
+    step = next((s for s in workflow.steps(ticket) if s["key"] == key), None)
+    if step is None or step["type"] != "schedule" or step.get("state") != "active":
+        raise HTTPException(409, "This step is not the current one")
+    if not step.get("appointment"):
+        raise HTTPException(409, "Book a time first")
+    workflow.set_step(ticket, key, confirmed_at=utcnow().isoformat())
+    ticket.last_client_at = utcnow()
+    when = step["appointment"].get("text") or ""
+    place = f" · {step['appointment']['location']}" if step["appointment"].get("location") else ""
+    event(db, ticket, actor, "appointment_confirmed", None, when)
+    workflow.refresh(db, ticket, actor)
+    return (f"*{ticket.reference}* · {step['label_en']} confirmed ✅ *{when}*{place}. We will remind you before it.\n"
+            f"*{ticket.reference}* · تم تأكيد {step['label_ar']} ✅ *{when}*{place}. سنذكرك قبله.")
 
 
 # --- Texts sent in the client's chat ------------------------------------------------------------------
@@ -353,19 +381,73 @@ def final_text(ticket: Ticket, company: Company, note: str | None) -> str:
     return "\n".join(lines)
 
 
-def payment_text(ticket: Ticket, company: Company) -> str:
+def payment_text(ticket: Ticket, company: Company, step: dict | None = None) -> str:
+    """Asks the client to pay what the active payment step needs (the whole amount, a deposit, the balance)."""
     info = company.payment_info if isinstance(company.payment_info, dict) else {}
     how = "\n".join(x for x in ((info.get("en") or "").strip(), (info.get("ar") or "").strip()) if x)
+    due = workflow.due_now(ticket)
+    amount = _money(due if due is not None else ticket.total_price, ticket.currency)
+    total = Decimal(str(ticket.total_price or 0))
+    part = step is not None and due is not None and Decimal(str(due)) + Decimal("0.0005") < total
+    label = f" ({step['label_en']} · {step['label_ar']})" if part else ""
     return "\n".join(x for x in [
-        f"*{ticket.reference}* approved ✅ Total: {_money(ticket.total_price, ticket.currency)}",
-        "To confirm your booking, please pay and send us the transfer receipt here (a photo or PDF) or its number.",
-        "لتأكيد الحجز، يرجى الدفع وإرسال إيصال التحويل هنا (صورة أو PDF) أو رقمه.",
+        f"*{ticket.reference}* · please pay *{amount}*{label}" + (f" of {_money(total, ticket.currency)}" if part else ""),
+        "Send us the transfer receipt here (a photo or PDF) or its number.",
+        f"*{ticket.reference}* · يرجى دفع *{amount}*" + (f" من {_money(total, ticket.currency)}" if part else "")
+        + "، وإرسال إيصال التحويل هنا (صورة أو PDF) أو رقمه.",
         how or "Our team will send you the payment details. سيرسل لك فريقنا تفاصيل الدفع.",
     ] if x)
 
 
+def documents_text(ticket: Ticket) -> str | None:
+    from .request_desk import documents_view  # noqa: PLC0415
+
+    missing = [i for i in documents_view(ticket)["items"] if i["required"] and not i["done"]]
+    if not missing:
+        return None
+    lines = [f"*{ticket.reference}* · to continue we need these documents. Send them here as photos or PDF files:",
+             f"*{ticket.reference}* · لنكمل نحتاج هذه المستندات، أرسلها هنا كصور أو ملفات PDF:"]
+    for i in missing:
+        count = f" × {i['need'] - i['have']}" if i["need"] - i["have"] > 1 else ""
+        lines.append(f"• {i['label_en']} · {i['label_ar']}{count}")
+    return "\n".join(lines)
+
+
+def schedule_text(ticket: Ticket, step: dict) -> str:
+    return (f"*{ticket.reference}* · {step['label_en']}: which days and times suit you, and which times are not possible "
+            f"for you? We will book the closest time and confirm it with you.\n"
+            f"*{ticket.reference}* · {step['label_ar']}: ما الأيام والأوقات المناسبة لك، وما الأوقات غير الممكنة؟ "
+            f"سنحجز أقرب موعد ونؤكده معك.")
+
+
+def step_text(ticket: Ticket, company: Company, step: dict, after: dict | None) -> str | None:
+    """What the client is told when a step starts (None: nothing to say)."""
+    kind = step["type"]
+    if kind == "payment":
+        return payment_text(ticket, company, step) if ticket.total_price else None
+    if kind == "documents":
+        return documents_text(ticket)
+    if kind == "schedule":
+        return None if step.get("appointment") else schedule_text(ticket, step)
+    if after and after["type"] == "payment" and kind in workflow.TEAM_WORK:
+        return (f"Payment received for *{ticket.reference}* ✅ We are working on it now.\n"
+                f"استلمنا الدفع لـ *{ticket.reference}* ✅ نعمل عليه الآن.")
+    return None
+
+
+def announce(db: Session, company: Company, ticket: Ticket) -> int:
+    """After a commit: tells the client about the steps that just started. Returns how many messages went."""
+    items, sent = workflow.steps(ticket), 0
+    for step in workflow.take_entered(ticket):
+        i = next(n for n, s in enumerate(items) if s["key"] == step["key"])
+        text = step_text(ticket, company, step, items[i - 1] if i else None)
+        if text:
+            sent += say_in_chat(db, ticket.company_id, ticket.conversation_id, text)
+    return sent
+
+
 STATUS_TEXT = {
-    T.PAID: ("Payment received for *{ref}* ✅ We are booking everything now.", "استلمنا الدفع لـ *{ref}* ✅ نقوم بالحجز الآن."),
+    T.PAID: ("Payment received for *{ref}* ✅ We are working on it now.", "استلمنا الدفع لـ *{ref}* ✅ نعمل عليه الآن."),
     T.CONFIRMED: ("*{ref}* is fully booked ✈️ Your travel documents are on their way. Have a wonderful trip!",
                   "تم حجز *{ref}* بالكامل ✈️ وثائق سفرك في الطريق. رحلة سعيدة!"),
     T.CANCELLED: ("*{ref}* was cancelled. Contact us if you have a question.", "تم إلغاء *{ref}*. تواصل معنا إذا عندك سؤال."),

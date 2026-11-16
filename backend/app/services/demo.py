@@ -529,6 +529,7 @@ def create_demo_company(db: Session, name: str, slug: str, admin_email: str | No
         _add_quotation_samples(db, company, today)
         _add_suppliers(db, company)
         _add_appointments(db, company, list(users.values()))
+        _align_workflows(db, company)
 
     counts = {
         "users": len(users),
@@ -614,6 +615,22 @@ def _add_appointments(db: Session, company: Company, users: list) -> None:
                        location="Our office", assigned_to_id=staff.id if staff else None, created_by="Demo"))
 
 
+def _align_workflows(db: Session, company: Company) -> None:
+    """The sample requests were given their status directly: their steps are set to match it."""
+    from .. import workflow  # noqa: PLC0415
+
+    db.flush()
+    for t in db.scalars(select(Ticket).where(Ticket.company_id == company.id)).all():
+        if t.status in workflow.CLOSED or workflow._status_for(t) != t.status:
+            t.workflow = None
+            workflow.ensure(t)
+        # Steps dated from the request's own history, not from the moment the demo was made.
+        when = (t.updated_at or t.created_at).isoformat()
+        t.workflow = [dict(x, started_at=when) if x.get("state") == "active" else
+                      dict(x, done_at=when) if x.get("state") == "done" else x for x in t.workflow or []]
+    db.flush()
+
+
 def _add_suppliers(db: Session, company: Company) -> None:
     from ..models import Supplier  # noqa: PLC0415
 
@@ -626,7 +643,7 @@ def _add_suppliers(db: Session, company: Company) -> None:
 def _add_quotation_samples(db: Session, company: Company, today: date) -> None:
     """Requests at each quotation stage, so the request page shows the whole flow from the first day."""
     from ..catalog import service_by_key  # noqa: PLC0415
-    from ..models import Customer, TicketStatus as T, TripOption  # noqa: PLC0415
+    from ..models import Customer, TicketStatus as T, TripFeedback, TripOption  # noqa: PLC0415
     from . import requests as flow  # noqa: PLC0415
 
     customers = db.scalars(select(Customer).where(Customer.company_id == company.id).order_by(Customer.id.desc())).all()
@@ -669,6 +686,29 @@ def _add_quotation_samples(db: Session, company: Company, today: date) -> None:
          chosen=(0,), total=880)
     make(customers[5], "hotel", {"destination": "Dubai", "depart_date": d(12), "return_date": d(14), "adults": "2", "rooms": "1"},
          T.REJECTED, hotels[:1], note="Too expensive for us this time.")
+    from .. import workflow  # noqa: PLC0415
+
+    # An embassy appointment: the team has the client's times and books the appointment.
+    embassy = service_by_key(db, company.id, "embassy")
+    if embassy is not None and len(customers) > 6:
+        c = customers[6]
+        t = flow.create_request(db, company, c, embassy, {
+            "full_name": c.name, "phone": c.phone or "+96890000000", "destination": "Germany", "nationality": "Omani",
+            "purpose": "Schengen visa interview", "preferred_times": "Sunday or Monday morning",
+            "impossible_times": "Thursdays", "adults": "2"}, "Embassy appointment", None, actor="Demo")
+        t.total_price = Decimal("35")
+        workflow.reach(db, t, "schedule", "Demo", passing=frozenset({"intake", "review", "documents"}))
+        workflow.set_step(t, "schedule", client_times="Sunday or Monday morning; not Thursdays")
+    # A trip that is over, with the client's feedback: every step done.
+    if len(customers) > 7:
+        c = customers[7]
+        t = make(c, "hotel", {"destination": "Salalah", "depart_date": d(-12), "return_date": d(-8), "adults": "2",
+                              "rooms": "1"}, T.COMPLETED, hotels[:1], chosen=(0,), total=480)
+        t.payment_reference = "BM-TRF-31907"
+        t.documents_sent_at = datetime.now(timezone.utc) - timedelta(days=14)
+        db.flush()
+        db.add(TripFeedback(company_id=company.id, ticket_id=t.id, customer_id=c.id, rating=5,
+                            comment="Everything was perfect, thank you!", source="chat"))
     db.flush()
 
 

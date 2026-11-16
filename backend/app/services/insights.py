@@ -43,7 +43,7 @@ from ..models import (
 )
 
 log = logging.getLogger(__name__)
-PAID = (TicketStatus.PAID, TicketStatus.CONFIRMED)
+PAID = (TicketStatus.PAID, TicketStatus.CONFIRMED, TicketStatus.COMPLETED)
 STOP = set("the a an to in for and or of with from me my i we our trip trips package packages travel please want "
            "need looking show any some best cheap price prices days day night nights omr".split())
 
@@ -78,7 +78,8 @@ def _quotation_stats(tickets: list[Ticket]) -> dict:
     """How clients answer quotations: sent, approved, rejected, and how many rounds it takes."""
     quoted = [t for t in tickets if t.quote_round]
     approved = [t for t in quoted if t.status in (TicketStatus.PENDING_PAYMENT, TicketStatus.IN_PROGRESS,
-                                                  TicketStatus.PAID, TicketStatus.CONFIRMED)]
+                                                  TicketStatus.PAID, TicketStatus.WORKING, TicketStatus.CONFIRMED,
+                                                  TicketStatus.COMPLETED)]
     return {"requests_quoted": len(quoted), "approved": len(approved),
             "rejected": sum(1 for t in quoted if t.status == TicketStatus.REJECTED),
             "approval_rate": round(len(approved) / len(quoted), 3) if quoted else None,

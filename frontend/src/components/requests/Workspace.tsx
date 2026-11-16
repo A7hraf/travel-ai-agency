@@ -1,15 +1,15 @@
 import { FormEvent, ReactNode, useEffect, useId, useState } from "react";
 import { Link } from "react-router-dom";
-import { get, patch } from "../../api";
+import { get, patch, post } from "../../api";
 import { useAuth } from "../../auth";
 import { useI18n } from "../../lang";
 import type { Service, Ticket, TicketEvent, User } from "../../types";
-import { customerLabel, dateTime, NEXT_TICKET_STATUSES, shortDate, TICKET_STATUS_LABELS, todayIso, travelersText } from "../../util";
+import { customerLabel, dateTime, NEXT_TICKET_STATUSES, shortDate, TICKET_STATUS_LABELS, travelersText } from "../../util";
 import {
   ArrowRight, CalendarPlus, ChatsCircle, Check, CheckCircle, FilePdf, Hourglass, Lightning, Prohibit, WarningCircle,
 } from "../Icon";
 import MemberBadge from "../members/MemberBadge";
-import { ConfirmRequest, ConfirmSheet, PushPanel } from "../staff/Sheet";
+import { PushPanel, Sheet } from "../staff/Sheet";
 import { useStaff } from "../staff/StaffContext";
 import { ErrorBox, Loading } from "../ui";
 import BookingPanel from "./BookingPanel";
@@ -18,18 +18,16 @@ import TicketHistory from "./History";
 import MoneyBox from "./MoneyBox";
 import PaymentsPanel from "./PaymentsPanel";
 import PlanPanel from "./PlanPanel";
+import ProcessPanel from "./ProcessPanel";
 import QuotePanel from "./QuotePanel";
 import RequestDetails from "./RequestDetails";
 
-type Tab = "request" | "quotation" | "plan" | "documents" | "payments" | "booking" | "history";
+type Tab = "request" | "process" | "quotation" | "plan" | "documents" | "payments" | "booking" | "history";
 
-const LIFE = ["Request", "Quotation", "Client approval", "Payment", "Booking", "Confirmed", "Trip"];
-const LIFE_INDEX: Record<string, number> = {
-  new: 1, changes: 1, chosen: 1, quoted: 2, final: 2, pending_payment: 3, in_progress: 3, paid: 4, confirmed: 5,
-};
-const DEFAULT_TAB: Record<string, Tab> = {
-  new: "quotation", changes: "quotation", chosen: "quotation", quoted: "quotation", final: "quotation",
-  pending_payment: "payments", in_progress: "payments", paid: "booking", confirmed: "booking", cancelled: "history", rejected: "history",
+// The tab where the current step's work is done.
+const STEP_TAB: Record<string, Tab> = {
+  intake: "request", review: "request", quote: "quotation", documents: "documents", payment: "payments", schedule: "process",
+  booking: "booking", delivery: "booking", trip: "process", feedback: "process", task: "process",
 };
 
 /** "Waiting 3 hours" / "2 days" since a time. */
@@ -42,44 +40,83 @@ function since(iso: string | null, t: (k: string, v?: Record<string, string | nu
 }
 
 /** What the team should do now on this request, in one sentence, and where to do it. */
-function nextStep(tk: Ticket, t: (k: string, v?: Record<string, string | number>) => string, money: (v: number | null) => string):
+function nextStep(tk: Ticket, t: (k: string, v?: Record<string, string | number>) => string, money: (v: number | null) => string, lang: string):
   { tone: "act" | "wait" | "done" | "closed"; text: string; tab?: Tab; cta?: string } {
   const m = tk.money;
-  const isPackage = !tk.service || tk.service.key === "packages";
-  switch (tk.status) {
-    case "new":
-      return { tone: "act", text: tk.service?.pricing === "fixed" ? t("Fixed price: check the request and send the final quotation.")
-        : t("Prepare up to 3 choices per part (with your cost and the client price) and send them."), tab: "quotation", cta: t("Prepare choices") };
-    case "changes":
-      return { tone: "act", text: t("The client asked for changes. Update the choices and send them again."), tab: "quotation", cta: t("Update choices") };
-    case "chosen":
-      return { tone: "act", text: t("The client chose. Check the total and profit, then send the final quotation."), tab: "quotation", cta: t("Send the final quotation") };
-    case "quoted":
-      return { tone: "wait", text: t("Choices sent. Waiting for the client to choose ({time}).", { time: since(tk.updated_at, t) }), tab: "quotation", cta: t("See the choices") };
-    case "final":
-      return { tone: "wait", text: t("Final quotation sent. Waiting for the client to approve ({time}).", { time: since(tk.updated_at, t) }) };
-    case "pending_payment":
+  const step = tk.current_step;
+  const name = step ? (lang === "ar" ? step.label_ar : step.label_en) : "";
+  const due = tk.process?.due_now ?? m.balance ?? m.total;
+  if (tk.status === "rejected") return { tone: "closed", text: t("The client rejected the quotation.") + (tk.client_note ? ` “${tk.client_note}”` : "") };
+  if (tk.stage === "closed") return { tone: "closed", text: t("Cancelled.") };
+  if (!step) return { tone: "done", text: t("Every step is done.") };
+  switch (step.type) {
+    case "intake":
+      return { tone: "act", text: t("Some answers are missing: complete the request details (or ask the client)."), tab: "request", cta: t("Open the details") };
+    case "review":
+      return { tone: "act", text: t("Check the request. Ask the client for anything missing, then continue."), tab: "process", cta: t("Review") };
+    case "quote":
+      switch (tk.status) {
+        case "changes": return { tone: "act", text: t("The client asked for changes. Update the choices and send them again."), tab: "quotation", cta: t("Update choices") };
+        case "chosen": return { tone: "act", text: t("The client chose. Check the total and profit, then send the final quotation."), tab: "quotation", cta: t("Send the final quotation") };
+        case "quoted": return { tone: "wait", text: t("Choices sent. Waiting for the client to choose ({time}).", { time: since(tk.updated_at, t) }), tab: "quotation", cta: t("See the choices") };
+        case "final": return { tone: "wait", text: t("Final quotation sent. Waiting for the client to approve ({time}).", { time: since(tk.updated_at, t) }) };
+        default: return { tone: "act", text: tk.service?.pricing === "fixed" ? t("Fixed price: check the request and send the final quotation.")
+          : t("Prepare up to 3 choices per part (with your cost and the client price) and send them."), tab: "quotation", cta: t("Prepare choices") };
+      }
+    case "documents":
+      return { tone: "wait", text: t("Waiting for the client's documents ({n} missing). When you have everything, mark them complete.", { n: tk.client_documents.missing }), tab: "documents", cta: t("Client documents") };
+    case "payment":
+      if (!m.total) return { tone: "act", text: t("Set the client price: the client is then asked to pay."), tab: "request", cta: t("Open the details") };
       if (m.pending_proofs) return { tone: "act", text: t("The client sent a payment receipt: check it and approve the amount."), tab: "payments", cta: t("Check the receipt") };
-      return { tone: "wait", text: isPackage ? t("Booked. Waiting for the payment of {amount}.", { amount: money(m.balance ?? m.total) })
-        : t("Approved. Waiting for the payment of {amount}; the client has your payment details.", { amount: money(m.balance ?? m.total) }), tab: "payments", cta: t("Record a payment") };
-    case "in_progress":
-      return m.pending_proofs
-        ? { tone: "act", text: t("The client sent a payment receipt: check it and approve the amount."), tab: "payments", cta: t("Check the receipt") }
-        : { tone: "wait", text: t("Partly paid: {paid} of {total}. Waiting for the balance.", { paid: money(m.paid), total: money(m.total) }), tab: "payments", cta: t("Payments") };
-    case "paid": {
+      return { tone: "wait", text: t("{step}: waiting for {amount}; the client has your payment details.", { step: name, amount: money(due) }), tab: "payments", cta: t("Record a payment") };
+    case "schedule":
+      return { tone: "act", text: t("Book the appointment at a time that suits the client, then record their confirmation."), tab: "process", cta: t("Book the appointment") };
+    case "booking": {
       const left = tk.booking_steps.filter((s) => !s.done && s.key !== "documents").length;
-      return { tone: "act", text: left ? t("Paid. Book everything ({n} steps left), then send the travel documents.", { n: left })
-        : t("Everything is booked: send the travel documents to confirm."), tab: "booking", cta: t("Open the booking") };
+      return { tone: "act", text: left ? t("Book everything ({n} steps left).", { n: left }) : t("Mark the booking done."), tab: "booking", cta: t("Open the booking") };
     }
-    case "confirmed": {
-      const done = !!tk.return_date && tk.return_date < todayIso();
-      return { tone: "done", text: done ? t("Trip done.") : tk.departure_date ? t("Confirmed. The trip starts {date}.", { date: shortDate(tk.departure_date) }) : t("Confirmed.") };
-    }
-    case "rejected":
-      return { tone: "closed", text: t("The client rejected the quotation.") + (tk.client_note ? ` “${tk.client_note}”` : "") };
+    case "delivery":
+      return { tone: "act", text: t("Send the travel documents to the client."), tab: "booking", cta: t("Open the booking") };
+    case "trip":
+      return { tone: "done", text: tk.departure_date ? t("Confirmed. The trip starts {date}.", { date: shortDate(tk.departure_date) }) : t("Confirmed.") };
+    case "feedback":
+      return { tone: "wait", text: t("Trip done. Waiting for the client's feedback."), tab: "process", cta: t("Steps") };
     default:
-      return { tone: "closed", text: t("Cancelled.") };
+      return { tone: "act", text: name, tab: "process", cta: t("Mark it done") };
   }
+}
+
+function CloseSheet({ onClose, onDone, isPackage }: { onClose: () => void; onDone: (by: "client" | "team", reason: string) => Promise<void>; isPackage: boolean }) {
+  const { t } = useI18n();
+  const [by, setBy] = useState<"client" | "team">("client");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try { await onDone(by, reason.trim()); onClose(); } finally { setBusy(false); }
+  };
+  return (
+    <Sheet label={isPackage ? t("Cancel this booking?") : t("Cancel this request?")} onClose={onClose}>
+      <form className="gx-close" onSubmit={submit}>
+        <h3>{isPackage ? t("Cancel this booking?") : t("Cancel this request?")}</h3>
+        <p className="muted small">{isPackage ? t("The seats go back to the package and the payment reference is cleared. Only a company admin can reopen it.")
+          : t("The client is told in the chat. Only a company admin can reopen it.")}</p>
+        <fieldset className="gx-close-by">
+          <legend>{t("Who asked to cancel?")}</legend>
+          <label><input type="radio" name="by" checked={by === "client"} onChange={() => setBy("client")} /> {t("The client")}</label>
+          <label><input type="radio" name="by" checked={by === "team"} onChange={() => setBy("team")} /> {t("Our team")}</label>
+        </fieldset>
+        <label className="rw-lbl"><span>{t("Why?")}</span>
+          <textarea rows={3} dir="auto" required minLength={2} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)}
+            placeholder={t("For example: dates changed, found a cheaper offer, no answer for two weeks")} /></label>
+        <div className="gx-wf-save">
+          <button className="btn btn-sm btn-danger" disabled={busy || reason.trim().length < 2}>{isPackage ? t("Cancel booking") : t("Cancel request")}</button>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={onClose}>{t("Keep it")}</button>
+        </div>
+      </form>
+    </Sheet>
+  );
 }
 
 export default function Workspace({ id, onClose, onSaved }: { id: number; onClose: () => void; onSaved: () => void }) {
@@ -96,7 +133,7 @@ export default function Workspace({ id, onClose, onSaved }: { id: number; onClos
   const [busy, setBusy] = useState(false);
   const [notes, setNotes] = useState("");
   const [notesSaved, setNotesSaved] = useState(false);
-  const [confirmReq, setConfirmReq] = useState<ConfirmRequest | null>(null);
+  const [closing, setClosing] = useState(false);
 
   const loadEvents = () => get<TicketEvent[]>(`/api/tickets/${id}/events`).then(setEvents).catch(() => {});
   useEffect(() => {
@@ -123,21 +160,21 @@ export default function Workspace({ id, onClose, onSaved }: { id: number; onClos
   }
 
   const isPackage = !ticket.service || ticket.service.key === "packages";
-  const life = LIFE_INDEX[ticket.status] ?? -1;
-  const tripDone = ticket.status === "confirmed" && !!ticket.return_date && ticket.return_date < todayIso();
   const closed = ticket.stage === "closed";
-  const step = nextStep(ticket, t, money);
+  const step = nextStep(ticket, t, money, lang);
+  const flowSteps = ticket.process?.steps ?? [];
   const docsMissing = ticket.client_documents.missing;
   const tabs: { key: Tab; label: string; badge?: string | number; hide?: boolean }[] = [
     { key: "request", label: t("Request") },
-    { key: "quotation", label: t("Quotation"), hide: isPackage },
-    { key: "plan", label: t("Trip plan"), hide: isPackage || ticket.service?.pricing === "fixed" },
+    { key: "process", label: t("Steps"), hide: !ticket.process },
+    { key: "quotation", label: t("Quotation"), hide: !flowSteps.some((s) => s.type === "quote") },
+    { key: "plan", label: t("Trip plan"), hide: isPackage || !flowSteps.some((s) => s.type === "trip") },
     { key: "documents", label: t("Client documents"), badge: docsMissing || ticket.client_documents.unsorted.length || undefined },
     { key: "payments", label: t("Payments"), badge: ticket.money.pending_proofs || undefined },
     { key: "booking", label: t("Booking") },
     { key: "history", label: t("History") },
   ];
-  const current = tab ?? DEFAULT_TAB[ticket.status] ?? "request";
+  const current = tab ?? (closed ? "process" : STEP_TAB[ticket.current_step?.type ?? ""] ?? "request");
   const active = tabs.find((x) => x.key === current && !x.hide) ? current : "request";
 
   // Cancel, reopen (admins), and confirming an old booking without a service; payments and documents move the rest.
@@ -148,15 +185,10 @@ export default function Workspace({ id, onClose, onSaved }: { id: number; onClos
     setBusy(true); setError(null);
     try { after(await patch<Ticket>(`/api/tickets/${id}`, { status: to })); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   };
-  const onAction = (to: string) => {
-    if (to !== "cancelled") return move(to);
-    setConfirmReq({
-      title: isPackage ? t("Cancel this booking?") : t("Cancel this request?"),
-      text: isPackage ? t("The seats go back to the package and the payment reference is cleared. Only a company admin can reopen it.")
-        : t("The client is told in the chat. Only a company admin can reopen it."),
-      okLabel: isPackage ? t("Cancel booking") : t("Cancel request"),
-      onConfirm: () => move(to),
-    });
+  const onAction = (to: string) => (to === "cancelled" ? setClosing(true) : move(to));
+  const close = async (by: "client" | "team", reason: string) => {
+    setError(null);
+    try { after(await post<Ticket>(`/api/tickets/${id}/close`, { by, reason })); } catch (e) { setError((e as Error).message); }
   };
   const assign = async (value: string) => {
     setBusy(true); setError(null);
@@ -176,6 +208,7 @@ export default function Workspace({ id, onClose, onSaved }: { id: number; onClos
 
   const panels: Record<Tab, ReactNode> = {
     request: <RequestDetails key={ticket.updated_at} ticket={ticket} services={services} onChange={after} />,
+    process: <ProcessPanel key={ticket.updated_at} ticket={ticket} onChange={after} />,
     quotation: <QuotePanel key={ticket.updated_at} ticket={ticket} onChange={after} />,
     plan: <PlanPanel key={ticket.updated_at} ticket={ticket} onChange={after} />,
     documents: <ClientDocsPanel ticket={ticket} onChange={after} />,
@@ -204,19 +237,22 @@ export default function Workspace({ id, onClose, onSaved }: { id: number; onClos
           </div>
         </header>
 
-        <ol className={`rw-life ${closed ? "closed" : ""}`} aria-label={t("Progress")}>
-          {LIFE.map((label, i) => {
-            const skipped = isPackage && (i === 1 || i === 2);
-            const state = closed ? "todo" : skipped ? "skip" : (i < life || tripDone) ? "done" : i === life ? "current" : "todo";
-            return (
-              <li key={label} className={state} aria-current={state === "current" ? "step" : undefined}>
-                <span className="rw-dot">{state === "done" && <Check weight="bold" />}</span>
-                <span className="rw-life-label">{t(label)}</span>
-                {skipped && <span className="rw-life-sub">{t("package price")}</span>}
-              </li>
-            );
-          })}
-        </ol>
+        {flowSteps.length > 0 && (
+          <ol className={`rw-life ${closed ? "closed" : ""}`} aria-label={t("Progress")}>
+            {flowSteps.map((s) => {
+              const state = closed && s.state === "active" ? "todo" : s.state === "done" ? "done" : s.state === "skipped" ? "skip" : s.state === "active" ? "current" : "todo";
+              return (
+                <li key={s.key} className={state} aria-current={state === "current" ? "step" : undefined}>
+                  <button type="button" className="rw-life-btn" onClick={() => setTab("process")}>
+                    <span className="rw-dot">{state === "done" && <Check weight="bold" />}</span>
+                    <span className="rw-life-label"><bdi>{lang === "ar" ? s.label_ar : s.label_en}</bdi></span>
+                    {state === "current" && s.started_at && <span className="rw-life-sub">{since(s.started_at, t)}</span>}
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        )}
 
         <div className={`rw-next ${step.tone}`} role="status">
           {step.tone === "act" ? <ArrowRight className="flip" weight="bold" /> : step.tone === "wait" ? <Hourglass weight="fill" />
@@ -224,7 +260,7 @@ export default function Workspace({ id, onClose, onSaved }: { id: number; onClos
           <span className="rw-next-text">{step.text}</span>
           {step.tab && step.cta && active !== step.tab && <button type="button" className="btn btn-sm btn-primary" onClick={() => setTab(step.tab!)}>{step.cta}</button>}
         </div>
-        {docsMissing > 0 && !closed && ticket.status !== "confirmed" && (
+        {docsMissing > 0 && !closed && !["confirmed", "completed"].includes(ticket.status) && !flowSteps.some((s) => s.type === "documents" && (s.state === "done" || s.state === "skipped" || s.state === "active")) && (
           <button type="button" className="rw-alert" onClick={() => setTab("documents")}>
             <WarningCircle weight="fill" /> {t("Documents still missing from the client: {n}", { n: docsMissing })}
           </button>
@@ -287,7 +323,7 @@ export default function Workspace({ id, onClose, onSaved }: { id: number; onClos
           </aside>
         </div>
       </div>
-      {confirmReq && <ConfirmSheet req={confirmReq} onClose={() => setConfirmReq(null)} />}
+      {closing && <CloseSheet isPackage={isPackage} onClose={() => setClosing(false)} onDone={close} />}
     </PushPanel>
   );
 }

@@ -23,7 +23,7 @@ from ..ai.llm import LLMError, MockTravelLLM, clean_content, get_llm_client
 from ..branding import clean_text
 from ..models import RequestFile, Ticket, TicketPayment, TicketStatus as T, User, utcnow
 from .notify import say_in_chat
-from .requests import _status, event
+from .requests import event
 
 log = logging.getLogger(__name__)
 
@@ -31,12 +31,12 @@ STAGES: dict[str, tuple[str, ...]] = {
     "quote": (T.NEW, T.CHANGES, T.CHOSEN),       # the team prepares choices or the final quotation
     "client": (T.QUOTED, T.FINAL),                # the client decides
     "payment": (T.PENDING_PAYMENT, T.IN_PROGRESS),  # waiting for the money, or a receipt to check
-    "booking": (T.PAID,),                         # paid: book everything, send the documents
-    "confirmed": (T.CONFIRMED,),
+    "booking": (T.PAID, T.WORKING),               # the team works: documents, appointment, booking
+    "confirmed": (T.CONFIRMED, T.COMPLETED),      # booked and sent: the trip, then the feedback
     "closed": (T.CANCELLED, T.REJECTED),
 }
 STAGE_OF = {status: stage for stage, statuses in STAGES.items() for status in statuses}
-PAYABLE = (T.PENDING_PAYMENT, T.IN_PROGRESS, T.PAID, T.CONFIRMED)
+PAYABLE = (T.PENDING_PAYMENT, T.IN_PROGRESS, T.PAID, T.WORKING, T.CONFIRMED, T.COMPLETED)
 METHODS = ("bank_transfer", "cash", "card", "link", "other")
 
 
@@ -62,7 +62,7 @@ def money(ticket: Ticket) -> dict:
         cost, cost_from = None, None
     approved = [p for p in ticket.payments if p.status == "approved" and p.amount is not None]
     paid = sum((_dec(p.amount) for p in approved), Decimal(0))
-    if not approved and ticket.status in (T.PAID, T.CONFIRMED) and ticket.payment_reference:
+    if not approved and ticket.status in (T.PAID, T.CONFIRMED, T.COMPLETED) and ticket.payment_reference:
         paid = total  # marked paid with a reference only (before payments were recorded one by one)
     price = total if total > 0 else choices_total
     profit = price - cost if cost is not None and price > 0 else None
@@ -84,22 +84,21 @@ def payment_out(p: TicketPayment) -> dict:
 # --- Payments -----------------------------------------------------------------------------------------
 
 def _settle(db: Session, ticket: Ticket, actor: str, user: User | None) -> bool:
-    """After a payment: waiting → being checked; fully paid → paid. Returns True when it became paid."""
-    if ticket.status not in (T.PENDING_PAYMENT, T.IN_PROGRESS):
-        return False
-    m = money(ticket)
-    if (m["paid"] or 0) > 0 and ticket.status == T.PENDING_PAYMENT:
-        _status(db, ticket, T.IN_PROGRESS, actor, user)
-    if ticket.total_price and m["paid"] >= float(ticket.total_price):
-        from . import seats  # noqa: PLC0415
+    """After a payment: the workflow moves on once the active payment step's amount is in. Returns True when a
+    payment step finished."""
+    from .. import workflow  # noqa: PLC0415
+    from . import seats  # noqa: PLC0415
 
-        last = next((p for p in reversed(ticket.payments) if p.status == "approved" and p.reference), None)
-        if not ticket.payment_reference:
-            ticket.payment_reference = (last.reference if last else None) or f"PAY-{ticket.reference}"
-        seats.hold_or_409(db, ticket)
-        _status(db, ticket, T.PAID, actor, user)
-        return True
-    return False
+    done_before = {s["key"] for s in workflow.steps(ticket) if s["type"] == "payment" and s.get("state") == "done"}
+    workflow.refresh(db, ticket, actor, user)
+    finished = {s["key"] for s in workflow.steps(ticket) if s["type"] == "payment" and s.get("state") == "done"} - done_before
+    if not finished:
+        return False
+    last = next((p for p in reversed(ticket.payments) if p.status == "approved" and p.reference), None)
+    if last or not ticket.payment_reference:
+        ticket.payment_reference = (last.reference if last else None) or ticket.payment_reference or f"PAY-{ticket.reference}"
+    seats.hold_or_409(db, ticket)
+    return True
 
 
 def add_client_proof(db: Session, ticket: Ticket, file: RequestFile) -> TicketPayment:
@@ -113,7 +112,10 @@ def add_client_proof(db: Session, ticket: Ticket, file: RequestFile) -> TicketPa
 def record(db: Session, ticket: Ticket, amount: Decimal, method: str, reference: str | None, note: str | None,
            file_id: int | None, user: User) -> bool:
     """A payment the team received (approved at once). Returns True when the request became paid."""
-    if ticket.status not in PAYABLE:
+    from .. import workflow  # noqa: PLC0415
+
+    if ticket.status not in PAYABLE and not (workflow.find(ticket, "payment") and ticket.status not in workflow.CLOSED
+                                             and ticket.total_price):
         raise HTTPException(409, "Payments are recorded once the client approved the quotation")
     if file_id is not None and not any(f.id == file_id for f in ticket.files):
         raise HTTPException(404, "File not found")
@@ -150,8 +152,7 @@ def reject(db: Session, ticket: Ticket, payment_id: int, note: str, user: User) 
     p = _pending(ticket, payment_id)
     p.status, p.note, p.reviewed_by, p.reviewed_at = "rejected", note, user.full_name, utcnow()
     event(db, ticket, user.full_name, "payment_rejected", None, note, user)
-    if ticket.status == T.IN_PROGRESS and not any(x.status in ("pending", "approved") for x in ticket.payments):
-        _status(db, ticket, T.PENDING_PAYMENT, user.full_name, user)
+    _settle(db, ticket, user.full_name, user)
     db.commit()
     say_in_chat(db, ticket.company_id, ticket.conversation_id,
                 f"We could not confirm the payment receipt for *{ticket.reference}*: {note}\nPlease send a clear receipt.\n"
@@ -190,12 +191,13 @@ def classify(db: Session, ticket: Ticket, file_id: int, kind: str, requirement: 
     if was != "payment_proof" and kind == "payment_proof" and ticket.status in PAYABLE:
         if not any(p.file_id == f.id for p in ticket.payments):
             add_client_proof(db, ticket, f)
-        if ticket.status == T.PENDING_PAYMENT:
-            _status(db, ticket, T.IN_PROGRESS, user.full_name, user)
     if was == "payment_proof" and kind != "payment_proof":
         for p in [p for p in ticket.payments if p.file_id == f.id and p.status == "pending"]:
             ticket.payments.remove(p)
     event(db, ticket, user.full_name, "file_sorted", None, f"{f.name}: {requirement or kind}", user)
+    from .. import workflow  # noqa: PLC0415
+
+    workflow.refresh(db, ticket, user.full_name, user)
 
 
 # --- Trip plan (day by day) ---------------------------------------------------------------------------

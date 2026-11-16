@@ -35,7 +35,7 @@ from .schemas import (
     UserOut,
 )
 
-OPEN_TICKET_STATUSES = (TicketStatus.PENDING_PAYMENT, TicketStatus.IN_PROGRESS, TicketStatus.PAID)
+OPEN_TICKET_STATUSES = (TicketStatus.PENDING_PAYMENT, TicketStatus.IN_PROGRESS, TicketStatus.PAID, TicketStatus.WORKING)
 
 
 def user_out(user: User) -> UserOut:

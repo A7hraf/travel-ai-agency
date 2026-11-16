@@ -22,7 +22,8 @@ from ..models import (
     Channel, Company, Conversation, RequestFile, Ticket, TicketStatus as T, User, utcnow,
 )
 from .notify import say_in_chat
-from .requests import QUOTING, _require, _status, event
+from .. import workflow
+from .requests import QUOTING, _require, event
 
 log = logging.getLogger(__name__)
 
@@ -38,9 +39,11 @@ SIGNATURES = {
 }
 EXTENSION = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "application/pdf": ".pdf"}
 # The client can send papers while the request is open; a payment proof once they approved the quotation.
-CLIENT_FILE_STATUSES = (*QUOTING, T.PENDING_PAYMENT, T.IN_PROGRESS, T.PAID)
+CLIENT_FILE_STATUSES = (*QUOTING, T.PENDING_PAYMENT, T.IN_PROGRESS, T.PAID, T.WORKING)
 PROOF_STATUSES = (T.PENDING_PAYMENT, T.IN_PROGRESS)
 DOCS_STEP = "documents"  # the step "send all travel documents" is ticked by sending them
+# Sending the travel documents finishes the team's steps before it (an unpaid payment is never passed).
+SENDING_PASSES = frozenset({"intake", "review", "documents", "schedule", "booking", "task"})
 
 
 def clean_name(name: str | None, content_type: str) -> str:
@@ -137,8 +140,7 @@ def client_upload(db: Session, ticket: Ticket, name: str | None, content_type: s
     ticket.last_client_at = utcnow()
     if kind == "payment_proof":
         add_client_proof(db, ticket, f)
-        if ticket.status == T.PENDING_PAYMENT:
-            _status(db, ticket, T.IN_PROGRESS, actor)
+    workflow.refresh(db, ticket, actor)
     return f
 
 
@@ -176,6 +178,10 @@ def receive_whatsapp_file(db: Session, company: Company, conversation: Conversat
     except HTTPException as exc:
         db.rollback()
         return f"[The customer sent a {what}, but it could not be kept ({exc.detail}). Tell them kindly.]{tail}"
+    from .requests import announce  # noqa: PLC0415
+
+    if announce(db, company, ticket):
+        tail = " The next step of the request was just sent to them in its own message: don't repeat it." + tail
     if f.kind == "payment_proof":
         return (f"[The customer sent a {what}: it was kept as the payment proof of request {ticket.reference}. "
                 f"Thank them and say the team will check the payment and confirm.]{tail}")
@@ -224,8 +230,8 @@ def checklist_view(ticket: Ticket) -> list[dict]:
 
 
 def tick(db: Session, ticket: Ticket, step_key: str, done: bool, user: User) -> None:
-    """A booking step done (or undone). Only once the payment is approved, before the documents go out."""
-    _require(ticket, T.PAID)
+    """A booking step done (or undone), before the documents go out."""
+    _require(ticket, T.PAID, T.WORKING)
     step = next((s for s in steps_of(ticket) if s["key"] == step_key), None)
     if step is None or step_key == DOCS_STEP:
         raise HTTPException(404, "Step not found")
@@ -238,6 +244,7 @@ def tick(db: Session, ticket: Ticket, step_key: str, done: bool, user: User) -> 
         current.pop(step_key, None)
     ticket.checklist = current  # a new dict, so the change is saved
     event(db, ticket, user.full_name, "step_done" if done else "step_undone", None, step.get("label_en") or step_key, user)
+    workflow.refresh(db, ticket, user.full_name, user)
 
 
 def send_documents(db: Session, company: Company, ticket: Ticket, note: str | None, user: User) -> int:
@@ -245,11 +252,14 @@ def send_documents(db: Session, company: Company, ticket: Ticket, note: str | No
     (they stay on the client's private trips page)."""
     from .whatsapp import WhatsAppError, get_whatsapp_sender  # noqa: PLC0415
 
-    _require(ticket, T.PAID, T.CONFIRMED)
-    if ticket.status == T.PAID and any(not s["done"] for s in checklist_view(ticket) if s["key"] != DOCS_STEP):
+    _require(ticket, T.PAID, T.WORKING, T.CONFIRMED, T.COMPLETED)
+    first_time = ticket.documents_sent_at is None
+    if first_time and any(not s["done"] for s in checklist_view(ticket) if s["key"] != DOCS_STEP):
         raise HTTPException(409, "Tick every booking step first")
+    if first_time:
+        workflow.reach(db, ticket, "delivery", user.full_name, user, passing=SENDING_PASSES)
     docs = [f for f in ticket.files if f.kind == "document" and f.sent_at is None]
-    if ticket.status == T.CONFIRMED and not docs:
+    if not first_time and not docs:
         raise HTTPException(409, "There are no new documents to send")
     now = utcnow()
     for f in docs:
@@ -258,8 +268,7 @@ def send_documents(db: Session, company: Company, ticket: Ticket, note: str | No
     if any(s["key"] == DOCS_STEP for s in steps_of(ticket)):
         ticket.checklist = {**(ticket.checklist or {}), DOCS_STEP: {"at": now.isoformat(), "by": user.full_name}}
     event(db, ticket, user.full_name, "documents_sent", None, ", ".join(f.name for f in docs) or "—", user)
-    if ticket.status == T.PAID:
-        _status(db, ticket, T.CONFIRMED, user.full_name, user)
+    workflow.refresh(db, ticket, user.full_name, user)
     db.commit()
 
     lines = [f"*{ticket.reference}* is fully booked ✅ · تم حجز *{ticket.reference}* بالكامل ✅"]
