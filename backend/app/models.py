@@ -175,6 +175,8 @@ class Company(Base):
     payment_info: Mapped[dict | None] = mapped_column(JSON)
     quote_settings: Mapped[dict | None] = mapped_column(JSON)  # the quotation design: intro, terms, footer
     sla: Mapped[dict | None] = mapped_column(JSON)  # hours each step may take before it counts as late
+    # Reminder defaults for new appointments: {"staff_minutes", "client_minutes", "remind_client", "remind_owner"}.
+    calendar_settings: Mapped[dict | None] = mapped_column(JSON)
     # A WhatsApp message template approved by Meta ({"name", "language"}): lets reminders reach people who
     # haven't written in the last 24 hours. Its body has one parameter, the reminder text.
     reminder_template: Mapped[dict | None] = mapped_column(JSON)
@@ -414,6 +416,7 @@ class Ticket(Base):
     workflow: Mapped[list[dict] | None] = mapped_column(JSON)  # this request's steps (see workflow.py)
     cancel_info: Mapped[dict | None] = mapped_column(JSON)  # who closed it, why and at which step
     questions: Mapped[list[dict] | None] = mapped_column(JSON)  # the team's questions to the client, asked by the AI
+    quote_meta: Mapped[dict | None] = mapped_column(JSON)  # this request's quotation: its reference and a note
     # What the trip costs the company (when not taken from the chosen choices): the profit is price − cost.
     cost_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
     # The day-by-day plan of a tailor-made trip: [{"day": 1, "title": "...", "details": "..."}].
@@ -440,6 +443,8 @@ class Ticket(Base):
     created_by: Mapped[str] = mapped_column(String(20), default="ai")
     # When the "how was your trip?" message was sent on WhatsApp (once per booking).
     feedback_requested_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    # The "how is your trip going?" message in the middle of the trip, and what the client said.
+    checkin: Mapped[dict | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, onupdate=utcnow)
 
@@ -498,8 +503,11 @@ class Appointment(Base):
     notes: Mapped[str] = mapped_column(Text, default="")
     remind_minutes: Mapped[int] = mapped_column(Integer, default=60)
     remind_client: Mapped[bool] = mapped_column(Boolean, default=False)
+    client_remind_minutes: Mapped[int | None] = mapped_column(Integer)  # None: the same as the team's
+    remind_owner: Mapped[bool] = mapped_column(Boolean, default=False)  # the company admins hear too
     staff_reminded_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     client_reminded_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    owner_reminded_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     reminder_note: Mapped[str | None] = mapped_column(String(300))  # why a reminder could not be sent
     status: Mapped[str] = mapped_column(String(20), default="planned")  # planned, done, cancelled
     created_by: Mapped[str] = mapped_column(String(200), default="")
@@ -521,6 +529,23 @@ class FeatureUsage(Base):
     key: Mapped[str] = mapped_column(String(40))
     period: Mapped[str] = mapped_column(String(10))
     count: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class Broadcast(Base):
+    """A message the company sent to a group of its clients on WhatsApp (news, an offer, a feedback request)."""
+
+    __tablename__ = "broadcasts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(10), default="message")  # message or feedback
+    text_en: Mapped[str] = mapped_column(Text, default="")
+    text_ar: Mapped[str] = mapped_column(Text, default="")
+    audience: Mapped[dict] = mapped_column(JSON, default=dict)
+    sent: Mapped[int] = mapped_column(Integer, default=0)
+    skipped: Mapped[int] = mapped_column(Integer, default=0)
+    created_by: Mapped[str] = mapped_column(String(200), default="")
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
 class Notification(Base):
@@ -877,6 +902,7 @@ class TripOption(Base):
     link: Mapped[str | None] = mapped_column(String(500))  # the hotel / airline / activity page
     supplier_id: Mapped[int | None] = mapped_column(ForeignKey("suppliers.id", ondelete="SET NULL"), index=True)
     image_url: Mapped[str | None] = mapped_column(String(500))  # a photo for the quotation (uploaded, /api/media/…)
+    photos: Mapped[list[str] | None] = mapped_column(JSON)  # more photos for the quotation (rooms, the aircraft…)
     # The vendor who proposed it (None: added by the travel company). A vendor sees only its own options.
     vendor_id: Mapped[int | None] = mapped_column(ForeignKey("partners.id", ondelete="SET NULL"), index=True)
     category: Mapped[str] = mapped_column(String(20))

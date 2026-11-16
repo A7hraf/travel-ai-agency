@@ -293,7 +293,14 @@ function PaymentCard() {
   );
 }
 
-interface QuoteDesign { intro_en: string; intro_ar: string; terms_en: string; terms_ar: string; footer_en: string; footer_ar: string; valid_days: number }
+interface QuoteDesign {
+  intro_en: string; intro_ar: string; terms_en: string; terms_ar: string; footer_en: string; footer_ar: string; valid_days: number;
+  reference_prefix: string; show_photos: boolean; show_item_prices: boolean; show_itinerary: boolean; show_terms: boolean; show_contact: boolean;
+}
+const QUOTE_PARTS: [keyof QuoteDesign, string][] = [
+  ["show_photos", "Photos of hotels, flights and activities"], ["show_item_prices", "The price of each item on the final quotation"],
+  ["show_itinerary", "The day-by-day plan"], ["show_terms", "Terms and conditions"], ["show_contact", "Your contacts"],
+];
 
 function QuoteDesignCard() {
   const { t } = useI18n();
@@ -333,6 +340,15 @@ function QuoteDesignCard() {
         <Field label={t("Footer (English)")}><input value={d.footer_en} onChange={(e) => set({ footer_en: e.target.value })} maxLength={500} dir="ltr" /></Field>
         <Field label={t("Footer (Arabic)")}><input value={d.footer_ar} onChange={(e) => set({ footer_ar: e.target.value })} maxLength={500} dir="rtl" /></Field>
         <Field label={t("Valid for (days)")}><input type="number" min={1} max={90} value={d.valid_days} onChange={(e) => set({ valid_days: Number(e.target.value) || 7 })} dir="ltr" /></Field>
+        <Field label={t("Before the reference")} hint={t("For example Q- gives Q-TRV-AB12CD")}>
+          <input value={d.reference_prefix ?? ""} onChange={(e) => set({ reference_prefix: e.target.value.toUpperCase() })} maxLength={12} pattern="[A-Za-z0-9-]*" dir="ltr" />
+        </Field>
+      </div>
+      <div className="gx-section-label">{t("What the quotation shows")}</div>
+      <div className="gx-feat-opts">
+        {QUOTE_PARTS.map(([k, label]) => (
+          <Switch key={k} checked={d[k] !== false} onChange={(v) => set({ [k]: v } as Partial<QuoteDesign>)} label={t(label)} />
+        ))}
       </div>
       <ErrorBox error={error} />
       <div className="gx-form-actions">{saved && <span className="muted small">{t("Saved.")}</span>}<button className="btn btn-primary" disabled={busy}>{t("Save")}</button></div>

@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..addons import has_addon
+from ..language import Bi, pick
 from ..models import (
     Appointment, Channel, Company, CompanyStatus, Conversation, Customer, Ticket, TicketStatus as T, utcnow,
 )
@@ -88,26 +89,66 @@ def deliver(db: Session, company: Company, wa_id: str, text: str) -> str | None:
     return None
 
 
+DEFAULTS = {"staff_minutes": 60, "client_minutes": 24 * 60, "remind_client": False, "remind_owner": False}
+
+
+def settings_of(company: Company) -> dict:
+    own = company.calendar_settings if isinstance(company.calendar_settings, dict) else {}
+    return {**DEFAULTS, **{k: v for k, v in own.items() if k in DEFAULTS}}
+
+
+def apply_defaults(company: Company, a: Appointment, given: set[str]) -> None:
+    """A new appointment takes the company's reminder settings for what the employee didn't choose."""
+    s = settings_of(company)
+    if "remind_minutes" not in given:
+        a.remind_minutes = s["staff_minutes"]
+    if "client_remind_minutes" not in given:
+        a.client_remind_minutes = s["client_minutes"]
+    if "remind_client" not in given:
+        a.remind_client = s["remind_client"]
+    if "remind_owner" not in given:
+        a.remind_owner = s["remind_owner"]
+
+
 def send_reminders(db: Session, now: datetime | None = None) -> int:
     """Reminders due now (each appointment's own notice before it starts). Each is tried once."""
     from .whatsapp import normalize_phone  # noqa: PLC0415
 
     now = now or utcnow()
     due = db.scalars(select(Appointment).where(
-        Appointment.status == "planned", Appointment.starts_at > now, Appointment.starts_at <= now + timedelta(days=2),
-        (Appointment.staff_reminded_at.is_(None)) | ((Appointment.remind_client.is_(True)) & Appointment.client_reminded_at.is_(None)))
+        Appointment.status == "planned", Appointment.starts_at > now, Appointment.starts_at <= now + timedelta(days=8),
+        (Appointment.staff_reminded_at.is_(None))
+        | ((Appointment.remind_client.is_(True)) & Appointment.client_reminded_at.is_(None))
+        | ((Appointment.remind_owner.is_(True)) & Appointment.owner_reminded_at.is_(None)))
         .options(selectinload(Appointment.assigned_to), selectinload(Appointment.customer), selectinload(Appointment.ticket))).all()
     sent = 0
     for a in due:
-        if _aware(a.starts_at) - timedelta(minutes=a.remind_minutes) > now:
+        starts = _aware(a.starts_at)
+        staff_due = starts - timedelta(minutes=a.remind_minutes) <= now
+        client_due = starts - timedelta(minutes=a.client_remind_minutes if a.client_remind_minutes is not None else a.remind_minutes) <= now
+        if not staff_due and not client_due:
             continue
         company = db.get(Company, a.company_id)
         if company is None or company.status != CompanyStatus.ACTIVE or not has_addon(company, "calendar"):
             continue
-        notes = []
+        notes = [n for n in (a.reminder_note or "").split("; ") if n]
         when = local_text(a.starts_at)
         ref = f" ({a.ticket.reference})" if a.ticket else ""
-        if a.staff_reminded_at is None:
+        if staff_due and a.remind_owner and a.owner_reminded_at is None:
+            a.owner_reminded_at = now
+            from ..models import Role, User  # noqa: PLC0415
+
+            for owner in db.scalars(select(User).where(User.company_id == company.id, User.role == Role.COMPANY_ADMIN,
+                                                       User.is_active.is_(True))).all():
+                number = normalize_phone(owner.whatsapp_number or "")
+                if number and owner.id != a.assigned_to_id:
+                    sent += deliver(db, company, number, f"⏰ {company.name}: {a.title}{ref} · {when}"
+                                    + (f" · {a.location}" if a.location else "")) is None
+        if staff_due and a.staff_reminded_at is None:
+            if a.assigned_to is not None and a.ticket is not None:
+                from .notifications import to_user  # noqa: PLC0415
+
+                to_user(db, a.assigned_to, a.ticket, "appointment_soon", title=a.title, when=when)
             a.staff_reminded_at = now
             number = normalize_phone(a.assigned_to.whatsapp_number or "") if a.assigned_to else None
             if number:
@@ -121,7 +162,7 @@ def send_reminders(db: Session, now: datetime | None = None) -> int:
                     sent += 1
             else:
                 notes.append("Team: no WhatsApp number for the person in charge")
-        if a.remind_client and a.client_reminded_at is None:
+        if client_due and a.remind_client and a.client_reminded_at is None:
             a.client_reminded_at = now
             wa_id = a.customer.whatsapp_id if a.customer else None
             if not has_addon(company, "calendar_client_reminders"):
@@ -129,13 +170,17 @@ def send_reminders(db: Session, now: datetime | None = None) -> int:
             elif not wa_id:
                 notes.append("Client: no WhatsApp number")
             else:
-                text = (f"⏰ {company.name}: {a.title}{ref} · {when}" + (f" · {a.location}" if a.location else "")
-                        + f"\nتذكير من {company.name}: {a.title}{ref} · {when}")
+                place = f" · {a.location}" if a.location else ""
+                lang = db.scalar(select(Conversation.language).where(Conversation.customer_id == a.customer_id,
+                                                                     Conversation.language.is_not(None))
+                                 .order_by(Conversation.last_message_at.desc()).limit(1))
+                text = pick(Bi(f"⏰ Reminder from {company.name}: {a.title}{ref} · {when}{place}",
+                               f"⏰ تذكير من {company.name}: {a.title}{ref} · {when}{place}"), lang)
                 why = deliver(db, company, wa_id, text)
                 if why:
                     notes.append(f"Client: {why}")
                 else:
                     sent += 1
-        a.reminder_note = "; ".join(notes)[:300] or None
+        a.reminder_note = "; ".join(dict.fromkeys(notes))[:300] or None
         db.commit()
     return sent

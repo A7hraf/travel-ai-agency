@@ -66,3 +66,7 @@
 .rp-table td { padding: 8px; border-top: 1px solid #f0eee9; }
 .rp-table td.n { text-align: end; font-variant-numeric: tabular-nums; }
 @media (max-width: 640px) { .rp-sheet .qt-trip { grid-template-columns: 1fr 1fr; } }
+.qt-note { margin: 0 0 14px; padding: 10px 14px; border-inline-start: 3px solid var(--qt-accent, #c2185b); background: rgba(0, 0, 0, .03); }
+.qt-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 6px; margin-top: 8px; }
+.qt-gallery img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 8px; }
+@media print { .qt-gallery { break-inside: avoid; } }

@@ -57,7 +57,7 @@ export default function FeatureControls({ companyId }: { companyId: number }) {
               <input inputMode="decimal" value={g.price ?? ""} placeholder={t("Included")} onChange={(e) => set(key, { price: e.target.value.trim() || null })} dir="ltr" />
             </label>
             {f.levels.length > 0 && (
-              <fieldset className="gx-feat-levels"><legend>{t("Analytics shown")}</legend>
+              <fieldset className="gx-feat-levels"><legend>{t("Analytics shown")} <small className="muted">· {t("none ticked: all")}</small></legend>
                 {f.levels.map((lv) => (
                   <label key={lv} className="gx-feat-check"><input type="checkbox" checked={g.levels.includes(lv)}
                     onChange={(e) => set(key, { levels: e.target.checked ? [...g.levels, lv] : g.levels.filter((x) => x !== lv) })} />{t(LEVEL_LABELS[lv] ?? lv)}</label>

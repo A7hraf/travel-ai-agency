@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from ..addons import use, user_may
+from ..addons import grant, use, user_may
 from ..database import get_db
 from ..deps import require_permission, require_system_admin
 from ..models import Company, InsightReport, User
@@ -48,15 +48,15 @@ def reader(user: User = Depends(require_permission("reports.view"))) -> User:
 @router.get("/api/insights", response_model=InsightsOut)
 def company_insights(days: int = 90, me: User = Depends(reader), db: Session = Depends(get_db)):
     days = max(7, min(days, 365))
-    return InsightsOut(metrics=svc.company_metrics(db, me.company, days),
-                       report=_report(svc.latest_report(db, me.company_id, "company")))
+    metrics = svc.for_levels(svc.company_metrics(db, me.company, days), grant(me.company, "insights").levels)
+    return InsightsOut(metrics=metrics, report=_report(svc.latest_report(db, me.company_id, "company")))
 
 
 @router.post("/api/insights/report", response_model=ReportOut)
 def company_report(body: ReportIn, me: User = Depends(reader), db: Session = Depends(get_db)):
     limiter.check(f"insights-report:{me.company_id}", 6, "You can ask for a new report a few times per hour", window=3600)
     use(db, me, "insights")
-    metrics = svc.company_metrics(db, me.company, 90)
+    metrics = svc.for_levels(svc.company_metrics(db, me.company, 90), grant(me.company, "insights").levels)
     return _report(svc.write_report(db, metrics, "company", body.language, me.company, me.full_name))
 
 

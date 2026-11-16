@@ -281,7 +281,7 @@ class PackageBase(BaseModel):
     country: str = Field(min_length=1, max_length=120)
     description: str = Field(default="", max_length=10000)
     duration_days: int = Field(ge=1, le=365)
-    price_per_person: float = Field(gt=0, le=MAX_MONEY)
+    price_per_person: float = Field(ge=0, le=MAX_MONEY)  # 0 only for a package priced on request
     child_price: float | None = Field(default=None, ge=0, le=MAX_MONEY)
     currency: OptionalCurrency = None
     departure_dates: list[date] = []
@@ -305,8 +305,8 @@ class PackageBase(BaseModel):
         if v is None:
             return v
         rounded = Decimal(str(v)).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
-        if info.field_name == "child_price" and v == 0:
-            return 0.0  # children travel free
+        if v == 0:
+            return 0.0  # children travel free; a package priced on request may have no price
         if rounded < Decimal("0.001"):
             raise ValueError("Price must be at least 0.001")
         return float(rounded)
@@ -317,6 +317,12 @@ class PackageBase(BaseModel):
         if v and not v.startswith(("https://", "/api/media/")):
             raise ValueError("image_url must be an uploaded image or start with https://")
         return v or None
+
+    @model_validator(mode="after")
+    def priced(self):
+        if self.price_mode == "shown" and self.price_per_person < 0.001:
+            raise ValueError("Write the adult price, or choose a price on request")
+        return self
 
 
 class PackageIn(PackageBase):
@@ -427,6 +433,7 @@ class TicketOptionOut(ORM):
     added_by: str
     supplier_id: int | None = None
     image_url: str | None = None
+    photos: list[str] | None = None
     sent_to_client: bool
     chosen: bool
 
@@ -475,6 +482,7 @@ class TicketOut(ORM):
     delay: dict | None = None  # hours at the current step, the expected time, who it waits for
     questions: list[dict] | None = None  # the team's questions to the client and the answers
     client_preferences: dict | None = None  # detail only
+    quote_meta: dict | None = None  # this request's quotation reference and note
     process: dict | None = None  # detail only: the workflow steps, installments, amount due now, why it was closed
     departure_date: str | None
     adults: int

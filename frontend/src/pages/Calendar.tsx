@@ -12,12 +12,14 @@ interface Appt {
   id: number; kind: Kind; title: string; starts_at: string; ends_at: string | null; location: string; notes: string;
   ticket_id: number | null; reference: string | null; client: string | null; assigned_to_id: number | null; assigned_to: string | null;
   remind_minutes: number; remind_client: boolean; staff_reminded_at: string | null; client_reminded_at: string | null;
+  client_remind_minutes: number | null; remind_owner: boolean;
   reminder_note: string | null; status: "planned" | "done" | "cancelled";
 }
 interface Trip { kind: "departure" | "return"; date: string; ticket_id: number; reference: string; client: string; destination: string }
 type Kind = "meeting" | "airport" | "call" | "visit" | "other";
 const KINDS: Record<Kind, string> = { meeting: "Meeting", airport: "Airport", call: "Call", visit: "Visit", other: "Other" };
-const REMIND = [0, 15, 30, 60, 120, 240, 1440];
+const REMIND = [0, 15, 30, 60, 120, 240, 1440, 2880];
+interface ReminderSettings { staff_minutes: number; client_minutes: number; remind_client: boolean; remind_owner: boolean }
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const dayKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -26,7 +28,13 @@ const toLocalInput = (iso: string) => { const d = new Date(iso); return `${dayKe
 const fromLocalInput = (v: string) => new Date(v).toISOString();
 
 type Draft = { kind: Kind; title: string; starts: string; location: string; notes: string; ticket_id: number | null;
-  assigned_to_id: number | null; remind_minutes: number; remind_client: boolean; status: Appt["status"] };
+  assigned_to_id: number | null; remind_minutes: number; remind_client: boolean; client_remind_minutes: number | null;
+  remind_owner: boolean; status: Appt["status"] };
+
+function whenText(m: number, t: (k: string, v?: Record<string, string | number>) => string): string {
+  return m === 0 ? t("At the time") : m < 60 ? t("{n} minutes before", { n: m }) : m < 1440 ? t("{n} hours before", { n: m / 60 })
+    : m === 1440 ? t("1 day before") : t("{n} days before", { n: m / 1440 });
+}
 
 function Editor({ initial, id, team, onDone, onCancel }: { initial: Draft; id: number | null; team: User[]; onDone: () => void; onCancel: () => void }) {
   const { t } = useI18n();
@@ -39,7 +47,8 @@ function Editor({ initial, id, team, onDone, onCancel }: { initial: Draft; id: n
     e.preventDefault();
     setBusy(true); setError(null);
     const body = { kind: d.kind, title: d.title, starts_at: fromLocalInput(d.starts), location: d.location, notes: d.notes,
-      ticket_id: d.ticket_id, assigned_to_id: d.assigned_to_id, remind_minutes: d.remind_minutes, remind_client: d.remind_client, status: d.status };
+      ticket_id: d.ticket_id, assigned_to_id: d.assigned_to_id, remind_minutes: d.remind_minutes, remind_client: d.remind_client,
+      client_remind_minutes: d.client_remind_minutes, remind_owner: d.remind_owner, status: d.status };
     try { if (id) await put(`/api/calendar/${id}`, body); else await post("/api/calendar", body); onDone(); }
     catch (err) { setError((err as Error).message); } finally { setBusy(false); }
   };
@@ -67,16 +76,24 @@ function Editor({ initial, id, team, onDone, onCancel }: { initial: Draft; id: n
         </Field>
         <Field label={t("Remind on WhatsApp")}>
           <select value={d.remind_minutes} onChange={(e) => setD({ ...d, remind_minutes: Number(e.target.value) })}>
-            {REMIND.map((m) => <option key={m} value={m}>{m === 0 ? t("At the time") : m < 60 ? t("{n} minutes before", { n: m })
-              : m < 1440 ? t("{n} hours before", { n: m / 60 }) : t("1 day before")}</option>)}
+            {REMIND.map((m) => <option key={m} value={m}>{whenText(m, t)}</option>)}
           </select>
         </Field>
       </div>
       {d.ticket_id && <p className="muted small">{t("Linked to request #{id}.", { id: d.ticket_id })}</p>}
       {d.ticket_id && clientReminders && (
         <Switch checked={d.remind_client} onChange={(v) => setD({ ...d, remind_client: v })} label={t("Remind the client too")}
-          hint={t("On WhatsApp, at the same time as the team.")} />
+          hint={t("On WhatsApp, in the client's language.")} />
       )}
+      {d.ticket_id && clientReminders && d.remind_client && (
+        <Field label={t("Remind the client")}>
+          <select value={d.client_remind_minutes ?? d.remind_minutes} onChange={(e) => setD({ ...d, client_remind_minutes: Number(e.target.value) })}>
+            {REMIND.map((m) => <option key={m} value={m}>{whenText(m, t)}</option>)}
+          </select>
+        </Field>
+      )}
+      <Switch checked={d.remind_owner} onChange={(v) => setD({ ...d, remind_owner: v })} label={t("Remind the company admins too")}
+        hint={t("On WhatsApp, at the team's time, to the admins with a WhatsApp number on their account.")} />
       <Field label={t("Notes")}><textarea rows={2} value={d.notes} onChange={(e) => setD({ ...d, notes: e.target.value })} maxLength={2000} dir="auto" /></Field>
       {id && (
         <Field label={t("Status")}>
@@ -92,6 +109,38 @@ function Editor({ initial, id, team, onDone, onCancel }: { initial: Draft; id: n
         <button type="button" className="btn btn-ghost" onClick={onCancel}>{t("Cancel")}</button>
         <button className="btn btn-primary" disabled={busy}>{busy ? t("Saving…") : t("Save")}</button>
       </div>
+    </form>
+  );
+}
+
+function RemindersCard({ onSaved }: { onSaved: (s: ReminderSettings) => void }) {
+  const { t } = useI18n();
+  const { user } = useAuth();
+  const [s, setS] = useState<ReminderSettings | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { get<ReminderSettings>("/api/calendar/settings/reminders").then(setS).catch(() => {}); }, []);
+  if (!s) return null;
+  const set = (patch: Partial<ReminderSettings>) => { setSaved(false); setS({ ...s, ...patch }); };
+  return (
+    <form className="gx-card" onSubmit={(e) => { e.preventDefault();
+      put<ReminderSettings>("/api/calendar/settings/reminders", s).then((x) => { setSaved(true); setError(null); onSaved(x); }).catch((err) => setError((err as Error).message)); }}>
+      <h2 className="gx-card-title">{t("Reminders for new appointments")}</h2>
+      <p className="muted small">{t("Each appointment can still be changed. These are the usual choices.")}</p>
+      <div className="gx-grid-2">
+        <Field label={t("Remind the person in charge")}>
+          <select value={s.staff_minutes} onChange={(e) => set({ staff_minutes: Number(e.target.value) })}>{REMIND.map((m) => <option key={m} value={m}>{whenText(m, t)}</option>)}</select>
+        </Field>
+        <Field label={t("Remind the client")}>
+          <select value={s.client_minutes} onChange={(e) => set({ client_minutes: Number(e.target.value) })}>{REMIND.map((m) => <option key={m} value={m}>{whenText(m, t)}</option>)}</select>
+        </Field>
+      </div>
+      {user?.company?.addons?.includes("calendar_client_reminders") && (
+        <Switch checked={s.remind_client} onChange={(v) => set({ remind_client: v })} label={t("Remind clients by default")} />
+      )}
+      <Switch checked={s.remind_owner} onChange={(v) => set({ remind_owner: v })} label={t("Remind the company admins by default")} />
+      <ErrorBox error={error} />
+      <div className="gx-form-actions">{saved && <span className="muted small">{t("Saved.")}</span>}<button className="btn btn-primary btn-sm">{t("Save")}</button></div>
     </form>
   );
 }
@@ -126,6 +175,8 @@ export default function Calendar() {
   const [mine, setMine] = useState(false);
   const [data, setData] = useState<{ appointments: Appt[]; trips: Trip[] } | null>(null);
   const [team, setTeam] = useState<User[]>([]);
+  const [reminders, setReminders] = useState<ReminderSettings | null>(null);
+  useEffect(() => { get<ReminderSettings>("/api/calendar/settings/reminders").then(setReminders).catch(() => {}); }, []);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<number | "new" | null>(params.get("new") ? "new" : null);
   const manage = can("tickets.manage");
@@ -149,7 +200,9 @@ export default function Calendar() {
   const today = dayKey(new Date());
   const ticketParam = params.get("ticket");
   const newDraft: Draft = { kind: "meeting", title: params.get("title") ?? "", starts: `${today}T10:00`, location: "", notes: "",
-    ticket_id: ticketParam ? Number(ticketParam) : null, assigned_to_id: null, remind_minutes: 60, remind_client: false, status: "planned" };
+    ticket_id: ticketParam ? Number(ticketParam) : null, assigned_to_id: null, remind_minutes: reminders?.staff_minutes ?? 60,
+    remind_client: reminders?.remind_client ?? false, client_remind_minutes: reminders?.client_minutes ?? null,
+    remind_owner: reminders?.remind_owner ?? false, status: "planned" };
 
   return (
     <div className="narrow gx-narrow">
@@ -187,7 +240,8 @@ export default function Calendar() {
                 {v.appts.map((a) => open === a.id ? (
                   <li key={a.id}><Editor id={a.id} team={team} onDone={done} onCancel={() => setOpen(null)} initial={{
                     kind: a.kind, title: a.title, starts: toLocalInput(a.starts_at), location: a.location, notes: a.notes, ticket_id: a.ticket_id,
-                    assigned_to_id: a.assigned_to_id, remind_minutes: a.remind_minutes, remind_client: a.remind_client, status: a.status }} /></li>
+                    assigned_to_id: a.assigned_to_id, remind_minutes: a.remind_minutes, remind_client: a.remind_client,
+                    client_remind_minutes: a.client_remind_minutes, remind_owner: a.remind_owner, status: a.status }} /></li>
                 ) : (
                   <li key={a.id} className={`gx-cal-item ${a.status}`}>
                     <span className="gx-cal-time tnum">{time(a.starts_at)}</span>
@@ -210,6 +264,7 @@ export default function Calendar() {
           ))}
         </ol>
       )}
+      {can("settings.manage") && <RemindersCard onSaved={setReminders} />}
       {can("settings.manage") && <TemplateCard />}
     </div>
   );

@@ -58,7 +58,7 @@ def test_calendar_and_reminders(client, wa, scripted, owner):
     staff_msg = [m for m in fake.sent if m[1] == "96897771111"][-1][2]
     assert staff_msg.startswith("[template trip_reminder/ar]") and "Meet at Muscat airport" in staff_msg and ref in staff_msg
     client_msg = [m for m in fake.sent if m[1] == PHONE][-1][2]
-    assert "Meet at Muscat airport" in client_msg and "تذكير" in client_msg and not client_msg.startswith("[template")
+    assert "Meet at Muscat airport" in client_msg and "Reminder from" in client_msg and not client_msg.startswith("[template")  # the client writes English
     assert client.get("/api/calendar", headers=admin).json()["appointments"][0]["reminder_note"] is None
 
     # Not yet due: nothing sent. Another company can't link this request.

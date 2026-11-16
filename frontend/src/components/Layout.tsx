@@ -10,10 +10,7 @@ import { ThemeSwitch } from "./ThemeSwitch";
 import type { ConversationSummary, Ticket as TicketT } from "../types";
 import { customerLabel, ROLE_LABELS, usePolling } from "../util";
 import { GhanjahMark, usePlatformName } from "./Brand";
-import {
-  AddressBook, ArrowSquareOut, Buildings, Crown, ClockCounterClockwise, Heartbeat, ChartLineUp, ChatsCircle, GearSix, GraduationCap, IconProps, List, PaintBrush, SignOut,
-  Briefcase, BookBookmark, CalendarDots, FileText, Lightbulb, ListChecks, Handshake, Star, SquaresFour, SuitcaseRolling, Ticket, Translate, UserCircle, UsersThree, WhatsappLogo,
-} from "./Icon";
+import { AddressBook, ArrowSquareOut, Buildings, Crown, ClockCounterClockwise, Heartbeat, ChartLineUp, ChatsCircle, GearSix, GraduationCap, IconProps, List, PaintBrush, SignOut, Briefcase, BookBookmark, CalendarDots, FileText, Lightbulb, ListChecks, Handshake, Star, SquaresFour, SuitcaseRolling, Ticket, Translate, UserCircle, UsersThree, WhatsappLogo, Megaphone } from "./Icon";
 import { moneyText } from "./Money";
 import NotificationBell from "./staff/Notifications";
 import { Sheet } from "./staff/Sheet";
@@ -48,6 +45,7 @@ const COMPANY_NAV: NavItem[] = [
   { to: "/app/reports", label: "Reports", icon: FileText, permission: "reports.view", addon: "reports" },
   { to: "/app/insights", label: "AI insights", icon: ChartLineUp, permission: "reports.view", addon: "insights" },
   { to: "/app/feedback", label: "Trip feedback", icon: Star, permission: "reports.view" },
+  { to: "/app/broadcasts", label: "Broadcasts", icon: Megaphone, permission: "customers.manage", addon: "broadcasts" },
   { to: "/app/members", label: "Members", icon: Crown, permission: "members.manage", addon: "members" },
   { to: "/app/requests", label: "Business requests", icon: Briefcase, permission: "requests.manage", b2b: true },
   { to: "/app/users", label: "Team & accounts", icon: UsersThree, permission: "users.manage" },

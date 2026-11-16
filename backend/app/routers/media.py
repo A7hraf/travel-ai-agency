@@ -85,6 +85,8 @@ def remove_unused_media(db: Session, company_id: int, min_age: timedelta = timed
     used = {p.image_url for p in db.scalars(select(TravelPackage).where(TravelPackage.company_id == company_id))}
     used |= set(db.scalars(select(Supplier.image_url).where(Supplier.company_id == company_id)))
     used |= set(db.scalars(select(TripOption.image_url).where(TripOption.company_id == company_id)))
+    for photos in db.scalars(select(TripOption.photos).where(TripOption.company_id == company_id, TripOption.photos.is_not(None))):
+        used |= set(photos or [])
     branding = (company.branding or {}) if company else {}
     used |= branding_image_urls(branding)
     keys = {u.removeprefix("/api/media/") for u in used if u and u.startswith("/api/media/")}

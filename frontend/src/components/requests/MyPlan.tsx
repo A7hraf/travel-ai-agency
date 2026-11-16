@@ -45,9 +45,9 @@ export default function MyPlan({ onOpen, onUnassigned }: { onOpen: (id: number) 
     .catch((e) => setDone((d) => ({ ...d, [id]: (e as Error).message })));
 
   return (
-    <section className="gx-plan" aria-label={t("My plan")}>
+    <section className="gx-plan" aria-label={t("My work plan")}>
       <div className="gx-plan-head">
-        <h2><Sparkle weight="fill" /> {t("My plan")}</h2>
+        <h2><Sparkle weight="fill" /> {t("My work plan")}</h2>
         <div className="gx-plan-tabs" role="tablist">
           {(["today", "week", "month"] as Period[]).map((p) => (
             <button key={p} type="button" role="tab" aria-selected={period === p} className={period === p ? "on" : ""} onClick={() => setPeriod(p)}>

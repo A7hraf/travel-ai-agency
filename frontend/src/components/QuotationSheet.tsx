@@ -11,11 +11,13 @@ export interface QuotationData {
   service_en: string | null; service_ar: string | null; client: string;
   destination: string | null; origin: string | null; depart: string | null; return: string | null; adults: number; children: number;
   items: { part: ServicePart; title: string; provider: string | null; link: string | null; details: string | null;
-    image_url: string | null; stars: number | null; price: number | null; chosen: boolean }[];
+    image_url: string | null; photos?: string[]; stars: number | null; price: number | null; chosen: boolean }[];
+  note_en?: string; note_ar?: string;
   currency: string; total: number | null; issued_at: string; valid_until: string;
   company: { name: string; logo: string | null; primary: string; accent: string; email: string | null; phone: string | null; whatsapp: string | null };
   itinerary?: { day: number; title: string; details: string; date?: string }[];
-  design: { intro_en: string; intro_ar: string; terms_en: string; terms_ar: string; footer_en: string; footer_ar: string; valid_days: number };
+  design: { intro_en: string; intro_ar: string; terms_en: string; terms_ar: string; footer_en: string; footer_ar: string; valid_days: number;
+    show_photos?: boolean; show_item_prices?: boolean; show_itinerary?: boolean; show_terms?: boolean; show_contact?: boolean };
 }
 
 /** The quotation as one printable page in the company's colours (the browser prints it to PDF). */
@@ -26,6 +28,8 @@ export default function QuotationSheet({ q }: { q: QuotationData }) {
   const parts = [...new Set(q.items.map((i) => i.part))];
   const money = (v: number | null) => (v == null ? "—" : moneyText(v, q.currency, lang));
   const travellers = t("{a} adults", { a: q.adults }) + (q.children ? ` · ${t("{c} children", { c: q.children })}` : "");
+  const show = (k: "show_photos" | "show_item_prices" | "show_itinerary" | "show_terms" | "show_contact") => q.design[k] !== false;
+  const note = pick(q.note_en ?? "", q.note_ar ?? "");
   return (
     <article className="qt-sheet" style={{ "--qt-brand": q.company.primary, "--qt-accent": q.company.accent } as CSSProperties}>
       <header className="qt-head">
@@ -55,6 +59,7 @@ export default function QuotationSheet({ q }: { q: QuotationData }) {
       </section>
 
       {pick(q.design.intro_en, q.design.intro_ar) && <p className="qt-intro" dir="auto">{pick(q.design.intro_en, q.design.intro_ar)}</p>}
+      {note && <p className="qt-note" dir="auto">{note}</p>}
 
       {parts.map((p) => (
         <section key={p} className="qt-part">
@@ -64,7 +69,7 @@ export default function QuotationSheet({ q }: { q: QuotationData }) {
           )}
           {q.items.filter((i) => i.part === p).map((i, n) => (
             <div key={n} className="qt-item">
-              {i.image_url && <img src={i.image_url} alt="" className="qt-photo" />}
+              {show("show_photos") && i.image_url && <img src={i.image_url} alt="" className="qt-photo" />}
               <div className="qt-item-main">
                 <div className="qt-item-title" dir="auto">
                   {q.kind === "draft" && <span className="qt-num">{n + 1}</span>}
@@ -73,8 +78,11 @@ export default function QuotationSheet({ q }: { q: QuotationData }) {
                 {i.provider && i.provider !== i.title && <div className="qt-muted" dir="auto">{i.provider}</div>}
                 {i.details && <p className="qt-details" dir="auto">{i.details}</p>}
                 {i.link && <div className="qt-link" dir="ltr">{i.link.replace(/^https?:\/\//, "").slice(0, 70)}</div>}
+                {show("show_photos") && (i.photos ?? []).length > 1 && (
+                  <div className="qt-gallery">{(i.photos ?? []).slice(1, 7).map((u) => <img key={u} src={u} alt="" loading="lazy" />)}</div>
+                )}
               </div>
-              <div className="qt-price">{money(i.price)}</div>
+              {(show("show_item_prices") || q.kind === "draft") && <div className="qt-price">{money(i.price)}</div>}
             </div>
           ))}
         </section>
@@ -84,7 +92,7 @@ export default function QuotationSheet({ q }: { q: QuotationData }) {
         <div className="qt-total"><span>{t("Total")}</span><strong>{money(q.total)}</strong></div>
       )}
 
-      {(q.itinerary ?? []).length > 0 && (
+      {show("show_itinerary") && (q.itinerary ?? []).length > 0 && (
         <section className="qt-part qt-plan">
           <h2>{t("Your day-by-day plan")}</h2>
           {q.itinerary!.map((d) => (
@@ -96,7 +104,7 @@ export default function QuotationSheet({ q }: { q: QuotationData }) {
         </section>
       )}
 
-      {pick(q.design.terms_en, q.design.terms_ar) && (
+      {show("show_terms") && pick(q.design.terms_en, q.design.terms_ar) && (
         <section className="qt-terms">
           <h2>{t("Terms and conditions")}</h2>
           <p dir="auto">{pick(q.design.terms_en, q.design.terms_ar)}</p>
@@ -104,12 +112,12 @@ export default function QuotationSheet({ q }: { q: QuotationData }) {
       )}
       <footer className="qt-foot">
         {pick(q.design.footer_en, q.design.footer_ar) && <div dir="auto">{pick(q.design.footer_en, q.design.footer_ar)}</div>}
-        <div className="qt-contacts">
+        {show("show_contact") && <div className="qt-contacts">
           <strong>{q.company.name}</strong>
           {q.company.phone && <bdi dir="ltr">{q.company.phone}</bdi>}
           {q.company.whatsapp && q.company.whatsapp !== q.company.phone && <bdi dir="ltr">WhatsApp {q.company.whatsapp}</bdi>}
           {q.company.email && <bdi dir="ltr">{q.company.email}</bdi>}
-        </div>
+        </div>}
       </footer>
     </article>
   );

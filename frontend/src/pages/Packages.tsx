@@ -2,7 +2,8 @@ import { FormEvent, useEffect, useState } from "react";
 import { del, get, post, put } from "../api";
 import { useAuth } from "../auth";
 import { ConfirmSheet, PageTitle, Switch } from "../components/admin/AdminUI";
-import { Binoculars, CalendarBlank, CalendarPlus, MagnifyingGlass, PencilSimple, Plus, Star, Trash, X } from "../components/Icon";
+import { Binoculars, CalendarBlank, CalendarPlus, MagnifyingGlass, PencilSimple, Plus, Sparkle, Star, Trash, X } from "../components/Icon";
+import { Sheet } from "../components/staff/Sheet";
 import ImageUpload from "../components/ImageUpload";
 import { Money } from "../components/Money";
 import { Poster } from "../components/Poster";
@@ -48,6 +49,10 @@ export default function Packages() {
   const { t } = useI18n();
   const [items, setItems] = useState<TravelPackage[] | null>(null);
   const [editing, setEditing] = useState<TravelPackage | "new" | null>(null);
+  const [draft, setDraft] = useState<FormState | null>(null);
+  const [asking, setAsking] = useState(false);
+  const { user } = useAuth();
+  const creator = !!user?.company?.addons?.includes("package_builder");  // the list only has what this employee may use
   const [filter, setFilter] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const manage = can("packages.manage");
@@ -68,7 +73,10 @@ export default function Packages() {
         kicker={items ? t("{n} of {m} visible to customers", { n: visible, m: items.length }) : t("Packages")}
         title={t("Packages")}
         subtitle={t("The AI only offers what is listed here, at these prices and dates.")}
-        actions={manage && <button className="btn btn-primary" onClick={() => setEditing("new")}><Plus weight="bold" />{t("New package")}</button>} />
+        actions={manage && <>
+          {creator && <button className="btn btn-soft" onClick={() => setAsking(true)}><Sparkle weight="fill" />{t("Create with AI")}</button>}
+          <button className="btn btn-primary" onClick={() => { setDraft(null); setEditing("new"); }}><Plus weight="bold" />{t("New package")}</button>
+        </>} />
       <div className="gx-toolbar">
         <div className="gx-search">
           <MagnifyingGlass aria-hidden="true" />
@@ -139,8 +147,9 @@ export default function Packages() {
           })}
         </div>
       )}
+      {asking && <AiPackageSheet onClose={() => setAsking(false)} onDraft={(d) => { setAsking(false); setDraft(d); setEditing("new"); }} />}
       {editing && (
-        <PackageForm pkg={editing === "new" ? null : editing} onClose={() => setEditing(null)}
+        <PackageForm pkg={editing === "new" ? null : editing} draft={editing === "new" ? draft : null} onClose={() => setEditing(null)}
           onSaved={async (message, deletedId) => {
             setEditing(null);
             const list = await load();
@@ -156,11 +165,46 @@ export default function Packages() {
   );
 }
 
-function PackageForm({ pkg, onClose, onSaved }: {
-  pkg: TravelPackage | null; onClose: () => void; onSaved: (message: string, deletedId?: number) => void;
+/** The owner describes a trip or an experience; the AI drafts the package, which opens in the form to check. */
+function AiPackageSheet({ onClose, onDraft }: { onClose: () => void; onDraft: (f: FormState) => void }) {
+  const { t } = useI18n();
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const go = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true); setError(null);
+    try {
+      const d = await post<Record<string, unknown>>("/api/packages/ai-draft", { text });
+      const list = (v: unknown) => (Array.isArray(v) ? v.map(String) : []);
+      onDraft({ ...EMPTY, title: String(d.title ?? ""), destination: String(d.destination ?? ""), country: String(d.country ?? ""),
+        description: String(d.description ?? ""), duration_days: String(d.duration_days ?? 1),
+        price_per_person: d.price_per_person ? String(d.price_per_person) : "", child_price: d.child_price != null ? String(d.child_price) : "",
+        departure_dates: list(d.departure_dates), includes: list(d.includes).join("\n"), excludes: list(d.excludes).join("\n"),
+        tags: list(d.tags).join(", "), hotel_name: String(d.hotel_name ?? ""), hotel_stars: d.hotel_stars ? String(d.hotel_stars) : "",
+        price_mode: d.price_mode === "on_request" ? "on_request" : "shown", kind: d.kind === "experience" ? "experience" : "trip" });
+    } catch (err) { setError((err as Error).message); } finally { setBusy(false); }
+  };
+  return (
+    <Sheet label={t("Create with AI")} onClose={onClose}>
+      <form className="gx-close" onSubmit={go}>
+        <h3><Sparkle weight="fill" /> {t("Create with AI")}</h3>
+        <p className="muted small">{t("Describe the trip or experience in your own words: places, days, hotel, what is included, price and dates if you have them. Nothing is saved until you check and save it.")}</p>
+        <textarea rows={7} dir="auto" required minLength={10} maxLength={6000} value={text} onChange={(e) => setText(e.target.value)}
+          placeholder={t("For example: Abu Dhabi Formula 1 weekend, 3 days, 5-star hotel near the circuit, grandstand tickets and transfers included, price on request.")} />
+        <ErrorBox error={error} />
+        <div className="gx-wf-save"><button className="btn btn-primary" disabled={busy || text.trim().length < 10}>{busy ? t("The AI is writing…") : t("Create the draft")}</button>
+          <button type="button" className="btn btn-ghost" onClick={onClose}>{t("Cancel")}</button></div>
+      </form>
+    </Sheet>
+  );
+}
+
+function PackageForm({ pkg, draft, onClose, onSaved }: {
+  pkg: TravelPackage | null; draft?: FormState | null; onClose: () => void; onSaved: (message: string, deletedId?: number) => void;
 }) {
   const { t } = useI18n();
-  const [initial] = useState<FormState>(pkg ? toForm(pkg) : EMPTY);
+  const [initial] = useState<FormState>(pkg ? toForm(pkg) : draft ?? EMPTY);
   const [f, setF] = useState<FormState>(initial);
   const [newDate, setNewDate] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -177,7 +221,7 @@ function PackageForm({ pkg, onClose, onSaved }: {
     setError(null);
     const body: Record<string, unknown> = {
       title: f.title, destination: f.destination, country: f.country, description: f.description,
-      duration_days: Number(f.duration_days), price_per_person: Number(f.price_per_person),
+      duration_days: Number(f.duration_days), price_per_person: Number(f.price_per_person || 0),
       child_price: optNum(f.child_price), currency: f.currency.trim() || null, departure_dates: f.departure_dates,
       includes: lines(f.includes), excludes: lines(f.excludes),
       tags: f.tags.split(/[,،]/).map((x) => x.trim()).filter(Boolean),
@@ -245,7 +289,8 @@ function PackageForm({ pkg, onClose, onSaved }: {
           </div>
           <div className="gx-grid-4">
             <Field label={t("Duration (days)")}><input type="number" min={1} max={365} step={1} value={f.duration_days} onChange={(e) => set("duration_days", e.target.value)} required /></Field>
-            <Field label={t("Adult price")} hint={t("More than 0.")}><input type="number" min={0.001} step="0.001" value={f.price_per_person} onChange={(e) => set("price_per_person", e.target.value)} required dir="ltr" /></Field>
+            <Field label={t("Adult price")} hint={f.price_mode === "on_request" ? t("Only for your team (clients don't see it).") : t("More than 0.")}>
+              <input type="number" min={f.price_mode === "on_request" ? 0 : 0.001} step="0.001" value={f.price_per_person} onChange={(e) => set("price_per_person", e.target.value)} required={f.price_mode !== "on_request"} dir="ltr" /></Field>
             <Field label={t("Child price")} hint={t("Empty = same as adult")}><input type="number" min={0} step="0.001" value={f.child_price} onChange={(e) => set("child_price", e.target.value)} dir="ltr" /></Field>
             <Field label={t("Currency")} hint={t("Empty = company currency")}><input maxLength={3} pattern="[A-Za-z]{3}" title={t("3 English letters, for example OMR")} dir="ltr" placeholder="OMR" value={f.currency} onChange={(e) => set("currency", e.target.value.toUpperCase())} /></Field>
           </div>

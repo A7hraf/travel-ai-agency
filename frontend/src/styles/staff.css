@@ -733,3 +733,11 @@ svg.warn { color: var(--st-waiting); }
 .gx-sla-row { display: grid; grid-template-columns: 1fr 80px auto; gap: 8px; align-items: center; padding: 6px 10px; border-radius: 12px; background: var(--surface-2); }
 .gx-sla-row input { width: 100%; }
 .gx-plan-head select { width: auto; min-width: 140px; }
+.gx-qx-tools { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.gx-qx-form { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 14px; background: var(--surface-2); margin: 6px 0; }
+.gx-qx-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; align-items: start; }
+.gx-qx-photo { position: relative; margin: 0; }
+.gx-qx-photo img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 10px; display: block; }
+.gx-qx-photo .icon-btn { position: absolute; top: 4px; inset-inline-end: 4px; background: var(--surface-1); }
+.gx-qx-count { align-self: center; }
+.gx-ask-kinds + .gx-grid-2 { margin-top: 10px; }

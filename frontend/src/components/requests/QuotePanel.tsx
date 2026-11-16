@@ -1,10 +1,11 @@
 import { FormEvent, useEffect, useState } from "react";
 import { api, get, post, put } from "../../api";
 import ImageUpload from "../ImageUpload";
+import { PresentationForm, QuoteTools } from "./QuoteExtras";
 import { useAuth } from "../../auth";
 import { useI18n } from "../../lang";
 import type { ServicePart, Ticket, TicketOption } from "../../types";
-import { ArrowSquareOut, BookmarkSimple, Check, FilePdf, PaperPlaneRight, PencilSimple, Plus, Sparkle, Star, Trash } from "../Icon";
+import { ArrowSquareOut, BookmarkSimple, Check, FilePdf, Images, PaperPlaneRight, PencilSimple, Plus, Sparkle, Star, Trash } from "../Icon";
 import { moneyText } from "../Money";
 import { ErrorBox } from "../ui";
 
@@ -79,6 +80,7 @@ export default function QuotePanel({ ticket, onChange }: { ticket: Ticket; onCha
   const { user, can } = useAuth();
   const [picked, setPicked] = useState<number[]>(ticket.options.filter((o) => o.sent_to_client).map((o) => o.id));
   const [editing, setEditing] = useState<number | null>(null);
+  const [presenting, setPresenting] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [total, setTotal] = useState("");
@@ -137,13 +139,16 @@ export default function QuotePanel({ ticket, onChange }: { ticket: Ticket; onCha
           </button>
         )}
       </div>
+      {addons.includes("quotes") && ticket.options.some((o) => o.price != null) && <QuoteTools ticket={ticket} onChange={onChange} />}
       {editable && <p className="muted small">{t("Tick up to 3 choices per part. Every choice sent needs its client price; AI estimates are for you only.")}</p>}
       {ticket.options.length === 0 && <p className="muted small">{t("No choices yet.")}</p>}
       {PARTS.filter((p) => ticket.options.some((o) => o.category === p)).map((p) => (
         <div key={p} className="gx-rq-part">
           <div className="gx-rq-part-head"><strong>{t(PART_LABELS[p])}</strong>
             {editable && <span className="muted small">{ticket.options.filter((o) => o.category === p && picked.includes(o.id)).length} / 3</span>}</div>
-          {ticket.options.filter((o) => o.category === p).map((o) => editing === o.id ? (
+          {ticket.options.filter((o) => o.category === p).map((o) => presenting === o.id ? (
+            <PresentationForm key={o.id} ticket={ticket} option={o} onChange={onChange} onClose={() => setPresenting(null)} />
+          ) : editing === o.id ? (
             <OptionForm key={o.id} parts={parts} initial={fromOption(o)} onCancel={() => setEditing(null)} margins={margins}
               onSave={(d) => run(() => put<Ticket>(`${base}/options/${o.id}`, body(d))).then(() => setEditing(null))} />
           ) : (
@@ -153,6 +158,7 @@ export default function QuotePanel({ ticket, onChange }: { ticket: Ticket; onCha
               {picking && o.sent_to_client && <input type="radio" name={`pick-${ticket.id}-${o.category}`} checked={clientPick[o.category] === o.id}
                 aria-label={t("The client picked {name}", { name: o.title })} onChange={() => setClientPick({ ...clientPick, [o.category]: o.id })} />}
               {o.image_url && <img src={o.image_url} alt="" className="gx-rq-opt-img" />}
+              {!!o.photos?.length && <span className="gx-qx-count muted small">+{o.photos.length}</span>}
               <div className="gx-rq-opt-main">
                 <div><strong dir="auto">{o.title}</strong>{o.provider && <span className="muted"> · {o.provider}</span>}
                   {o.link && <a href={o.link} target="_blank" rel="noreferrer noopener" className="gx-rq-link" aria-label={t("Open link")}><ArrowSquareOut /></a>}</div>
@@ -177,6 +183,9 @@ export default function QuotePanel({ ticket, onChange }: { ticket: Ticket; onCha
               {manage && library && !o.supplier_id && (
                 <button type="button" className="icon-btn" aria-label={t("Save to the library")} title={t("Save to the library")}
                   onClick={() => safe(() => post<Ticket>(`${base}/options/${o.id}/save-to-library`))}><BookmarkSimple /></button>
+              )}
+              {manage && ticket.stage !== "closed" && addons.includes("quotes") && (
+                <button type="button" className="icon-btn" aria-label={t("Photos and description")} title={t("Photos and description")} onClick={() => setPresenting(o.id)}><Images /></button>
               )}
               {editable && <button type="button" className="icon-btn" aria-label={t("Edit")} onClick={() => setEditing(o.id)}><PencilSimple /></button>}
               {editable && <button type="button" className="icon-btn" aria-label={t("Remove")} onClick={() => safe(() => api<Ticket>("DELETE", `${base}/options/${o.id}`))}><Trash /></button>}

@@ -40,6 +40,8 @@ class AppointmentIn(BaseModel):
     assigned_to_id: int | None = None
     remind_minutes: int = Field(default=60, ge=0, le=7 * 24 * 60)
     remind_client: bool = False
+    client_remind_minutes: int | None = Field(default=None, ge=0, le=7 * 24 * 60)
+    remind_owner: bool = False
     status: Literal["planned", "done", "cancelled"] = "planned"
 
     @field_validator("title", "location")
@@ -75,8 +77,11 @@ class AppointmentOut(BaseModel):
     assigned_to: str | None
     remind_minutes: int
     remind_client: bool
+    client_remind_minutes: int | None = None
+    remind_owner: bool = False
     staff_reminded_at: datetime | None
     client_reminded_at: datetime | None
+    owner_reminded_at: datetime | None = None
     reminder_note: str | None
     status: str
 
@@ -87,8 +92,10 @@ def out(a: Appointment) -> AppointmentOut:
                           notes=a.notes, ticket_id=a.ticket_id, reference=a.ticket.reference if a.ticket else None,
                           client=client, assigned_to_id=a.assigned_to_id,
                           assigned_to=a.assigned_to.full_name if a.assigned_to else None, remind_minutes=a.remind_minutes,
-                          remind_client=a.remind_client, staff_reminded_at=a.staff_reminded_at,
-                          client_reminded_at=a.client_reminded_at, reminder_note=a.reminder_note, status=a.status)
+                          remind_client=a.remind_client, client_remind_minutes=a.client_remind_minutes,
+                          remind_owner=a.remind_owner, staff_reminded_at=a.staff_reminded_at,
+                          client_reminded_at=a.client_reminded_at, owner_reminded_at=a.owner_reminded_at,
+                          reminder_note=a.reminder_note, status=a.status)
 
 
 def _apply(db: Session, me: User, a: Appointment, body: AppointmentIn) -> None:
@@ -103,14 +110,15 @@ def _apply(db: Session, me: User, a: Appointment, body: AppointmentIn) -> None:
         person = db.get(User, body.assigned_to_id)
         if person is None or person.company_id != me.company_id or person.partner_id is not None or not person.is_active:
             raise HTTPException(404, "Team member not found")
-    timing_changed = a.starts_at is None or a.starts_at != body.starts_at or a.remind_minutes != body.remind_minutes
+    timing_changed = (a.starts_at is None or a.starts_at != body.starts_at or a.remind_minutes != body.remind_minutes
+                      or a.client_remind_minutes != body.client_remind_minutes)
     for k, v in body.model_dump().items():
         if k == "assigned_to_id" and "assigned_to_id" not in body.model_fields_set:
             continue  # not given: keep who is in charge
         setattr(a, k, v)
     a.customer_id = ticket.customer_id if ticket else None
     if timing_changed:  # a moved appointment is reminded again
-        a.staff_reminded_at = a.client_reminded_at = None
+        a.staff_reminded_at = a.client_reminded_at = a.owner_reminded_at = None
         a.reminder_note = None
 
 
@@ -130,6 +138,7 @@ def create(body: AppointmentIn, me: User = Depends(editor), db: Session = Depend
     a = Appointment(company_id=me.company_id, created_by=me.full_name, assigned_to_id=me.id)
     a.starts_at = None  # type: ignore[assignment]
     _apply(db, me, a, body)
+    svc.apply_defaults(me.company, a, body.model_fields_set)
     if a.assigned_to_id is None:
         a.assigned_to_id = me.id
     db.add(a)
@@ -175,5 +184,28 @@ def save_template(body: TemplateIn, me: User = Depends(require_permission("setti
     require_addon(me.company, "calendar")
     me.company.reminder_template = body.model_dump() if body.name else None
     audit(db, me, "reminder_template.saved", target=body.name or "none")
+    db.commit()
+    return body
+
+
+class ReminderSettingsIn(BaseModel):
+    staff_minutes: int = Field(ge=0, le=7 * 24 * 60)
+    client_minutes: int = Field(ge=0, le=7 * 24 * 60)
+    remind_client: bool
+    remind_owner: bool
+
+
+@router.get("/settings/reminders", response_model=ReminderSettingsIn)
+def get_reminders(me: User = Depends(viewer)):
+    return ReminderSettingsIn.model_validate(svc.settings_of(me.company))
+
+
+@router.put("/settings/reminders", response_model=ReminderSettingsIn)
+def save_reminders(body: ReminderSettingsIn, me: User = Depends(require_permission("settings.manage")),
+                   db: Session = Depends(get_db)):
+    """When new appointments remind the employee, the client and the company admins (each appointment can differ)."""
+    require_addon(me.company, "calendar")
+    me.company.calendar_settings = body.model_dump()
+    audit(db, me, "calendar.reminders", detail=f"team {body.staff_minutes} min, client {body.client_minutes} min")
     db.commit()
     return body

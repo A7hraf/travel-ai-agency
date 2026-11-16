@@ -145,7 +145,59 @@ def company_metrics(db: Session, company: Company, days: int = 90, private: bool
                                        TripFeedback.rating <= 3).order_by(TripFeedback.created_at.desc()).limit(5)).all()]
         m["requests_waiting_for_staff"] = db.scalar(select(func.count(Ticket.id)).where(
             Ticket.company_id == cid, Ticket.status.in_(WAITING_FOR_STAFF))) or 0
+    m.update(_deep_and_finance(db, company, days))
     return m
+
+
+# Which figures each analytics level shows (the platform owner gives levels to each company; none: all).
+LEVEL_KEYS = {
+    "basic": {"company", "days", "currency", "chats", "customers", "bookings", "feedback", "requests_waiting_for_staff"},
+    "marketing": {"customers_searched_for", "packages", "members", "ai_learned"},
+    "deep": {"quotations", "business_requests", "low_ratings", "cancel_reasons", "step_hours"},
+    "finance": {"finance"},
+}
+MONEY_IN_BOOKINGS = ("revenue", "average_value")
+
+
+def _deep_and_finance(db: Session, company: Company, days: int) -> dict:
+    """Why requests were cancelled (and by whom, at which step), the usual hours per step, and the profit."""
+    from .request_desk import money  # noqa: PLC0415
+
+    since = utcnow() - timedelta(days=days)
+    tickets = db.scalars(select(Ticket).where(Ticket.company_id == company.id, Ticket.updated_at >= since)).all()
+    reasons = Counter()
+    steps: dict[str, list[float]] = {}
+    profit = cost = sales = Decimal(0)
+    for t in tickets:
+        info = t.cancel_info or {}
+        if info.get("by"):
+            reasons[f"{info['by']} at {info.get('step_en') or '—'}: {(info.get('reason') or '—')[:60]}"] += 1
+        for st in t.workflow or []:
+            if st.get("state") == "done" and st.get("hours") is not None:
+                steps.setdefault(st["type"], []).append(float(st["hours"]))
+        if t.status in PAID and t.currency == (company.currency or "OMR"):
+            m = money(t)
+            sales += Decimal(str(m["total"] or 0))
+            if m["profit"] is not None:
+                profit += Decimal(str(m["profit"]))
+                cost += Decimal(str(m["cost"] or 0))
+    return {"cancel_reasons": reasons.most_common(8),
+            "step_hours": {k: round(sum(v) / len(v), 1) for k, v in steps.items() if v},
+            "finance": {"sales": _money(sales), "cost_known": _money(cost), "profit": _money(profit),
+                        "margin_pct": round(float(profit / cost * 100), 1) if cost else None}}
+
+
+def for_levels(metrics: dict, levels: list[str] | tuple[str, ...]) -> dict:
+    """Only the figures of the company's analytics levels."""
+    levels = list(levels) or list(LEVEL_KEYS)
+    keep = set().union(*(LEVEL_KEYS[lv] for lv in levels if lv in LEVEL_KEYS))
+    out = {k: v for k, v in metrics.items() if k in keep}
+    if "finance" not in levels and isinstance(out.get("bookings"), dict):
+        out["bookings"] = {k: v for k, v in out["bookings"].items() if k not in MONEY_IN_BOOKINGS}
+    if "finance" not in levels and isinstance(out.get("business_requests"), dict):
+        out["business_requests"] = {k: v for k, v in out["business_requests"].items() if k != "margin"}
+    out["levels"] = levels
+    return out
 
 
 # --- Platform owner -----------------------------------------------------------------------------------
@@ -257,14 +309,25 @@ def _fallback_report(metrics: dict, audience: str, lang: str) -> str:
             for tip in r["opportunities"]:
                 lines.append(f"- **{r['name']}**: {tip}")
         return "\n".join(lines)
-    b, c = metrics["bookings"], metrics["customers"]
-    return "\n".join([
-        f"## {'الملخص' if lang == 'ar' else 'Summary'}",
-        f"- {metrics['chats']['total']} chats · {b['total']} bookings · {b['revenue']} {metrics['currency']}",
-        f"- Conversion: {c['conversion_rate']}", f"- Rating: {metrics['feedback']['average']}",
-        "", f"## {'ما يبحث عنه العملاء' if lang == 'ar' else 'What customers search for'}",
-        *[f"- {w} ({n})" for w, n in metrics.get("customers_searched_for", [])[:8]],
-    ])
+    b, c = metrics.get("bookings") or {}, metrics.get("customers") or {}
+    lines = [f"## {'الملخص' if lang == 'ar' else 'Summary'}"]
+    if b:
+        money = f" · {b['revenue']} {metrics.get('currency', '')}" if "revenue" in b else ""
+        lines.append(f"- {(metrics.get('chats') or {}).get('total', 0)} chats · {b.get('total', 0)} bookings{money}")
+    if c:
+        lines.append(f"- Conversion: {c.get('conversion_rate')}")
+    if metrics.get("feedback"):
+        lines.append(f"- Rating: {metrics['feedback'].get('average')}")
+    if metrics.get("finance"):
+        f = metrics["finance"]
+        lines.append(f"- Profit: {f['profit']} ({f['margin_pct']}%)" if f.get("margin_pct") is not None else f"- Sales: {f['sales']}")
+    if metrics.get("customers_searched_for"):
+        lines += ["", f"## {'ما يبحث عنه العملاء' if lang == 'ar' else 'What customers search for'}",
+                  *[f"- {w} ({n})" for w, n in metrics["customers_searched_for"][:8]]]
+    if metrics.get("cancel_reasons"):
+        lines += ["", f"## {'أسباب الإلغاء' if lang == 'ar' else 'Why requests were cancelled'}",
+                  *[f"- {w} ({n})" for w, n in metrics["cancel_reasons"][:5]]]
+    return "\n".join(lines)
 
 
 def write_report(db: Session, metrics: dict, audience: str, lang: str, company: Company | None,

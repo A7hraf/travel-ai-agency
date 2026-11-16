@@ -41,6 +41,7 @@ const Calendar = lazy(() => import("./pages/Calendar"));
 const Advisor = lazy(() => import("./pages/Advisor"));
 const Members = lazy(() => import("./pages/Members"));
 const Feedback = lazy(() => import("./pages/Feedback"));
+const Broadcasts = lazy(() => import("./pages/Broadcasts"));
 const Insights = lazy(() => import("./pages/Insights"));
 const OwnerInsights = lazy(() => import("./pages/system/Insights"));
 const MyTrips = lazy(() => import("./pages/MyTrips"), false);
@@ -167,6 +168,7 @@ export default function App() {
         <Route path="requests/:id" element={<RequireUser permission="requests.manage"><Requests /></RequireUser>} />
         <Route path="members" element={<RequireUser permission="members.manage"><Members /></RequireUser>} />
         <Route path="feedback" element={<RequireUser permission="reports.view"><Feedback /></RequireUser>} />
+        <Route path="broadcasts" element={<RequireUser permission="customers.manage"><Broadcasts /></RequireUser>} />
         <Route path="insights" element={<RequireUser permission="reports.view"><Insights /></RequireUser>} />
         <Route path="activity" element={<Activity />} />
         <Route path="plan" element={<MyPlan />} />

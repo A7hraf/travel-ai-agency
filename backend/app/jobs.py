@@ -24,7 +24,13 @@ def run_once() -> None:
         reminded = send_reminders(db)
         if reminded:
             log.info("Sent %s calendar reminders", reminded)
+    from .services.broadcasts import send_checkins  # noqa: PLC0415
     from .services.notifications import clean_old, late_steps  # noqa: PLC0415
+
+    with SessionLocal() as db:
+        asked = send_checkins(db, local_today())
+        if asked:
+            log.info("Asked %s travellers how their trip is going", asked)
 
     with SessionLocal() as db:
         late = late_steps(db)

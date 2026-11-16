@@ -12,6 +12,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..audit import audit
+from ..branding import clean_text
 from ..database import get_db
 from ..deps import require_permission
 from ..models import (
@@ -39,6 +40,7 @@ from ..services import requests as flow
 from ..services import brief
 from ..services import notifications as alerts
 from ..services import questions, seats
+from ..services import calendar as calendar_svc
 from ..services.calendar import local_text as calendar_local
 from ..timeutil import local_today
 from ..addons import has_addon, require_addon, use
@@ -404,6 +406,16 @@ def update_ticket(ticket_id: int, body: TicketUpdate,
 
 # --- Quotation (choices, final quotation) and the client's answers -------------------------------------
 
+def _photo_links(v: list[str] | None) -> list[str] | None:
+    """Uploaded photos only (/api/media/…), each once."""
+    if v is None:
+        return None
+    out = [u.strip() for u in v if u and u.strip()]
+    if any(not u.startswith("/api/media/") or len(u) > 500 or any(c.isspace() for c in u) for u in out):
+        raise ValueError("Upload the photos (photos from other websites can't be used)")
+    return list(dict.fromkeys(out)) or None
+
+
 class OptionIn(BaseModel):
     category: Literal["flight", "hotel", "transport", "activity", "food", "visa", "insurance", "other"]
     title: str = Field(min_length=2, max_length=200)
@@ -414,6 +426,12 @@ class OptionIn(BaseModel):
     price: Decimal | None = Field(default=None, ge=0, le=Decimal("100000000"), decimal_places=3)
     supplier_id: int | None = None
     image_url: str | None = Field(default=None, max_length=500)
+    photos: list[str] | None = Field(default=None, max_length=6)
+
+    @field_validator("photos")
+    @classmethod
+    def photo_links(cls, v):
+        return _photo_links(v)
 
     @field_validator("title", "provider")
     @classmethod
@@ -469,7 +487,85 @@ def _option_data(db: Session, me: User, body: OptionIn) -> dict:
     if data["image_url"] and not (data["image_url"].startswith("/api/media/")
                                   and media_belongs_to(db, data["image_url"], me.company_id)):
         raise HTTPException(422, "Upload the photo (photos from other websites can't be used)")
+    if any(not media_belongs_to(db, u, me.company_id) for u in data.get("photos") or []):
+        raise HTTPException(422, "Upload the photos (photos from other websites can't be used)")
     return data
+
+
+class PresentationIn(BaseModel):
+    """How an item looks on the quotation: its description and photos (editable until the request closes)."""
+
+    details: str | None = Field(default=None, max_length=2000)
+    image_url: str | None = Field(default=None, max_length=500)
+    photos: list[str] | None = Field(default=None, max_length=6)
+
+    @field_validator("photos")
+    @classmethod
+    def photo_links(cls, v):
+        return _photo_links(v)
+
+
+class QuoteMetaIn(BaseModel):
+    reference: str | None = Field(default=None, max_length=40, pattern=r"^[A-Za-z0-9-]*$")
+    note_en: str | None = Field(default=None, max_length=1500)
+    note_ar: str | None = Field(default=None, max_length=1500)
+
+
+@router.put("/{ticket_id}/options/{option_id}/presentation", response_model=TicketOut)
+def option_presentation(ticket_id: int, option_id: int, body: PresentationIn, me: User = Depends(manage),
+                        db: Session = Depends(get_db)):
+    ticket = _get(db, me, ticket_id, lock=True)
+    if ticket.status in workflow.CLOSED:
+        raise HTTPException(409, "This request is closed: reopen it to change it")
+    option = next((o for o in ticket.options if o.id == option_id), None)
+    if option is None:
+        raise HTTPException(404, "Option not found")
+    urls = [u for u in [body.image_url, *(body.photos or [])] if u]
+    if any(not u.startswith("/api/media/") or not media_belongs_to(db, u, me.company_id) for u in urls):
+        raise HTTPException(422, "Upload the photos (photos from other websites can't be used)")
+    option.details = clean_text(body.details or "", multiline=True) or None
+    option.image_url, option.photos = body.image_url, body.photos
+    flow.event(db, ticket, me.full_name, "option_changed", None, f"{option.category}: {option.title}", me)
+    return _done(db, ticket, me)
+
+
+@router.put("/{ticket_id}/quotation", response_model=TicketOut)
+def quotation_meta(ticket_id: int, body: QuoteMetaIn, me: User = Depends(manage), db: Session = Depends(get_db)):
+    """This request's quotation: its reference (the company's prefix and the request reference by default) and
+    a note for the client. The admins hear when an employee changes the reference."""
+    ticket = _get(db, me, ticket_id, lock=True)
+    meta = dict(ticket.quote_meta or {})
+    data = body.model_dump(exclude_unset=True)
+    if "reference" in data:
+        new = (data["reference"] or "").strip().upper() or None
+        old = meta.get("reference")
+        if new != old:
+            meta["reference"] = new
+            flow.event(db, ticket, me.full_name, "quote_reference", old, new, me)
+            if me.role != Role.COMPANY_ADMIN:
+                alerts.notify(db, ticket, "reference_changed", to="admins", skip=me, by=me.full_name,
+                              old=old or ticket.reference, new=new or ticket.reference)
+    for key in ("note_en", "note_ar"):
+        if key in data:
+            meta[key] = clean_text(data[key] or "", multiline=True) or None
+    ticket.quote_meta = meta or None
+    return _done(db, ticket, me)
+
+
+@router.post("/{ticket_id}/quotation/ai-details", response_model=TicketOut)
+def quotation_ai_details(ticket_id: int, lang: Literal["en", "ar"] = "en", me: User = Depends(manage),
+                         db: Session = Depends(get_db)):
+    """The AI writes the description of each item that has none (the team checks and edits them)."""
+    use(db, me, "quote_writer")
+    db.commit()
+    limiter.check(f"quote-writer:{me.company_id}", 30, "The AI is busy: please try again in a few minutes", window=3600)
+    ticket = _get(db, me, ticket_id, lock=True)
+    from ..services import quotes as quotes_svc  # noqa: PLC0415
+
+    if not quotes_svc.ai_details(db, me.company, ticket, lang):
+        raise HTTPException(409, "Every item already has a description")
+    flow.event(db, ticket, me.full_name, "quote_ai_details", None, None, me)
+    return _done(db, ticket, me)
 
 
 @router.post("/{ticket_id}/options", response_model=TicketOut)
@@ -666,6 +762,8 @@ def set_appointment(ticket_id: int, key: str, body: AppointmentIn, me: User = De
         appt.title = f"{step['label_en']} · {ticket.lead_traveler_name or ticket.reference}"[:200]
         appt.starts_at, appt.ends_at = starts, body.ends_at
         appt.location, appt.notes, appt.status = body.location.strip(), body.notes.strip(), "planned"
+        if appt.id is None:
+            calendar_svc.apply_defaults(me.company, appt, {"remind_client"})
         appt.remind_client = True
         db.flush()
         when = calendar_local(starts)

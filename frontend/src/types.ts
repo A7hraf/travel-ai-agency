@@ -383,7 +383,7 @@ export interface TicketOption {
   id: number; category: ServicePart; title: string; provider: string | null; link: string | null; details: string | null;
   cost_price: number | null; price: number | null; estimate_price: number | null; ai_reason: string | null;
   added_by: "staff" | "ai" | "vendor"; sent_to_client: boolean; chosen: boolean;
-  supplier_id: number | null; image_url: string | null;
+  supplier_id: number | null; image_url: string | null; photos?: string[] | null;
 }
 
 export interface Supplier {
@@ -481,6 +481,7 @@ export interface Ticket {
   delay?: { step: string; hours: number; limit: number | null; waiting_on: "team" | "client"; late: boolean } | null;
   questions?: TicketQuestion[] | null;
   client_preferences?: Record<string, string> | null;
+  quote_meta?: { reference?: string | null; note_en?: string | null; note_ar?: string | null } | null;
   departure_date: string | null;
   adults: number;
   children: number;

@@ -19,7 +19,9 @@ const TEXT: Record<string, string> = {
   client_cancelled: "{client} cancelled {ref}",
   step_late: "{ref} is late at “{step}” ({hours} h)",
   price_changed: "{by} changed the price of {ref}: {old} → {new}",
-  reference_changed: "{by} changed the payment reference of {ref}: {old} → {new}",
+  reference_changed: "{by} changed the reference of {ref}: {old} → {new}",
+  client_problem: "{client} has a problem on the trip {ref}: “{text}”",
+  appointment_soon: "Soon: {title} · {when}",
 };
 const POLL_MS = 60_000;
 

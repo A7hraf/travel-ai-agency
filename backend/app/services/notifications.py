@@ -16,7 +16,7 @@ from ..models import Notification, Role, Ticket, User, utcnow
 from ..permissions import effective_permissions
 
 KINDS = ("new_request", "assigned", "client_answered", "client_file", "receipt", "client_approved", "client_cancelled",
-         "step_late", "price_changed", "reference_changed")
+         "step_late", "price_changed", "reference_changed", "client_problem")
 KEEP_DAYS = 60
 
 
