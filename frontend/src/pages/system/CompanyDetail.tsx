@@ -21,7 +21,7 @@ export default function CompanyDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { t } = useI18n();
-  const [tab, setTab] = useState<"plan" | "design" | "ai" | "whatsapp" | "instagram" | "b2b" | "activity">("plan");
+  const [tab, setTab] = useState<"plan" | "design" | "ai" | "whatsapp" | "instagram" | "b2b" | "business" | "activity">("plan");
   const [aiTab, setAiTab] = useState<TrainingTab>("answers");
   const [c, setC] = useState<CompanyAdmin | null>(null);
   const [name, setName] = useState("");
@@ -114,6 +114,7 @@ export default function CompanyDetail() {
         <button role="tab" aria-selected={tab === "whatsapp"} className={tab === "whatsapp" ? "active" : ""} onClick={() => setTab("whatsapp")}>{t("WhatsApp")}</button>
         <button role="tab" aria-selected={tab === "instagram"} className={tab === "instagram" ? "active" : ""} onClick={() => setTab("instagram")}>{t("Instagram")}</button>
         <button role="tab" aria-selected={tab === "b2b"} className={tab === "b2b" ? "active" : ""} onClick={() => setTab("b2b")}>{t("Advanced features")}</button>
+        <button role="tab" aria-selected={tab === "business"} className={tab === "business" ? "active" : ""} onClick={() => setTab("business")}>{t("Business clients & vendors")}</button>
         <button role="tab" aria-selected={tab === "activity"} className={tab === "activity" ? "active" : ""} onClick={() => setTab("activity")}>{t("Activity")}</button>
       </div>
 
@@ -122,7 +123,9 @@ export default function CompanyDetail() {
       ) : tab === "whatsapp" ? (
         <WhatsAppConnect variant="owner" base={`/api/system/companies/${c.id}/whatsapp`} companyPath={`/api/system/companies/${c.id}`} />
       ) : tab === "b2b" ? (
-        <><FeatureControls companyId={c.id} /><B2BControls companyId={c.id} /></>
+        <FeatureControls companyId={c.id} />
+      ) : tab === "business" ? (
+        <B2BControls companyId={c.id} />
       ) : tab === "activity" ? (
         <ActivityLog path={`/api/system/companies/${c.id}/activity`} />
       ) : tab === "instagram" ? (

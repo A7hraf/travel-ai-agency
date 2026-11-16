@@ -371,6 +371,8 @@ export const AR_V2: Record<string, string> = {
   "Vendor payment unmarked": "أُلغي تسجيل الدفع للمورّد",
   "Rated": "تم التقييم",
   "Pay the vendor on {ref}: {label} ({date})": "ادفع للمورّد على {ref}: {label} ({date})",
+  "Business clients & vendors": "عملاء الأعمال والمورّدون",
+  "Switched off: the company can't add business clients or vendors. Tick a feature below or flip the switch, then Save.": "مُطفأ: لا تستطيع الشركة إضافة عملاء أعمال أو مورّدين. اختر ميزة بالأسفل أو شغّل المفتاح، ثم احفظ.",
 };
 
 export const AR_V2_PATTERNS: [RegExp, string][] = [

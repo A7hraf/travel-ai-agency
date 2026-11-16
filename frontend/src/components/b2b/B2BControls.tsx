@@ -20,7 +20,11 @@ export default function B2BControls({ companyId }: { companyId: number }) {
 
   if (!data || !s) return error ? <ErrorBox error={error} onRetry={load} /> : <Loading height={240} />;
   const set = (patch: Partial<B2BSettings>) => { setSaved(false); setS({ ...s, ...patch }); };
-  const toggle = (f: string) => set({ features: s.features.includes(f) ? s.features.filter((x) => x !== f) : [...s.features, f] });
+  const switchOn = (v: boolean) => set(v ? { enabled: true, max_clients: s.max_clients || 5, max_vendors: s.max_vendors || 5 } : { enabled: false });
+  const toggle = (f: string) => {
+    const on = !s.features.includes(f);
+    set({ features: on ? [...s.features, f] : s.features.filter((x) => x !== f), ...(on && !s.enabled ? { enabled: true, max_clients: s.max_clients || 5, max_vendors: s.max_vendors || 5 } : {}) });
+  };
   const num = (v: string) => Math.max(0, Math.min(10000, Math.floor(Number(v) || 0)));
 
   const save = async (e: FormEvent) => {
@@ -43,7 +47,7 @@ export default function B2BControls({ companyId }: { companyId: number }) {
       <div className="perm-grid">
         {Object.entries(data.catalog).filter(([f]) => f.startsWith(`${kind}.`)).map(([f, label]) => (
           <label key={f} className={`perm ${s.features.includes(f) ? "on" : ""}`}>
-            <input type="checkbox" checked={s.features.includes(f)} onChange={() => toggle(f)} disabled={!s.enabled} />
+            <input type="checkbox" checked={s.features.includes(f)} onChange={() => toggle(f)} />
             <span>{t(label)}</span>
           </label>
         ))}
@@ -55,20 +59,21 @@ export default function B2BControls({ companyId }: { companyId: number }) {
     <form className="gx-card" onSubmit={save}>
       <h2 className="gx-card-title">{t("Business accounts")}</h2>
       <p className="gx-card-note">{t("Let this travel company open accounts for business clients (who request travel) and vendors (who arrange it). You decide how many and which features it can give them.")}</p>
-      <Switch checked={s.enabled} onChange={(v) => set({ enabled: v })} label={t("Business accounts switched on")}
+      <Switch checked={s.enabled} onChange={switchOn} label={t("Business accounts switched on")}
         hint={t("When off, the company's business accounts can't sign in and the page is hidden from its staff.")} />
       <div className="form-grid">
         <Field label={t("Business clients (maximum)")} hint={t("{n} in use", { n: data.usage.clients })}>
-          <input type="number" min={0} max={10000} value={s.max_clients} disabled={!s.enabled} onChange={(e) => set({ max_clients: num(e.target.value) })} />
+          <input type="number" min={0} max={10000} value={s.max_clients} onChange={(e) => set({ max_clients: num(e.target.value) })} />
         </Field>
         <Field label={t("Vendors (maximum)")} hint={t("{n} in use", { n: data.usage.vendors })}>
-          <input type="number" min={0} max={1000} value={s.max_vendors} disabled={!s.enabled} onChange={(e) => set({ max_vendors: Math.min(1000, num(e.target.value)) })} />
+          <input type="number" min={0} max={1000} value={s.max_vendors} onChange={(e) => set({ max_vendors: Math.min(1000, num(e.target.value)) })} />
         </Field>
         <Field label={t("Logins per account (maximum)")}>
-          <input type="number" min={1} max={1000} value={s.max_users_per_partner} disabled={!s.enabled}
+          <input type="number" min={1} max={1000} value={s.max_users_per_partner}
             onChange={(e) => set({ max_users_per_partner: Math.max(1, Math.min(1000, num(e.target.value))) })} />
         </Field>
       </div>
+      {!s.enabled && <p className="warn-box">{t("Switched off: the company can't add business clients or vendors. Tick a feature below or flip the switch, then Save.")}</p>}
       <p className="gx-card-note">{t("Features the company may give. Taking one back stops it at once for every account of this company.")}</p>
       {group("client", "Business clients")}
       {group("vendor", "Vendors")}
