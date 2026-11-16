@@ -77,6 +77,7 @@ NEW_COLUMNS = [
     ("tickets", "workflow", "JSON"),
     ("conversations", "language", "VARCHAR(5)"),
     ("conversations", "verify_phone", "VARCHAR(20)"),
+    ("companies", "sla", "JSON"),
     ("tickets", "questions", "JSON"),
     ("customers", "preferences", "JSON"),
     ("travel_packages", "price_mode", "VARCHAR(12) NOT NULL DEFAULT 'shown'"),

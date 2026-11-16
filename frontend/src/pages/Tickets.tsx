@@ -3,10 +3,12 @@ import { useSearchParams } from "react-router-dom";
 import { get } from "../api";
 import { useAuth } from "../auth";
 import ExportCsv from "../components/ExportCsv";
-import { Binoculars, CaretLeft, CaretRight, Lightning, MagnifyingGlass, Plus, Receipt, UserCircleMinus } from "../components/Icon";
+import { Binoculars, CaretLeft, CaretRight, Hourglass, Lightning, MagnifyingGlass, Plus, Receipt, Timer, UsersThree, UserCircleMinus } from "../components/Icon";
 import MemberBadge from "../components/members/MemberBadge";
 import { moneyText } from "../components/Money";
+import MyPlan from "../components/requests/MyPlan";
 import NewRequest from "../components/requests/NewRequest";
+import TeamPanel from "../components/requests/TeamPanel";
 import Workspace from "../components/requests/Workspace";
 import { ErrorBox, Loading } from "../components/ui";
 import { pollWatcher } from "../errorReporter";
@@ -46,6 +48,8 @@ export default function Tickets() {
   const [serviceId, setServiceId] = useState("");
   const [assigned, setAssigned] = useState("");
   const [urgentOnly, setUrgentOnly] = useState(false);
+  const [lateOnly, setLateOnly] = useState(false);
+  const [showTeam, setShowTeam] = useState(false);
   const [sort, setSort] = useState<"urgency" | "newest" | "departure">("urgency");
   const [page, setPage] = useState(0);
   const [rows, setRows] = useState<Ticket[] | null>(null);
@@ -66,13 +70,14 @@ export default function Tickets() {
     if (serviceId) q.set("service_id", serviceId);
     if (assigned) q.set("assigned", assigned);
     if (urgentOnly) q.set("urgent", "true");
+    if (lateOnly) q.set("late", "true");
     const req = get<Ticket[]>(`/api/tickets?${q}`, { quiet: true, onHeaders: (h) => setTotal(Number(h.get("X-Total-Count") ?? 0)) });
     req.then((list) => { setRows(list); setError(null); poll.current.ok(); })
       .catch((e) => { setError((e as Error).message); poll.current.fail(e); });
     get<PipelineSummary>("/api/tickets/summary", { quiet: true }).then(setSummary).catch(() => {});
   };
-  usePolling(load, 15000, [view, search, serviceId, assigned, urgentOnly, sort, page]);
-  useEffect(() => { setPage(0); }, [view, search, serviceId, assigned, urgentOnly, sort]);
+  usePolling(load, 15000, [view, search, serviceId, assigned, urgentOnly, lateOnly, sort, page]);
+  useEffect(() => { setPage(0); }, [view, search, serviceId, assigned, urgentOnly, lateOnly, sort]);
   useEffect(() => {
     get<Service[]>("/api/services").then(setServices).catch(() => {});
     get<User[]>("/api/team").then(setTeam).catch(() => {});
@@ -93,13 +98,19 @@ export default function Tickets() {
         </div>
         <div className="rq-head-actions">
           {can("reports.view") && <ExportCsv className="btn btn-sm btn-ghost" />}
+          {(user?.role === "company_admin" || can("tickets.assign")) && (
+            <button type="button" className={`btn btn-sm ${showTeam ? "btn-soft" : "btn-ghost"}`} aria-pressed={showTeam} onClick={() => setShowTeam(!showTeam)}><UsersThree />{t("Team")}</button>
+          )}
           {can("tickets.manage") && <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}><Plus />{t("New request")}</button>}
         </div>
       </div>
 
+      <MyPlan onOpen={(id) => setParams({ open: String(id) })} onUnassigned={() => { setAssigned("none"); setView("open"); }} />
+      {showTeam && <TeamPanel onPick={(id) => { setAssigned(id); setShowTeam(false); }} />}
+
       <section className="rq-kpis" aria-label={t("At a glance")}>
         <div className="rq-kpi"><span>{t("Open requests")}</span><strong>{count("open") ?? "—"}</strong>
-          <small>{s ? t("{n} urgent · {u} unassigned", { n: s.urgent, u: s.unassigned }) : ""}</small></div>
+          <small>{s ? t("{n} urgent · {u} unassigned", { n: s.urgent, u: s.unassigned }) : ""}{s?.late ? ` · ${t("{n} late", { n: s.late })}` : ""}</small></div>
         <div className="rq-kpi"><span>{t("In quotation")}</span><strong>{money(s?.pipeline_value)}</strong><small>{t("value being quoted")}</small></div>
         <div className="rq-kpi"><span>{t("To collect")}</span><strong>{money(s?.to_collect)}</strong>
           <small>{s?.proofs_to_check ? t("{n} receipts to check", { n: s.proofs_to_check }) : t("approved, not paid yet")}</small></div>
@@ -139,6 +150,9 @@ export default function Tickets() {
         </select>
         <button type="button" className={`gx-chip ${urgentOnly ? "on" : ""}`} aria-pressed={urgentOnly} onClick={() => setUrgentOnly(!urgentOnly)}>
           <Lightning weight="fill" /> {t("Urgent only")}
+        </button>
+        <button type="button" className={`gx-chip ${lateOnly ? "on" : ""}`} aria-pressed={lateOnly} onClick={() => setLateOnly(!lateOnly)}>
+          <Timer weight="fill" /> {t("Late")}{s?.late ? ` (${s.late})` : ""}
         </button>
       </div>
 
@@ -186,6 +200,8 @@ export default function Tickets() {
                       {tk.current_step.started_at && ` · ${ago(tk.current_step.started_at, t)}`}</small>}
                     {m.pending_proofs > 0 && <small className="rq-flag"><Receipt weight="fill" /> {t("receipt to check")}</small>}
                     {score >= 20 && <small className={`rq-flag ${score >= 45 ? "hot" : ""}`}><Lightning weight="fill" /> {score >= 45 ? t("Urgent") : t("Soon")}</small>}
+                    {tk.delay?.late && tk.delay.waiting_on === "team" && <small className="rq-flag hot"><Timer weight="fill" /> {t("Late: {n} h", { n: Math.round(tk.delay.hours) })}</small>}
+                    {tk.delay?.waiting_on === "client" && tk.delay.hours >= 48 && <small className="rq-flag"><Hourglass weight="fill" /> {t("Client silent {n} d", { n: Math.floor(tk.delay.hours / 24) })}</small>}
                   </span>
                   <span role="cell" className="rq-c-money num">
                     {price ? moneyText(price, tk.currency, lang) : <span className="muted">{t("to quote")}</span>}

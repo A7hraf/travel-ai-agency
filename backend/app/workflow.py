@@ -348,7 +348,8 @@ def _finish(db: Session, ticket: Ticket, key: str, actor: str, user: User | None
     items = steps(ticket)
     for i, s in enumerate(items):
         if s["key"] == key:
-            s.update(state=state, done_at=utcnow().isoformat(), by=actor[:120])
+            s.update(state=state, done_at=utcnow().isoformat(), by=actor[:120], by_id=user.id if user else None,
+                     hours=_hours_since(s.get("started_at")))
             if note:
                 s["note"] = note.strip()[:500]
             event(db, ticket, actor, "step_skipped" if state == "skipped" else "step_done", None, s["label_en"], user)
@@ -360,6 +361,16 @@ def _finish(db: Session, ticket: Ticket, key: str, actor: str, user: User | None
                 return
             break
     _store(ticket, items)
+
+
+def _hours_since(iso: str | None) -> float | None:
+    if not iso:
+        return None
+    from datetime import datetime, timezone  # noqa: PLC0415
+
+    started = datetime.fromisoformat(iso)
+    started = started if started.tzinfo else started.replace(tzinfo=timezone.utc)
+    return round(max((utcnow() - started).total_seconds() / 3600, 0), 2)
 
 
 def refresh(db: Session, ticket: Ticket, actor: str = "System", user: User | None = None,
@@ -514,6 +525,54 @@ def current(ticket: Ticket) -> dict | None:
         return None
     step = active(ticket) if ticket.workflow else None
     return {k: step.get(k) for k in ("key", "type", "label_en", "label_ar", "started_at")} if step else None
+
+
+# --- How long a step should take ------------------------------------------------------------------------
+
+# Hours a step may stay active before it counts as late (the owner can change them for the company), and who
+# the request waits for at that step.
+DEFAULT_HOURS: dict[str, int] = {"intake": 24, "review": 4, "quote": 24, "documents": 72, "payment": 72,
+                                 "schedule": 24, "booking": 48, "delivery": 48, "task": 24, "feedback": 168}
+CLIENT_TURN = {"intake", "documents", "payment"}
+CLIENT_QUOTE = (T.QUOTED, T.FINAL)
+
+
+def hours_for(company, kind: str) -> int | None:
+    own = (company.sla or {}) if company is not None and isinstance(getattr(company, "sla", None), dict) else {}
+    value = own.get(kind, DEFAULT_HOURS.get(kind))
+    return int(value) if value else None
+
+
+def waiting_on(ticket: Ticket, step: dict) -> str:
+    if step["type"] in CLIENT_TURN:
+        from .services.request_desk import money  # noqa: PLC0415
+
+        if step["type"] == "payment" and (money(ticket)["pending_proofs"] or not ticket.total_price):
+            return "team"  # a receipt to check, or no price yet
+        return "client"
+    if step["type"] == "quote" and ticket.status in CLIENT_QUOTE:
+        return "client"
+    if step["type"] == "schedule" and step.get("appointment"):
+        return "client"
+    return "team"
+
+
+def delay(ticket: Ticket, company, now=None) -> dict | None:
+    """How long the request has been at its step, against the expected time, and who it waits for."""
+    if ticket.status in CLOSED or not ticket.workflow:
+        return None
+    step = active(ticket)
+    if step is None or not step.get("started_at") or step["type"] == "trip":
+        return None
+    from datetime import datetime, timezone  # noqa: PLC0415
+
+    started = datetime.fromisoformat(step["started_at"])
+    started = started if started.tzinfo else started.replace(tzinfo=timezone.utc)
+    hours = max(((now or utcnow()) - started).total_seconds() / 3600, 0)
+    limit = hours_for(company, step["type"])
+    who = waiting_on(ticket, step)
+    return {"step": step["key"], "hours": round(hours, 1), "limit": limit, "waiting_on": who,
+            "late": bool(limit) and hours > limit}
 
 
 def view(ticket: Ticket) -> dict:

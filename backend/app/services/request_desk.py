@@ -276,3 +276,79 @@ def apply_dates_hint(start: str | None, plan: list[dict]) -> list[dict]:
     except ValueError:
         return plan
     return [{**p, "date": (d0 + timedelta(days=int(p["day"]) - 1)).isoformat()} for p in plan]
+
+
+# --- The team: requests now and work done -------------------------------------------------------------
+
+def team_performance(db: Session, company, days: int) -> dict:
+    """Per employee: open requests, late ones, steps finished and their usual time, money collected, requests
+    won and lost, and how many quoted requests were approved, over the last `days` days."""
+    from datetime import datetime, timedelta, timezone  # noqa: PLC0415
+
+    from sqlalchemy import select  # noqa: PLC0415
+
+    from .. import workflow  # noqa: PLC0415
+    from ..models import Role, TicketStatus  # noqa: PLC0415
+    from ..permissions import effective_permissions  # noqa: PLC0415
+
+    since = utcnow() - timedelta(days=days)
+    staff = [u for u in db.scalars(select(User).where(User.company_id == company.id, User.is_active.is_(True))).all()
+             if u.partner_id is None and u.role != Role.PARTNER and "tickets.view" in effective_permissions(u)]
+    tickets = db.scalars(select(Ticket).where(Ticket.company_id == company.id)).all()
+    rows = {u.id: {"id": u.id, "name": u.full_name, "role": u.role, "open": 0, "late": 0, "waiting_client": 0,
+                   "steps_done": 0, "step_hours": [], "collected": Decimal(0), "won": 0, "lost": 0, "quoted": 0,
+                   "approved": 0} for u in staff}
+    nobody = {"open": 0, "late": 0}
+    closed = (TicketStatus.CANCELLED, TicketStatus.REJECTED)
+    finished = (TicketStatus.CONFIRMED, TicketStatus.COMPLETED, *closed)
+    after_quote = (TicketStatus.PENDING_PAYMENT, TicketStatus.IN_PROGRESS, TicketStatus.PAID, TicketStatus.WORKING,
+                   TicketStatus.CONFIRMED, TicketStatus.COMPLETED)
+
+    def when(iso):
+        try:
+            d = datetime.fromisoformat(iso)
+        except (TypeError, ValueError):
+            return None
+        return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+
+    for t in tickets:
+        row = rows.get(t.assigned_to_id)
+        if t.status not in finished:
+            d = workflow.delay(t, company)
+            target = row if row is not None else nobody
+            target["open"] += 1
+            if d and d["late"] and d["waiting_on"] == "team":
+                target["late"] += 1
+            elif row is not None and d and d["late"]:
+                row["waiting_client"] += 1
+        for s in t.workflow or []:
+            done = when(s.get("done_at"))
+            r = rows.get(s.get("by_id"))
+            if r is not None and done and done >= since and s.get("state") == "done":
+                r["steps_done"] += 1
+                if s.get("hours") is not None:
+                    r["step_hours"].append(float(s["hours"]))
+        if row is None:
+            continue
+        created = t.created_at if t.created_at.tzinfo else t.created_at.replace(tzinfo=timezone.utc)
+        for p in t.payments:
+            at = p.reviewed_at and (p.reviewed_at if p.reviewed_at.tzinfo else p.reviewed_at.replace(tzinfo=timezone.utc))
+            if p.status == "approved" and p.amount is not None and at and at >= since and t.currency == company.currency:
+                row["collected"] += Decimal(str(p.amount))
+        if created >= since:
+            if t.quote_round:
+                row["quoted"] += 1
+                row["approved"] += t.status in after_quote
+            row["won"] += t.status in after_quote
+        closed_at = when((t.cancel_info or {}).get("at"))
+        if t.status in closed and closed_at and closed_at >= since:
+            row["lost"] += 1
+    people = []
+    for r in rows.values():
+        hours = r.pop("step_hours")
+        r["avg_step_hours"] = round(sum(hours) / len(hours), 1) if hours else None
+        r["collected"] = float(round(r["collected"], 3))
+        r["approval_rate"] = round(r["approved"] / r["quoted"], 2) if r["quoted"] else None
+        people.append(r)
+    people.sort(key=lambda r: (-r["open"], r["name"]))
+    return {"days": days, "currency": company.currency or "OMR", "people": people, "unassigned": nobody}

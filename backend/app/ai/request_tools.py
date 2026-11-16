@@ -194,6 +194,12 @@ def request_prompt(ctx) -> str | None:
                          profile=("\n" + profile) if profile else "")
 
 
+def _tell_team(ctx, ticket: Ticket, kind: str, **extra) -> None:
+    from ..services.notifications import notify  # noqa: PLC0415
+
+    notify(ctx.db, ticket, kind, **extra)
+
+
 def _actor(ctx) -> str:
     return f"{(ctx.customer.name or '').strip() or 'Client'} ({ctx.conversation.channel})"
 
@@ -264,6 +270,7 @@ def create_request(ctx, service_id=None, answers=None, summary="", package_id=No
     if pkg is not None:
         ticket.package_id = pkg.id
         ticket.destination = ticket.destination or pkg.destination
+    _tell_team(ctx, ticket, "new_request")
     return {"created": True, **_progress(ticket)}
 
 
@@ -297,6 +304,7 @@ def answer_team_question(ctx, reference="", question_id=None, answer="", **_) ->
         team_questions.answer(ctx.db, ticket, int(question_id), answer, _actor(ctx))
     except (HTTPException, TypeError, ValueError) as exc:
         return {"error": getattr(exc, "detail", "Use a question id from OPEN QUESTIONS.")}
+    _tell_team(ctx, ticket, "client_answered", text=str(answer)[:200])
     return {"saved": True, "next": "Thank the client: the team has the answer and continues."}
 
 
@@ -447,6 +455,7 @@ def choose_request_options(ctx, reference="", option_numbers=None, **_) -> dict:
         flow.client_choose(ctx.db, ticket, ids, _actor(ctx))
     except HTTPException as exc:
         return _err(exc)
+    _tell_team(ctx, ticket, "client_answered", text="chose")
     return {"chosen": True, "next": "Our team sends the final quotation in this chat."}
 
 
@@ -458,18 +467,22 @@ def answer_quotation(ctx, reference="", decision="", note="", **_) -> dict:
         return {"error": "No request with this reference for this client. Call my_requests."}
     try:
         if decision == "approve":
+            _tell_team(ctx, ticket, "client_approved")
             flow.client_approve(ctx.db, ctx.company, ticket, _actor(ctx))
             step = workflow.current(ticket)
             return {"approved": True, "next": f"The next step ({step['label_en'] if step else 'done'}) was sent to the "
                                               "client in its own message: don't repeat it, just thank them."}
         if decision == "changes":
             flow.client_changes(ctx.db, ticket, note, _actor(ctx))
+            _tell_team(ctx, ticket, "client_answered", text=note)
             return {"saved": True, "next": "Our team revises the choices."}
         if decision == "reject":
             flow.client_reject(ctx.db, ticket, _actor(ctx), note)
+            _tell_team(ctx, ticket, "client_cancelled", text=note)
             return {"saved": True}
         if decision == "cancel":
             flow.client_cancel(ctx.db, ticket, _actor(ctx), note)
+            _tell_team(ctx, ticket, "client_cancelled", text=note)
             return {"cancelled": True}
     except HTTPException as exc:
         return _err(exc)
@@ -486,6 +499,7 @@ def report_payment(ctx, reference="", transfer_reference="", **_) -> dict:
         flow.client_paid(ctx.db, ticket, transfer_reference, _actor(ctx))
     except HTTPException as exc:
         return _err(exc)
+    _tell_team(ctx, ticket, "receipt", text=transfer_reference)
     return {"saved": True, "next": "Our team checks the payment and starts the booking."}
 
 

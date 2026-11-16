@@ -244,6 +244,11 @@ def send_final(db: Session, company: Company, ticket: Ticket, total: Decimal | N
         raise HTTPException(422, "Set the final total first")
     if final != ticket.total_price:
         event(db, ticket, user.full_name, "price", ticket.total_price, final, user)
+    if total is not None and chosen and final != computed and user.role != "company_admin":
+        from .notifications import notify  # noqa: PLC0415
+
+        notify(db, ticket, "price_changed", to="admins", skip=user, by=user.full_name,
+               old=f"{computed} {ticket.currency}", new=f"{final} {ticket.currency}")
     ticket.total_price = final
     if note:
         event(db, ticket, user.full_name, "final_note", None, note.strip()[:1000], user)

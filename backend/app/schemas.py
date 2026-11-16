@@ -472,6 +472,7 @@ class TicketOut(ORM):
     client_documents: dict = {}
     itinerary: list[dict] | None = None
     current_step: dict | None = None
+    delay: dict | None = None  # hours at the current step, the expected time, who it waits for
     questions: list[dict] | None = None  # the team's questions to the client and the answers
     client_preferences: dict | None = None  # detail only
     process: dict | None = None  # detail only: the workflow steps, installments, amount due now, why it was closed

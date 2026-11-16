@@ -6,7 +6,7 @@ import { ArrowDown, ArrowUp, Plus, Sparkle, Trash } from "../components/Icon";
 import { PART_LABELS, PARTS } from "../components/requests/QuotePanel";
 import { ErrorBox, Field, Loading } from "../components/ui";
 import { useI18n } from "../lang";
-import WorkflowEditor, { stepBody, workflowProblems } from "../components/workflow/WorkflowEditor";
+import WorkflowEditor, { STEP_LABEL, stepBody, workflowProblems } from "../components/workflow/WorkflowEditor";
 import type { Service, ServiceField, ServicePart, ServiceStep, WorkflowStep } from "../types";
 
 /** workflow null: the built-in default steps (saved as such). */
@@ -226,6 +226,46 @@ function Editor({ initial, id, builtIn, custom, onSaved, onCancel, onDelete }: {
   );
 }
 
+/** How long each step may take before a request counts as late (company admins). */
+function SlaCard() {
+  const { t, lang } = useI18n();
+  const [hours, setHours] = useState<Record<string, string> | null>(null);
+  const [defaults, setDefaults] = useState<Record<string, number>>({});
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    get<{ defaults: Record<string, number>; hours: Record<string, number> }>("/api/tickets/sla")
+      .then((r) => { setDefaults(r.defaults); setHours(Object.fromEntries(Object.entries(r.hours).map(([k, v]) => [k, String(v)]))); })
+      .catch((e) => setError((e as Error).message));
+  }, []);
+  if (!hours) return error ? <ErrorBox error={error} /> : null;
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null); setSaved(false);
+    try {
+      await put("/api/tickets/sla", { hours: Object.fromEntries(Object.entries(hours).map(([k, v]) => [k, Number(v) || defaults[k]])) });
+      setSaved(true);
+    } catch (err) { setError((err as Error).message); }
+  };
+  return (
+    <form className="gx-card" onSubmit={save}>
+      <div className="gx-section-label">{t("How long each step may take")}</div>
+      <p className="muted small">{t("After this time a request counts as late: it shows in red, and the employee (or whoever assigns requests) is told once.")}</p>
+      <div className="gx-sla">
+        {Object.keys(defaults).map((k) => (
+          <label key={k} className="gx-sla-row">
+            <span>{lang === "ar" ? STEP_LABEL[k]?.ar : STEP_LABEL[k]?.en}</span>
+            <input type="number" min={1} max={1440} value={hours[k] ?? ""} onChange={(e) => { setSaved(false); setHours({ ...hours, [k]: e.target.value }); }} dir="ltr" />
+            <small className="muted">{t("hours")}</small>
+          </label>
+        ))}
+      </div>
+      <ErrorBox error={error} />
+      <div className="gx-form-actions">{saved && <span className="muted small">{t("Saved.")}</span>}<button className="btn btn-primary btn-sm">{t("Save")}</button></div>
+    </form>
+  );
+}
+
 function PaymentCard() {
   const { t } = useI18n();
   const [info, setInfo] = useState<{ en: string; ar: string } | null>(null);
@@ -378,6 +418,7 @@ export default function Services() {
       )}
 
       <PaymentCard />
+      {user?.role === "company_admin" && <SlaCard />}
       {user?.company?.addons?.includes("quotes") && <QuoteDesignCard />}
     </div>
   );

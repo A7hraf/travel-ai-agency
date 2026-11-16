@@ -558,6 +558,9 @@ def create_booking_ticket(ctx: ToolContext, package_id=None, departure_date="", 
     ctx.db.add(TicketEvent(ticket_id=ticket.id, actor="AI", action="created",
                            new_value=f"{n_adults} adults, {n_children} children, {_money(total)} {pkg.currency}"))
     workflow.start(ctx.db, ticket, "AI")
+    from ..services.notifications import notify  # noqa: PLC0415
+
+    notify(ctx.db, ticket, "new_request")
     ctx.ticket_reference = ref
     ctx.conversation.booking_quote = None
     _hand_over(ctx, f"Payment for ticket {ref}")

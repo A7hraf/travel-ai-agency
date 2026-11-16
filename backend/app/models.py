@@ -174,6 +174,7 @@ class Company(Base):
     # How clients pay (bank details…), sent when they approve a quotation: {"en": "...", "ar": "..."}.
     payment_info: Mapped[dict | None] = mapped_column(JSON)
     quote_settings: Mapped[dict | None] = mapped_column(JSON)  # the quotation design: intro, terms, footer
+    sla: Mapped[dict | None] = mapped_column(JSON)  # hours each step may take before it counts as late
     # A WhatsApp message template approved by Meta ({"name", "language"}): lets reminders reach people who
     # haven't written in the last 24 hours. Its body has one parameter, the reminder text.
     reminder_template: Mapped[dict | None] = mapped_column(JSON)
@@ -442,6 +443,7 @@ class Ticket(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, onupdate=utcnow)
 
+    company: Mapped[Company] = relationship(viewonly=True)
     customer: Mapped[Customer] = relationship()
     package: Mapped[TravelPackage | None] = relationship()
     service: Mapped["Service | None"] = relationship()
@@ -519,6 +521,23 @@ class FeatureUsage(Base):
     key: Mapped[str] = mapped_column(String(40))
     period: Mapped[str] = mapped_column(String(10))
     count: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class Notification(Base):
+    """Something an employee should know: a new request, a client's answer, a receipt, a late step, a price
+    changed by a colleague. The text is built from `kind` and `params` in the reader's language."""
+
+    __tablename__ = "notifications"
+    __table_args__ = (Index("ix_notifications_user_unread", "user_id", "read_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    ticket_id: Mapped[int | None] = mapped_column(ForeignKey("tickets.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(30))
+    params: Mapped[dict] = mapped_column(JSON, default=dict)
+    read_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
 
 
 class AdvisorMessage(Base):

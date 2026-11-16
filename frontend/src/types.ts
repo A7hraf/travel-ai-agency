@@ -437,6 +437,7 @@ export interface PlanDay { day: number; title: string; details: string; date?: s
 export interface PipelineSummary {
   stages: Record<Stage, number>; urgent: number; unassigned: number; proofs_to_check: number;
   pipeline_value: number; to_collect: number; sales_this_month: number; profit_this_month: number; currency: string;
+  late?: number; waiting_on_clients?: number;
 }
 
 export interface RequestFile {
@@ -477,6 +478,7 @@ export interface Ticket {
   /** The step the request is at (every request) and its whole process (one request). */
   current_step: Pick<WorkflowStep, "key" | "type" | "label_en" | "label_ar" | "started_at"> | null;
   process?: Process | null;
+  delay?: { step: string; hours: number; limit: number | null; waiting_on: "team" | "client"; late: boolean } | null;
   questions?: TicketQuestion[] | null;
   client_preferences?: Record<string, string> | null;
   departure_date: string | null;

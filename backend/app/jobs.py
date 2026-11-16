@@ -24,6 +24,12 @@ def run_once() -> None:
         reminded = send_reminders(db)
         if reminded:
             log.info("Sent %s calendar reminders", reminded)
+    from .services.notifications import clean_old, late_steps  # noqa: PLC0415
+
+    with SessionLocal() as db:
+        late = late_steps(db)
+        if late:
+            log.info("Told the team about %s late steps", late)
     global _last_findings
     if _last_findings != local_today():
         from .services.advisor import daily_findings  # noqa: PLC0415
@@ -31,6 +37,9 @@ def run_once() -> None:
         _last_findings = local_today()
         from .workflow import pass_finished_trips  # noqa: PLC0415
 
+        with SessionLocal() as db:
+            clean_old(db)
+            db.commit()
         with SessionLocal() as db:
             moved = pass_finished_trips(db, local_today())
             if moved:

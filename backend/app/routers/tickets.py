@@ -36,6 +36,8 @@ from ..services import request_files as files
 from .media import media_belongs_to
 from ..services.request_files import file_response
 from ..services import requests as flow
+from ..services import brief
+from ..services import notifications as alerts
 from ..services import questions, seats
 from ..services.calendar import local_text as calendar_local
 from ..timeutil import local_today
@@ -61,6 +63,7 @@ def ticket_out(ticket: Ticket, me: User, detail: bool = False) -> TicketOut:
     out.stage = desk.stage_of(ticket)
     out.money = desk.money(ticket)
     out.current_step = workflow.current(ticket)
+    out.delay = workflow.delay(ticket, me.company)
     if detail:
         out.process = workflow.view(ticket)
         out.client_preferences = dict(ticket.customer.preferences or {}) if ticket.customer else {}
@@ -111,6 +114,7 @@ def list_tickets(
     assigned: str | None = Query(default=None, max_length=12),
     service_id: int | None = None,
     urgent: bool = False,
+    late: bool = False,
     q: str | None = Query(default=None, max_length=100),
     limit: int = Query(default=200, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
@@ -125,7 +129,7 @@ def list_tickets(
     stmt = _filtered(db, me, status=status, stage=stage, mine=mine, assigned=assigned, service_id=service_id, q=q)
     stmt = stmt.options(selectinload(Ticket.customer), selectinload(Ticket.assigned_to), selectinload(Ticket.service),
                         selectinload(Ticket.options), selectinload(Ticket.payments))
-    if sort == "newest" and not urgent:
+    if sort == "newest" and not urgent and not late:
         response.headers["X-Total-Count"] = str(db.scalar(select(func.count()).select_from(stmt.subquery())) or 0)
         rows = db.scalars(stmt.order_by(Ticket.id.desc()).offset(offset).limit(limit)).all()
         return [ticket_out(t, me) for t in rows]
@@ -133,6 +137,8 @@ def list_tickets(
     rows = [ticket_out(t, me) for t in db.scalars(stmt.order_by(Ticket.id.desc()).limit(3000)).all()]
     if urgent:
         rows = [r for r in rows if (r.urgency.get("score") or 0) >= 45]
+    if late:  # the team holds the step longer than expected
+        rows = [r for r in rows if r.delay and r.delay["late"] and r.delay["waiting_on"] == "team"]
     if sort == "urgency":
         rows.sort(key=lambda t: -t.urgency.get("score", 0))
     elif sort == "departure":
@@ -155,7 +161,7 @@ def summary(me: User = Depends(require_permission("tickets.view")), db: Session 
     to_collect = Decimal(0)
     profit_month = Decimal(0)
     sales_month = Decimal(0)
-    urgent = unassigned = proofs = 0
+    urgent = unassigned = proofs = late = client_slow = 0
     for t in rows:
         stage = desk.stage_of(t)
         stages[stage] += 1
@@ -172,6 +178,10 @@ def summary(me: User = Depends(require_permission("tickets.view")), db: Session 
                 urgent += 1
             if t.assigned_to_id is None:
                 unassigned += 1
+            d = workflow.delay(t, me.company)
+            if d and d["late"]:
+                late += d["waiting_on"] == "team"
+                client_slow += d["waiting_on"] == "client"
         proofs += m["pending_proofs"]
     # Confirmed and closed are counted for all time (the list shows them all).
     for stage in ("confirmed", "closed"):
@@ -179,8 +189,60 @@ def summary(me: User = Depends(require_permission("tickets.view")), db: Session 
             Ticket.company_id == me.company_id, Ticket.status.in_(desk.STAGES[stage]))) or 0
     f = lambda v: float(round(v, 3))  # noqa: E731
     return {"stages": stages, "urgent": urgent, "unassigned": unassigned, "proofs_to_check": proofs,
+            "late": late, "waiting_on_clients": client_slow,
             "pipeline_value": f(pipeline), "to_collect": f(to_collect), "sales_this_month": f(sales_month),
             "profit_this_month": f(profit_month), "currency": me.company.currency or "OMR"}
+
+
+@router.get("/team")
+def team_performance(days: int = Query(default=30, ge=1, le=365), me: User = Depends(require_permission("tickets.view")),
+                     db: Session = Depends(get_db)):
+    """Each employee's requests now and their work over the last days: for the people who assign requests."""
+    if me.role != Role.COMPANY_ADMIN and "tickets.assign" not in effective_permissions(me):
+        raise HTTPException(403, "Missing permission: tickets.assign")
+    return desk.team_performance(db, me.company, days)
+
+
+class SlaIn(BaseModel):
+    hours: dict[str, int] = Field(default_factory=dict)
+
+    @field_validator("hours")
+    @classmethod
+    def known(cls, v: dict[str, int]) -> dict[str, int]:
+        unknown = set(v) - set(workflow.DEFAULT_HOURS)
+        if unknown:
+            raise ValueError(f"Unknown step: {', '.join(sorted(unknown))}")
+        if any(not 1 <= h <= 24 * 60 for h in v.values()):
+            raise ValueError("Write between 1 hour and 60 days")
+        return v
+
+
+@router.get("/sla")
+def get_sla(me: User = Depends(require_permission("tickets.view"))):
+    return {"defaults": workflow.DEFAULT_HOURS, "hours": {k: workflow.hours_for(me.company, k) for k in workflow.DEFAULT_HOURS}}
+
+
+@router.put("/sla")
+def set_sla(body: SlaIn, me: User = Depends(require_permission("tickets.view")), db: Session = Depends(get_db)):
+    """How long each step may take before it counts as late (company admins)."""
+    if me.role != Role.COMPANY_ADMIN:
+        raise HTTPException(403, "Only a company admin can change this")
+    company = me.company
+    company.sla = {k: v for k, v in body.hours.items() if v != workflow.DEFAULT_HOURS[k]} or None
+    audit(db, me, "company.sla", detail=", ".join(f"{k} {v}h" for k, v in body.hours.items()))
+    db.commit()
+    return get_sla(me)
+
+
+@router.get("/plan")
+def my_plan(period: Literal["today", "week", "month"] = "today", lang: Literal["en", "ar"] = "en",
+            me: User = Depends(require_permission("tickets.view")), db: Session = Depends(get_db)):
+    """The employee's work for the period, most important first, with the AI's short plan when given."""
+    if not brief.allowed(me):
+        raise HTTPException(403, "Your company admin has not given you this feature")
+    work = brief.items(db, me, period)
+    return {"period": period, "all_requests": brief.sees_all(me), "items": work,
+            "summary": brief.summary(db, me, period, work, lang)}
 
 
 @router.get("/{ticket_id}", response_model=TicketOut)
@@ -253,6 +315,8 @@ def update_ticket(ticket_id: int, body: TicketUpdate,
         _event(db, ticket, me, "assigned", ticket.assigned_to.full_name if ticket.assigned_to else None,
                assignee.full_name)
         ticket.assigned_to_id = assignee.id
+        if assignee.id != me.id:
+            alerts.to_user(db, assignee, ticket, "assigned", by=me.full_name)
         chat_events.append(f"Ticket {ticket.reference} assigned to {assignee.full_name}")
 
     if body.payment_reference is not None:
@@ -261,6 +325,9 @@ def update_ticket(ticket_id: int, body: TicketUpdate,
             if ticket.status in NEEDS_PAYMENT_REFERENCE and new_ref is None:
                 raise HTTPException(400, "A paid booking must keep its payment reference")
             _event(db, ticket, me, "payment_reference", ticket.payment_reference, new_ref)
+            if not is_admin:
+                alerts.notify(db, ticket, "reference_changed", to="admins", skip=me, by=me.full_name,
+                              old=ticket.payment_reference or "—", new=new_ref or "—")
             audit(db, me, "ticket.payment", target=ticket.reference,
                   detail="payment reference added" if new_ref and not ticket.payment_reference
                   else "payment reference removed" if not new_ref else "payment reference changed")
@@ -625,6 +692,15 @@ def confirm_appointment(ticket_id: int, key: str, me: User = Depends(manage), db
     return _done(db, ticket, me)
 
 
+@router.post("/{ticket_id}/remind", response_model=TicketOut)
+def remind_client(ticket_id: int, me: User = Depends(manage), db: Session = Depends(get_db)):
+    """Sends the current step's message to the client again (at most every 12 hours)."""
+    ticket = _get(db, me, ticket_id, lock=True)
+    brief.remind(db, ticket, me)
+    db.refresh(ticket)
+    return ticket_out(ticket, me, detail=True)
+
+
 # --- Asking the client through the AI ---------------------------------------------------------------------
 
 class AskIn(BaseModel):
@@ -823,6 +899,9 @@ def update_money(ticket_id: int, body: MoneyIn, me: User = Depends(manage), db: 
             raise HTTPException(409, "This request is closed: reopen it to change it")
         flow.event(db, ticket, me.full_name, "price", ticket.total_price, body.total_price, me)
         audit(db, me, "ticket.price", target=ticket.reference, detail=f"{ticket.total_price} → {body.total_price} {ticket.currency}")
+        if me.role != Role.COMPANY_ADMIN and ticket.total_price:
+            alerts.notify(db, ticket, "price_changed", to="admins", skip=me, by=me.full_name,
+                          old=f"{ticket.total_price} {ticket.currency}", new=f"{body.total_price} {ticket.currency}")
         ticket.total_price = body.total_price
     if body.clear_cost and ticket.cost_price is not None:
         flow.event(db, ticket, me.full_name, "cost", ticket.cost_price, None, me)

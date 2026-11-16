@@ -142,6 +142,9 @@ def client_upload(db: Session, ticket: Ticket, name: str | None, content_type: s
     if kind == "payment_proof":
         add_client_proof(db, ticket, f)
     workflow.refresh(db, ticket, actor)
+    from .notifications import notify  # noqa: PLC0415
+
+    notify(db, ticket, "receipt" if kind == "payment_proof" else "client_file", text=f.name)
     return f
 
 

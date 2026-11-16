@@ -48,7 +48,7 @@ TEXT_KEYS: dict[str, int] = {
     # Trips
     "featuredTitle": SHORT, "offers": SHORT, "tripsOnSale": SHORT,
     "cat0": SHORT, "cat1": SHORT, "cat2": SHORT, "cat3": SHORT, "cat4": SHORT, "cat5": SHORT,
-    "pricesNote": MEDIUM, "perPerson": SHORT, "perAdult": SHORT, "perChild": SHORT, "from": SHORT,
+    "pricesNote": MEDIUM, "perPerson": SHORT, "perAdult": SHORT, "perChild": SHORT, "onRequest": SHORT, "experience": SHORT, "from": SHORT,
     "noMatch": MEDIUM, "askCustom": SHORT, "clear": SHORT, "comingSoon": MEDIUM, "askNow": SHORT,
     # Buttons
     "book": SHORT, "bookWith": SHORT, "bookThis": SHORT, "viewTrip": SHORT,

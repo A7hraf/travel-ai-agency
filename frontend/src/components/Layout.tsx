@@ -15,6 +15,7 @@ import {
   Briefcase, BookBookmark, CalendarDots, FileText, Lightbulb, ListChecks, Handshake, Star, SquaresFour, SuitcaseRolling, Ticket, Translate, UserCircle, UsersThree, WhatsappLogo,
 } from "./Icon";
 import { moneyText } from "./Money";
+import NotificationBell from "./staff/Notifications";
 import { Sheet } from "./staff/Sheet";
 import { StaffContext, StaffToast } from "./staff/StaffContext";
 import PlanBanner from "./plans/PlanBanner";
@@ -204,6 +205,7 @@ export default function Layout() {
             <div className="app-top-agency">{brandName}</div>
             <div className="app-top-sub">{sub}</div>
           </div>
+          {!isSystem && <NotificationBell className="top-bell" />}
           <button type="button" className="app-avatar" aria-label={t("Open menu")} aria-haspopup="dialog"
             aria-expanded={menuOpen} onClick={() => setMenuOpen(true)}>
             <span aria-hidden="true">{initial}</span>
@@ -218,6 +220,7 @@ export default function Layout() {
               <div className="side-agency">{brandName}</div>
               <div className="side-sub">{sub}</div>
             </div>
+            {!isSystem && <NotificationBell className="side-bell" />}
           </div>
           <nav className="side-nav">
             {nav.map((n) => {
