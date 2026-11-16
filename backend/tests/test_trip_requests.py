@@ -179,7 +179,7 @@ def test_vendor_decline_and_reassign(client, setup):
     # The next vendor never sees the first vendor's options or prices.
     client.post(f"/api/b2b/requests/{rid}/vendor", headers=s["admin"], json={"vendor_id": s["v2"]["id"]})
     job = client.get(f"/api/partner/jobs/{rid}", headers=s["v2_login"]).json()
-    assert job["options"] == [] and "400" not in json.dumps(job)
+    assert job["options"] == [] and "400.000" not in json.dumps(job) and "WY 601" not in json.dumps(job)
     v2_opt = client.post(f"/api/partner/jobs/{rid}/options", headers=s["v2_login"], json=flight("EK 863", "380")).json()["options"][0]
     # A vendor can't delete an option that isn't its own.
     first = staff["options"][0]["id"]

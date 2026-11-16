@@ -57,8 +57,10 @@ from ..trip_schemas import (
 )
 
 # Steps each party sees in its own history (without who did it or the details).
-CLIENT_STEPS = {"created", "sent_to_client", "chosen", "approved", "booked", "completed", "cancelled"}
-VENDOR_STEPS = {"assigned", "accepted", "declined", "options_submitted", "approved", "booked", "cancelled"}
+CLIENT_STEPS = {"created", "sent_to_client", "chosen", "changes_requested", "approved", "booked", "completed", "cancelled",
+                "client_paid"}
+VENDOR_STEPS = {"assigned", "accepted", "declined", "options_submitted", "changes_requested", "approved", "booked",
+                "cancelled", "payment_plan", "vendor_paid"}
 # Before approval, a request can still change hands or be cancelled by the client.
 OPEN = (S.NEW, S.WITH_VENDOR, S.OPTIONS_READY, S.WITH_CLIENT, S.CHOSEN)
 EDITABLE_OPTIONS = (S.NEW, S.WITH_VENDOR, S.OPTIONS_READY)
@@ -154,8 +156,35 @@ def staff_view(req: TripRequest, company: Company) -> StaffTripOut:
                                 sent_to_client=o.sent_to_client, chosen=o.chosen) for o in ordered(req.options)],
         events=[EventOut(action=e.action, created_at=e.created_at, actor_kind=e.actor_kind, actor_name=e.actor_name,
                          detail=e.detail) for e in req.events],
-        messages=_messages(req, None),
+        messages=_messages(req, None), share_client=req.share_client,
+        payment_plan=plan_rows(req, "staff"), client_rating=req.client_rating, client_comment=req.client_comment,
+        vendor_quote=(req.vendor.quote_settings or None) if req.vendor else None,
     )
+
+
+def plan_rows(req: TripRequest, side: str) -> list:
+    """The payment plan as one party sees it: the client its share of the client price, the vendor its share of
+    the cost, the travel company both."""
+    from datetime import date as _date  # noqa: PLC0415
+
+    from ..timeutil import local_today  # noqa: PLC0415
+    from ..trip_schemas import PaymentRowOut  # noqa: PLC0415
+
+    price, cost = _chosen_total(req.options, "price"), _chosen_total(req.options, "cost_price")
+    today: _date = local_today()
+    def share(total, percent):
+        return (total * percent / 100).quantize(MILLI, ROUND_HALF_UP) if total is not None else None
+
+    rows = []
+    for st in req.payment_steps:
+        paid_at = st.vendor_paid_at if side == "vendor" else st.client_paid_at
+        rows.append(PaymentRowOut(
+            id=st.id, label=st.label, percent=st.percent, due_date=st.due_date,
+            amount=share(cost if side == "vendor" else price, st.percent), paid=paid_at is not None, paid_at=paid_at,
+            overdue=bool(st.due_date and st.due_date < today and paid_at is None),
+            vendor_amount=share(cost, st.percent) if side == "staff" else None,
+            vendor_paid=(st.vendor_paid_at is not None) if side == "staff" else None))
+    return rows
 
 
 def staff_row(req: TripRequest) -> StaffTripRow:
@@ -175,6 +204,8 @@ def client_view(req: TripRequest, company: Company) -> ClientTripOut:
                                  price=o.price, chosen=o.chosen) for o in sent],
         steps=[StepOut(action=e.action, created_at=e.created_at) for e in req.events if e.action in CLIENT_STEPS],
         messages=_messages(req, "client"),
+        payment_plan=plan_rows(req, "client") if req.status in (S.APPROVED, S.BOOKED, S.COMPLETED) else [],
+        client_rating=req.client_rating,
     )
 
 
@@ -191,6 +222,8 @@ def vendor_view(req: TripRequest, company: Company) -> VendorTripOut:
                                  cost_price=o.cost_price, chosen=o.chosen and approved) for o in mine],
         steps=[StepOut(action=e.action, created_at=e.created_at) for e in req.events if e.action in VENDOR_STEPS],
         messages=_messages(req, "vendor"),
+        client_name=req.client.name if req.share_client else None,
+        payment_plan=plan_rows(req, "vendor"),
     )
 
 
@@ -237,6 +270,7 @@ def assign_vendor(db: Session, req: TripRequest, data: AssignVendorIn, actor: Ac
     req.vendor_id = vendor.id
     req.vendor_accepted = None
     req.vendor_brief = data.brief
+    req.share_client = data.share_client
     req.status = S.WITH_VENDOR
     _event(db, req, actor, "assigned", vendor.name)
     db.commit()

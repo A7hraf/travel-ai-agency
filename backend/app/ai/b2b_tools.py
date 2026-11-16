@@ -69,6 +69,22 @@ B2B_TOOL_DEFINITIONS: list[dict] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "ask_business_trip_changes",
+            "description": "The customer wants different options for a request waiting for their choice. Ask what "
+                           "they want instead and why (time, class, hotel area or stars, budget…), then send it.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "reference": {"type": "string"},
+                    "changes": {"type": "string", "description": "What to change and what to keep, clearly."},
+                },
+                "required": ["reference", "changes"],
+            },
+        },
+    },
 ]
 
 B2B_PROMPT = """
@@ -80,7 +96,9 @@ need (flight, hotel, transport, activity, food), purpose, budget and preferences
 2. Summarise and ask them to confirm, then call create_business_trip_request and give them the reference.
 3. Our team prepares up to 3 options for each part and sends them in this chat. When they ask about their \
 requests or reply with option numbers, call list_business_trip_requests, confirm the choice, then call \
-choose_business_trip_options. Our team then approves and books, and the booking reference is sent here.
+choose_business_trip_options. If they want something else, ask what and why, then call \
+ask_business_trip_changes: new options come back here. Our team then approves and books, and the booking \
+reference and the payment dates are sent here.
 """
 
 
@@ -174,7 +192,29 @@ def choose_business_trip_options(ctx, reference="", option_numbers=None, **_) ->
             "next": "Our team approves the choice and books it; the booking reference is sent here."}
 
 
+def ask_business_trip_changes(ctx, reference="", changes="", **_) -> dict:
+    from ..services import b2b_flow  # noqa: PLC0415
+
+    partner = business_client(ctx)
+    if partner is None:
+        return _no_access()
+    req = ctx.db.scalar(select(TripRequest).where(TripRequest.company_id == ctx.company.id,
+                                                  TripRequest.client_id == partner.id,
+                                                  TripRequest.reference == str(reference).strip().upper())
+                        .with_for_update())
+    if req is None:
+        return {"error": "No request with this reference for this business. Call list_business_trip_requests."}
+    if len(str(changes).strip()) < 3:
+        return {"error": "Ask the customer what they would like instead."}
+    try:
+        b2b_flow.client_changes(ctx.db, ctx.company, req, str(changes), _actor(ctx))
+    except HTTPException as exc:
+        return {"error": str(exc.detail)}
+    return {"sent": True, "next": "Tell them the new options will be sent here."}
+
+
 B2B_HANDLERS = {
+    "ask_business_trip_changes": ask_business_trip_changes,
     "create_business_trip_request": create_business_trip_request,
     "list_business_trip_requests": list_business_trip_requests,
     "choose_business_trip_options": choose_business_trip_options,

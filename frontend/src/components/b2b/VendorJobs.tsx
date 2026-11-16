@@ -5,10 +5,11 @@ import type { TripPart, VendorTrip } from "../../types";
 import { shortDate } from "../../util";
 import { ArrowLeft, Check, Plus, Trash, X } from "../Icon";
 import { Empty, ErrorBox, Loading } from "../ui";
+import PaymentPlan from "./PaymentPlan";
 import { money, PART_LABEL, PartChip, StatusBadge, Steps, Thread, TripFacts } from "./TripParts";
 
-function JobView({ job, onChange, onGone, onBack, canQuote }: {
-  job: VendorTrip; onChange: (j: VendorTrip) => void; onGone: () => void; onBack: () => void; canQuote: boolean;
+function JobView({ job, onChange, onGone, onBack, canQuote, canPlan }: {
+  job: VendorTrip; onChange: (j: VendorTrip) => void; onGone: () => void; onBack: () => void; canQuote: boolean; canPlan: boolean;
 }) {
   const { t, lang } = useI18n();
   const [o, setO] = useState({ category: (job.needs[0] ?? "flight") as TripPart, title: "", provider: "", details: "", cost_price: "" });
@@ -43,6 +44,7 @@ function JobView({ job, onChange, onGone, onBack, canQuote }: {
       <ErrorBox error={error} />
       <section className="gx-card">
         <TripFacts trip={job} extra={<>
+          {job.client_name && <div><dt>{t("Client")}</dt><dd dir="auto">{job.client_name}</dd></div>}
           {job.brief && <div className="gx-facts-wide"><dt>{t("Brief")}</dt><dd className="gx-pre" dir="auto">{job.brief}</dd></div>}
           {job.traveller_names && <div className="gx-facts-wide"><dt>{t("Traveller names")}</dt><dd className="gx-pre" dir="auto">{job.traveller_names}</dd></div>}
         </>} />
@@ -88,6 +90,11 @@ function JobView({ job, onChange, onGone, onBack, canQuote }: {
         {job.total_cost !== null && <div className="gx-totals"><span>{t("Total to book")} <strong>{money(job.total_cost, job.currency, lang)}</strong></span></div>}
       </section>
 
+      {(job.payment_plan.length > 0 || (canPlan && job.accepted)) && !["cancelled"].includes(job.status) && (
+        <PaymentPlan<VendorTrip> side="vendor" plan={job.payment_plan} currency={job.currency} planUrl={`${base}/payment-plan`}
+          canEdit={canPlan && !!job.accepted && job.status !== "completed"} onChange={onChange} />
+      )}
+
       {job.status === "approved" && (
         <form className="gx-card" onSubmit={(e) => { e.preventDefault(); run(() => post<VendorTrip>(`${base}/booked`, { booking_reference: bookingRef, booking_notes: bookingNotes || null })).catch(() => {}); }}>
           <h2 className="gx-card-title">{t("Booked? Add the references")}</h2>
@@ -109,7 +116,7 @@ function JobView({ job, onChange, onGone, onBack, canQuote }: {
 }
 
 /** Vendor: the requests the travel company sent it. */
-export default function VendorJobs({ canQuote }: { canQuote: boolean }) {
+export default function VendorJobs({ canQuote, canPlan }: { canQuote: boolean; canPlan: boolean }) {
   const { t } = useI18n();
   const [list, setList] = useState<VendorTrip[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -120,7 +127,7 @@ export default function VendorJobs({ canQuote }: { canQuote: boolean }) {
   if (!list) return error ? <ErrorBox error={error} onRetry={load} /> : <Loading height={220} />;
   const current = open !== null ? list.find((x) => x.id === open) : undefined;
   if (current) {
-    return <JobView job={current} canQuote={canQuote} onBack={() => { setOpen(null); load(); }}
+    return <JobView job={current} canQuote={canQuote} canPlan={canPlan} onBack={() => { setOpen(null); load(); }}
       onGone={() => { setOpen(null); load(); }} onChange={(j) => setList(list.map((x) => (x.id === j.id ? j : x)))} />;
   }
   return (

@@ -46,6 +46,12 @@ def run_once() -> None:
         with SessionLocal() as db:
             clean_old(db)
             db.commit()
+        from .services.b2b_flow import payment_reminders  # noqa: PLC0415
+
+        with SessionLocal() as db:
+            due = payment_reminders(db, local_today())
+            if due:
+                log.info("Reminded %s business clients of a payment", due)
         with SessionLocal() as db:
             moved = pass_finished_trips(db, local_today())
             if moved:

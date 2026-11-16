@@ -828,6 +828,17 @@ export interface StaffTrip extends TripCommon {
   options: StaffTripOption[];
   events: (TripStep & { actor_kind: string; actor_name: string | null; detail: string | null })[];
   messages: TripMessage[];
+  share_client: boolean;
+  payment_plan: TripPayment[];
+  client_rating: number | null;
+  client_comment: string | null;
+  vendor_quote: { intro: string; terms: string; valid_days: number; payment_terms: string } | null;
+}
+
+/** One payment of a business trip: the client's share of the price, or the vendor's share of the cost. */
+export interface TripPayment {
+  id: number; label: string; percent: Amount; due_date: string | null; amount: Amount; paid: boolean; paid_at: string | null;
+  overdue: boolean; vendor_amount?: Amount; vendor_paid?: boolean | null;
 }
 
 export interface StaffTripRow {
@@ -844,6 +855,8 @@ export interface ClientTrip extends TripCommon {
   options: { id: number; category: TripPart; title: string; provider: string | null; details: string | null; price: Amount; chosen: boolean }[];
   steps: TripStep[];
   messages: TripMessage[];
+  payment_plan: TripPayment[];
+  client_rating: number | null;
 }
 
 export interface VendorTrip extends TripCommon {
@@ -856,4 +869,6 @@ export interface VendorTrip extends TripCommon {
   options: { id: number; category: TripPart; title: string; provider: string | null; details: string | null; cost_price: Amount; chosen: boolean }[];
   steps: TripStep[];
   messages: TripMessage[];
+  client_name: string | null;
+  payment_plan: TripPayment[];
 }

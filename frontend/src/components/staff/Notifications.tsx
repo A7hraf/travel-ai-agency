@@ -22,6 +22,9 @@ const TEXT: Record<string, string> = {
   reference_changed: "{by} changed the reference of {ref}: {old} → {new}",
   client_problem: "{client} has a problem on the trip {ref}: “{text}”",
   appointment_soon: "Soon: {title} · {when}",
+  b2b_changes: "{client} asked for changes on {ref}: “{text}”",
+  b2b_plan: "A payment plan was set on {ref}",
+  b2b_payment_due: "Payment due on {ref}: {label} ({date})",
 };
 const POLL_MS = 60_000;
 
@@ -51,6 +54,7 @@ export default function NotificationBell({ className = "" }: { className?: strin
     if (!n.read) post("/api/notifications/read", { ids: [n.id] }).then(load).catch(() => {});
     setOpen(false);
     if (n.ticket_id) navigate(`/app/tickets?open=${n.ticket_id}`);
+    else if (n.params.b2b_id) navigate(`/app/requests/${n.params.b2b_id}`);
   };
   const readAll = () => post("/api/notifications/read", {}).then(load).catch(() => {});
 

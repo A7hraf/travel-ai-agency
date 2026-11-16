@@ -2,12 +2,13 @@ import { CSSProperties, useEffect, useState } from "react";
 import { get } from "../api";
 import { useAuth } from "../auth";
 import {
-  Briefcase, ChartBar, ChatCircleDots, ClockCounterClockwise, Crown, PaperPlaneTilt, SignOut, Tag, Translate, WhatsappLogo,
+  Briefcase, CalendarCheck, ChartBar, FileText, ChatCircleDots, ClockCounterClockwise, Crown, PaperPlaneTilt, SignOut, Tag, Translate, WhatsappLogo,
 } from "../components/Icon";
 import type { IconProps } from "../components/Icon";
 import { ErrorBox, Loading } from "../components/ui";
 import ClientRequests from "../components/b2b/ClientRequests";
 import VendorJobs from "../components/b2b/VendorJobs";
+import { PartnerFigures, VendorQuoteDesign } from "../components/b2b/PartnerFigures";
 import { useI18n } from "../lang";
 import { dashboardVars } from "../theme";
 import { useTheme } from "../themeMode";
@@ -17,7 +18,9 @@ const ICONS: Record<string, React.ComponentType<IconProps>> = {
   "client.requests": PaperPlaneTilt, "client.whatsapp": WhatsappLogo, "client.ai_chat": ChatCircleDots,
   "client.history": ClockCounterClockwise, "client.exclusive_packages": Crown, "client.reports": ChartBar,
   "vendor.requests": Briefcase, "vendor.quotes": Tag, "vendor.history": ClockCounterClockwise,
+  "client.payments": CalendarCheck, "vendor.payments": CalendarCheck, "vendor.quote_design": FileText,
 };
+type Tab = "home" | "work" | "figures" | "quote";
 
 /** The portal of a business client or vendor login: its own space, apart from the travel company's staff app. */
 export default function PartnerPortal() {
@@ -26,7 +29,7 @@ export default function PartnerPortal() {
   const { theme } = useTheme();
   const [home, setHome] = useState<PartnerHome | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"home" | "work">("home");
+  const [tab, setTab] = useState<Tab>("home");
   const load = () => get<PartnerHome>("/api/partner/home").then((h) => { setHome(h); setError(null); }).catch((e) => setError((e as Error).message));
   useEffect(() => { load(); }, []);
 
@@ -38,7 +41,11 @@ export default function PartnerPortal() {
   const work = home?.kind === "vendor"
     ? (has("vendor.requests") ? t("Requests for you") : null)
     : (has("client.requests") || has("client.history") ? t("Trip requests") : null);
-  const LIVE = new Set(["client.requests", "client.history", "vendor.requests", "vendor.quotes", "vendor.history", "client.whatsapp"]);
+  const figures = home && has(home.kind === "vendor" ? "vendor.history" : "client.reports");
+  const quote = home?.kind === "vendor" && has("vendor.quote_design");
+  const LIVE = new Set(["client.requests", "client.history", "vendor.requests", "vendor.quotes", "vendor.history", "client.whatsapp",
+    "client.reports", "client.payments", "vendor.payments", "vendor.quote_design"]);
+  const TAB_OF: Record<string, Tab> = { "client.reports": "figures", "vendor.quote_design": "quote" };
 
   return (
     <div className="gx-portal" style={style} dir={lang === "ar" ? "rtl" : "ltr"}>
@@ -55,15 +62,19 @@ export default function PartnerPortal() {
       </header>
 
       <main className="gx-portal-main">
-        {home && work && (
+        {home && (work || figures || quote) && (
           <div className="seg gx-portal-tabs" role="tablist" aria-label={home.partner_name}>
             <button type="button" role="tab" aria-selected={tab === "home"} className={tab === "home" ? "active" : ""} onClick={() => setTab("home")}>{t("Home")}</button>
-            <button type="button" role="tab" aria-selected={tab === "work"} className={tab === "work" ? "active" : ""} onClick={() => setTab("work")}>{work}</button>
+            {work && <button type="button" role="tab" aria-selected={tab === "work"} className={tab === "work" ? "active" : ""} onClick={() => setTab("work")}>{work}</button>}
+            {figures && <button type="button" role="tab" aria-selected={tab === "figures"} className={tab === "figures" ? "active" : ""} onClick={() => setTab("figures")}>{t("Figures")}</button>}
+            {quote && <button type="button" role="tab" aria-selected={tab === "quote"} className={tab === "quote" ? "active" : ""} onClick={() => setTab("quote")}>{t("Your quotation")}</button>}
           </div>
         )}
         {home && work && tab === "work" ? (
-          home.kind === "vendor" ? <VendorJobs canQuote={has("vendor.quotes")} /> : <ClientRequests canWrite={has("client.requests")} />
-        ) : !home ? (error ? <ErrorBox error={error} onRetry={load} /> : <Loading height={260} />) : (<>
+          home.kind === "vendor" ? <VendorJobs canQuote={has("vendor.quotes")} canPlan={has("vendor.payments")} /> : <ClientRequests canWrite={has("client.requests")} />
+        ) : home && figures && tab === "figures" ? <PartnerFigures />
+        : home && quote && tab === "quote" ? <VendorQuoteDesign />
+        : !home ? (error ? <ErrorBox error={error} onRetry={load} /> : <Loading height={260} />) : (<>
           <div className="gx-portal-hello">
             <div className="gx-kicker">{kindLabel}</div>
             <h1 dir="auto">{home.partner_name}</h1>
@@ -82,7 +93,7 @@ export default function PartnerPortal() {
                     <Icon className="gx-portal-icon" />
                     <div className="gx-portal-card-title">{t(home.catalog[f] ?? f)}</div>
                     {LIVE.has(f)
-                      ? (work && f !== "client.whatsapp" ? <button type="button" className="btn btn-sm btn-soft" onClick={() => setTab("work")}>{t("Open")}</button>
+                      ? ((TAB_OF[f] || work) && f !== "client.whatsapp" ? <button type="button" className="btn btn-sm btn-soft" onClick={() => setTab(TAB_OF[f] ?? (f === "vendor.history" && figures ? "figures" : "work"))}>{t("Open")}</button>
                         : <span className="gx-status on">{t("Active")}</span>)
                       : <span className="gx-status plain">{t("Opening soon")}</span>}
                   </div>

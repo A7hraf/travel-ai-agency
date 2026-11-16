@@ -2,7 +2,9 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { get, post, put, del } from "../api";
 import { PageTitle } from "../components/admin/AdminUI";
-import { ArrowLeft, Check, Plus, Sparkle, Trash, WhatsappLogo } from "../components/Icon";
+import { ArrowLeft, ChartLineUp, Check, Plus, Sparkle, Trash, WhatsappLogo } from "../components/Icon";
+import { moneyText } from "../components/Money";
+import PaymentPlan from "../components/b2b/PaymentPlan";
 import { useAuth } from "../auth";
 import { money, PART_LABEL, PARTS, PartChip, STATUS, StatusBadge, STEP_LABEL, Thread, TripFacts } from "../components/b2b/TripParts";
 import { Empty, ErrorBox, Field, Loading } from "../components/ui";
@@ -18,6 +20,7 @@ function RequestList() {
   const [rows, setRows] = useState<StaffTripRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<TripStatus | "">("");
+  const [figures, setFigures] = useState(false);
   const load = () => {
     const q = new URLSearchParams({ ...(status ? { status } : {}) }).toString();
     return get<StaffTripRow[]>(`/api/b2b/requests${q ? `?${q}` : ""}`)
@@ -28,7 +31,9 @@ function RequestList() {
   return (
     <div>
       <PageTitle kicker={t("Agency workspace")} title={t("Business requests")}
-        subtitle={t("Trips asked by your business clients. Let the AI draft options or ask a vendor, send up to 3 choices per part, approve, and track the booking.")} />
+        subtitle={t("Trips asked by your business clients. Let the AI draft options or ask a vendor, send up to 3 choices per part, approve, and track the booking.")}
+        actions={<button type="button" className={`btn btn-sm ${figures ? "btn-soft" : "btn-ghost"}`} aria-pressed={figures} onClick={() => setFigures(!figures)}><ChartLineUp />{t("Business figures")}</button>} />
+      {figures && <Figures />}
       <div className="gx-chips" role="group" aria-label={t("Status")}>
         {FILTERS.map((f) => (
           <button key={f || "all"} type="button" className={`gx-chip ${status === f ? "on" : ""}`} aria-pressed={status === f} onClick={() => setStatus(f)}>
@@ -108,6 +113,7 @@ function RequestDetail({ id }: { id: number }) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [vendorId, setVendorId] = useState<number | "">("");
   const [brief, setBrief] = useState("");
+  const [share, setShare] = useState(false);
   const [picked, setPicked] = useState<number[]>([]);
   const [editing, setEditing] = useState<number | null>(null);
   const [markup, setMarkup] = useState("");
@@ -184,8 +190,9 @@ function RequestDetail({ id }: { id: number }) {
               <Field label={t("Brief for the vendor")} hint={<button type="button" className="link-btn" onClick={prefill}>{t("Fill from the request")}</button>}>
                 <textarea rows={3} value={brief} onChange={(e) => setBrief(e.target.value)} maxLength={4000} dir="auto" />
               </Field>
+              <label className="gx-feat-check"><input type="checkbox" checked={share} onChange={(e) => setShare(e.target.checked)} /> {t("Let the vendor see the client's company name")}</label>
               <button className="btn btn-primary" disabled={!vendorId}
-                onClick={() => act(() => post<StaffTrip>(`${base}/vendor`, { vendor_id: vendorId, brief: brief || null }))}>
+                onClick={() => act(() => post<StaffTrip>(`${base}/vendor`, { vendor_id: vendorId, brief: brief || null, share_client: share }))}>
                 {trip.vendor_id ? t("Send to this vendor instead") : t("Send to vendor")}
               </button>
             </section>
@@ -255,6 +262,26 @@ function RequestDetail({ id }: { id: number }) {
             )}
           </section>
 
+          {(trip.payment_plan.length > 0 || !["new", "completed", "cancelled"].includes(trip.status)) && (
+            <PaymentPlan<StaffTrip> side="staff" plan={trip.payment_plan} currency={cur} planUrl={`${base}/payment-plan`}
+              paidUrl={(sid) => `${base}/payments/${sid}`} canEdit={!["completed", "cancelled"].includes(trip.status)} onChange={show} />
+          )}
+          {trip.vendor_quote && (trip.vendor_quote.intro || trip.vendor_quote.terms || trip.vendor_quote.payment_terms) && (
+            <section className="gx-card">
+              <h2 className="gx-card-title">{t("The vendor's terms")}</h2>
+              {trip.vendor_quote.intro && <p dir="auto">{trip.vendor_quote.intro}</p>}
+              {trip.vendor_quote.payment_terms && <p className="small" dir="auto"><strong>{t("Payment terms")}:</strong> {trip.vendor_quote.payment_terms}</p>}
+              {trip.vendor_quote.terms && <p className="muted small gx-pre" dir="auto">{trip.vendor_quote.terms}</p>}
+              <p className="muted small">{t("Prices valid for {n} days.", { n: trip.vendor_quote.valid_days })}</p>
+            </section>
+          )}
+          {trip.client_rating && (
+            <section className="gx-card">
+              <h2 className="gx-card-title">{t("The client's rating")}</h2>
+              <p><strong>{"★".repeat(trip.client_rating)}</strong>{trip.client_comment && <span dir="auto"> · “{trip.client_comment}”</span>}</p>
+            </section>
+          )}
+
           <section className="gx-card gx-req-actions">
             {trip.status === "chosen" && <button className="btn btn-primary" onClick={() => act(() => post<StaffTrip>(`${base}/approve`))}><Check />{t("Approve the client's choice")}</button>}
             {trip.status === "approved" && (
@@ -294,6 +321,59 @@ function RequestDetail({ id }: { id: number }) {
         </div>
       </div>
     </div>
+  );
+}
+
+interface B2BFigures {
+  days: number; currency: string; requests: number; booked: number; sales: number; earned: number;
+  trips: { id: number; reference: string; client: string; vendor: string | null; destination: string; price: number; margin: number | null }[];
+  clients: { id: number; name: string; requests: number; booked: number; spent: number }[];
+  vendors: { id: number; name: string; jobs: number; booked: number; avg_hours: number | null; rating: number | null; accept_rate: number | null }[];
+  fastest_vendor: { name: string; avg_hours: number } | null; best_rated_vendor: { name: string; rating: number } | null;
+}
+
+/** B2B earnings, the clients that ask most and the vendors ranked. */
+function Figures() {
+  const { t, lang } = useI18n();
+  const [days, setDays] = useState(90);
+  const [f, setF] = useState<B2BFigures | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { get<B2BFigures>(`/api/b2b/stats?days=${days}`).then(setF).catch((e) => setError((e as Error).message)); }, [days]);
+  if (error) return <ErrorBox error={error} />;
+  if (!f) return <Loading height={200} />;
+  const m = (v: number) => moneyText(v, f.currency, lang);
+  return (
+    <section className="gx-team">
+      <div className="gx-plan-head">
+        <h2>{t("Business figures")}</h2>
+        <select value={days} onChange={(e) => setDays(Number(e.target.value))} aria-label={t("Period")}>
+          <option value={30}>{t("Last 30 days")}</option><option value={90}>{t("Last 90 days")}</option><option value={365}>{t("In the last year")}</option>
+        </select>
+      </div>
+      <div className="gx-b2b-meters gx-insight-cards">
+        <div className="gx-b2b-meter"><div className="muted small">{t("Requests")}</div><div className="gx-b2b-num tnum">{f.requests}</div><div className="muted small">{t("{n} booked", { n: f.booked })}</div></div>
+        <div className="gx-b2b-meter"><div className="muted small">{t("Sales")}</div><div className="gx-b2b-num tnum">{m(f.sales)}</div></div>
+        <div className="gx-b2b-meter"><div className="muted small">{t("Earned")}</div><div className="gx-b2b-num tnum">{m(f.earned)}</div></div>
+        {f.fastest_vendor && <div className="gx-b2b-meter"><div className="muted small">{t("Fastest vendor")}</div><div className="gx-b2b-num">{f.fastest_vendor.name}</div><div className="muted small">{t("{n} h to answer", { n: f.fastest_vendor.avg_hours })}</div></div>}
+        {f.best_rated_vendor && <div className="gx-b2b-meter"><div className="muted small">{t("Best rated vendor")}</div><div className="gx-b2b-num">{f.best_rated_vendor.name}</div><div className="muted small">{"★".repeat(Math.round(f.best_rated_vendor.rating))}</div></div>}
+      </div>
+      <div className="gx-insight-grid">
+        <div>
+          <h3 className="gx-insight-h3">{t("Clients who ask most")}</h3>
+          <ol className="gx-insight-list">{f.clients.map((c) => <li key={c.id} dir="auto">{c.name} · {t("{n} requests, {b} booked", { n: c.requests, b: c.booked })} · {m(c.spent)}</li>)}</ol>
+          <h3 className="gx-insight-h3">{t("Earnings per trip")}</h3>
+          <ol className="gx-insight-list">{f.trips.slice(0, 10).map((r) => <li key={r.id} dir="auto"><Link to={`/app/requests/${r.id}`}>{r.reference}</Link> · {r.client} · {r.destination} · {r.margin == null ? "—" : m(r.margin)}</li>)}</ol>
+        </div>
+        <div>
+          <h3 className="gx-insight-h3">{t("Vendors, best first")}</h3>
+          <ol className="gx-insight-list">{f.vendors.map((v) => (
+            <li key={v.id} dir="auto">{v.name} · {t("{n} jobs, {b} booked", { n: v.jobs, b: v.booked })}
+              {v.avg_hours != null && ` · ${t("{n} h to answer", { n: v.avg_hours })}`}{v.rating != null && ` · ${v.rating}★`}
+              {v.accept_rate != null && ` · ${t("accepts {p}%", { p: Math.round(v.accept_rate * 100) })}`}</li>
+          ))}</ol>
+        </div>
+      </div>
+    </section>
   );
 }
 

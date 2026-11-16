@@ -245,6 +245,7 @@ class Partner(Base):
     # Features the travel company gives this account (only those the platform owner allows count).
     features: Mapped[list[str]] = mapped_column(JSON, default=list)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    quote_settings: Mapped[dict | None] = mapped_column(JSON)  # a vendor's quotation design: intro, terms, validity
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
     company: Mapped[Company] = relationship(back_populates="partners")
@@ -874,6 +875,9 @@ class TripRequest(Base):
     booking_reference: Mapped[str | None] = mapped_column(String(200))
     booking_notes: Mapped[str | None] = mapped_column(Text)
     vendor_accepted: Mapped[bool | None] = mapped_column(Boolean)
+    share_client: Mapped[bool] = mapped_column(Boolean, default=False)  # the vendor may see the client's name
+    client_rating: Mapped[int | None] = mapped_column(Integer)  # 1 to 5, given by the client after the trip
+    client_comment: Mapped[str | None] = mapped_column(Text)
 
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, onupdate=utcnow)
@@ -884,8 +888,31 @@ class TripRequest(Base):
                                                        order_by="TripOption.id")
     events: Mapped[list["TripRequestEvent"]] = relationship(cascade="all, delete-orphan", passive_deletes=True,
                                                             order_by="TripRequestEvent.id")
+    payment_steps: Mapped[list["TripPaymentStep"]] = relationship(cascade="all, delete-orphan", passive_deletes=True,
+                                                                  order_by="TripPaymentStep.position")
     messages: Mapped[list["TripRequestMessage"]] = relationship(cascade="all, delete-orphan", passive_deletes=True,
                                                                 order_by="TripRequestMessage.id")
+
+
+class TripPaymentStep(Base):
+    """One payment of a business trip: a share of the total, due on a date. The client pays the travel company
+    (its share of the client price) and the travel company pays the vendor (the same share of the cost)."""
+
+    __tablename__ = "trip_payment_steps"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    request_id: Mapped[int] = mapped_column(ForeignKey("trip_requests.id", ondelete="CASCADE"), index=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    label: Mapped[str] = mapped_column(String(80))
+    percent: Mapped[Decimal] = mapped_column(Numeric(5, 2))
+    due_date: Mapped[date | None] = mapped_column(Date)
+    client_paid_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    client_reference: Mapped[str | None] = mapped_column(String(200))
+    vendor_paid_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    vendor_reference: Mapped[str | None] = mapped_column(String(200))
+    reminded_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    set_by: Mapped[str] = mapped_column(String(10), default="vendor")  # vendor or staff
 
 
 class TripOption(Base):

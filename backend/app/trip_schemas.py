@@ -108,6 +108,7 @@ class VendorOptionIn(BaseModel):
 class AssignVendorIn(BaseModel):
     vendor_id: int
     brief: str | None = Field(default=None, max_length=4000)
+    share_client: bool = False  # the vendor may see the client company's name (hidden by default)
 
     @field_validator("brief")
     @classmethod
@@ -232,6 +233,49 @@ class TripCommon(BaseModel):
     currency: str
 
 
+class PaymentStepIn(BaseModel):
+    label: str = Field(min_length=2, max_length=80)
+    percent: Decimal = Field(gt=0, le=100, decimal_places=2)
+    due_date: date | None = None
+
+    @field_validator("label")
+    @classmethod
+    def line(cls, v):
+        return _text(v)
+
+
+class PaymentPlanIn(BaseModel):
+    steps: list[PaymentStepIn] = Field(min_length=1, max_length=8)
+
+
+class PaidIn(BaseModel):
+    side: Literal["client", "vendor"]
+    reference: str | None = Field(default=None, max_length=200)
+    paid: bool = True
+
+
+class RateIn(BaseModel):
+    rating: int = Field(ge=1, le=5)
+    comment: str | None = Field(default=None, max_length=1000)
+
+
+class ChangesIn(BaseModel):
+    note: str = Field(min_length=3, max_length=2000)
+
+
+class PaymentRowOut(BaseModel):
+    id: int
+    label: str
+    percent: Decimal
+    due_date: date | None
+    amount: Decimal | None  # the client's share of the client price, or the vendor's share of the cost
+    paid: bool
+    paid_at: datetime | None
+    overdue: bool = False
+    vendor_amount: Decimal | None = None  # staff only: both sides
+    vendor_paid: bool | None = None
+
+
 class StaffTripOut(TripCommon):
     source: str
     client_id: int
@@ -251,6 +295,11 @@ class StaffTripOut(TripCommon):
     options: list[StaffOptionOut]
     events: list[EventOut]
     messages: list[MessageOut]
+    share_client: bool = False
+    payment_plan: list[PaymentRowOut] = []
+    client_rating: int | None = None
+    client_comment: str | None = None
+    vendor_quote: dict | None = None  # the vendor's own quotation design
 
 
 class StaffTripRow(BaseModel):
@@ -275,6 +324,8 @@ class ClientTripOut(TripCommon):
     options: list[ClientOptionOut]
     steps: list[StepOut]
     messages: list[MessageOut]
+    payment_plan: list[PaymentRowOut] = []
+    client_rating: int | None = None
 
 
 class VendorTripOut(TripCommon):
@@ -287,3 +338,5 @@ class VendorTripOut(TripCommon):
     options: list[VendorOptionOut]
     steps: list[StepOut]
     messages: list[MessageOut]
+    client_name: str | None = None  # only when the travel company shares it
+    payment_plan: list[PaymentRowOut] = []

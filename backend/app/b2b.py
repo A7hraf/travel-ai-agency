@@ -24,8 +24,11 @@ FEATURES: dict[str, str] = {
     "client.history": "Travel history",
     "client.exclusive_packages": "Exclusive packages",
     "client.reports": "Spending reports",
+    "client.payments": "Payment plan and reminders",
     "vendor.requests": "Receive trip requests",
     "vendor.quotes": "Send options and prices",
+    "vendor.payments": "Set payment plans with dates",
+    "vendor.quote_design": "Own quotation design",
     "vendor.history": "Job history",
 }
 

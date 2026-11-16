@@ -11,6 +11,7 @@ from ..database import get_db
 from ..deps import get_partner_user, require_permission
 from ..models import Partner, PartnerKind, TripRequest, User
 from ..services import partners as partners_svc
+from ..services import b2b_flow as flow
 from ..services import trip_requests as svc
 from ..services.trip_requests import Actor
 from ..ai import planner
@@ -18,11 +19,15 @@ from ..ratelimit import limiter
 from ..trip_schemas import (
     AssignVendorIn,
     BookedIn,
+    ChangesIn,
     ChooseIn,
     ClientTripOut,
     MarkupIn,
     MessageIn,
     OptionIn,
+    PaidIn,
+    PaymentPlanIn,
+    RateIn,
     ReasonIn,
     SendToClientIn,
     StaffRequestIn,
@@ -287,3 +292,73 @@ def vendor_booked(request_id: int, body: BookedIn, me: User = Depends(vendor_rea
 def vendor_message(request_id: int, body: MessageIn, me: User = Depends(vendor_reader), db: Session = Depends(get_db)):
     req = svc.get_for_vendor(db, me, request_id)
     return svc.vendor_view(svc.post_message(db, req, "vendor", Actor.of(me, "vendor"), body.text), me.company)
+
+
+# --- After the first quotation: changes, the payment plan, the rating, the figures ------------------------------
+
+@router.get("/api/b2b/stats")
+def staff_stats(days: int = Query(default=90, ge=7, le=730), me: User = Depends(staff), db: Session = Depends(get_db)):
+    """B2B earnings, the clients that ask most and the vendors ranked (fastest, best rated, most booked)."""
+    return flow.staff_stats(db, me.company, days)
+
+
+@router.put("/api/b2b/requests/{request_id}/payment-plan", response_model=StaffTripOut)
+def staff_plan(request_id: int, body: PaymentPlanIn, me: User = Depends(staff), db: Session = Depends(get_db)):
+    req = svc.get_for_company(db, me.company_id, request_id, lock=True)
+    return _staff_out(db, me, flow.set_plan(db, req, body.steps, Actor.of(me, "staff")))
+
+
+@router.post("/api/b2b/requests/{request_id}/payments/{step_id}", response_model=StaffTripOut)
+def staff_paid(request_id: int, step_id: int, body: PaidIn, me: User = Depends(staff), db: Session = Depends(get_db)):
+    """The client paid this share, or the travel company paid the vendor (or undo)."""
+    req = svc.get_for_company(db, me.company_id, request_id, lock=True)
+    return _staff_out(db, me, flow.mark_paid(db, req, step_id, body.side, body.reference, body.paid, Actor.of(me, "staff")))
+
+
+@router.post("/api/partner/requests/{request_id}/changes", response_model=ClientTripOut)
+def client_changes(request_id: int, body: ChangesIn, me: User = Depends(client_writer), db: Session = Depends(get_db)):
+    """The client wants something else: the vendor gets a clear brief and new options come back."""
+    limiter.check(f"b2b-changes:{me.partner_id}", 20, "Too many changes: please wait a little", window=3600)
+    req = svc.get_for_client(db, me, request_id, lock=True)
+    return svc.client_view(flow.client_changes(db, me.company, req, body.note, Actor.of(me, "client")), me.company)
+
+
+@router.post("/api/partner/requests/{request_id}/rating", response_model=ClientTripOut)
+def client_rate(request_id: int, body: RateIn, me: User = Depends(client_writer), db: Session = Depends(get_db)):
+    req = svc.get_for_client(db, me, request_id, lock=True)
+    return svc.client_view(flow.rate(db, req, body.rating, body.comment, Actor.of(me, "client")), me.company)
+
+
+@router.put("/api/partner/jobs/{request_id}/payment-plan", response_model=VendorTripOut)
+def vendor_plan(request_id: int, body: PaymentPlanIn, me: User = Depends(vendor_reader), db: Session = Depends(get_db)):
+    """The vendor sets when it must be paid: shares of the total with dates (both dashboards follow them)."""
+    _vendor(me, "vendor.payments")
+    req = svc.get_for_vendor(db, me, request_id, lock=True)
+    if not req.vendor_accepted:
+        raise HTTPException(409, "Accept the request first")
+    return svc.vendor_view(flow.set_plan(db, req, body.steps, Actor.of(me, "vendor")), me.company)
+
+
+@router.get("/api/partner/quote-settings", response_model=flow.VendorQuoteIn)
+def vendor_quote_get(me: User = Depends(vendor_reader)):
+    _vendor(me, "vendor.quote_design")
+    return flow.VendorQuoteIn.model_validate(me.partner.quote_settings or {})
+
+
+@router.put("/api/partner/quote-settings", response_model=flow.VendorQuoteIn)
+def vendor_quote_put(body: flow.VendorQuoteIn, me: User = Depends(vendor_reader), db: Session = Depends(get_db)):
+    """The vendor's quotation design (intro, terms, payment terms, validity), shown with its options."""
+    _vendor(me, "vendor.quote_design")
+    partner = db.get(Partner, me.partner_id)
+    partner.quote_settings = body.model_dump()
+    db.commit()
+    return body
+
+
+@router.get("/api/partner/stats")
+def partner_stats(me: User = Depends(get_partner_user), db: Session = Depends(get_db)):
+    """The account's own figures: requests or jobs by status, money, trips ahead and payments due."""
+    need = "client.reports" if me.partner.kind == PartnerKind.CLIENT else "vendor.history"
+    if need not in effective_features(me.partner):
+        raise HTTPException(403, "This service is not switched on for your account")
+    return flow.partner_stats(db, me)

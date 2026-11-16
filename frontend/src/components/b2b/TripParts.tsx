@@ -30,7 +30,9 @@ export const STEP_LABEL: Record<string, string> = {
   options_submitted: "Options sent", sent_to_client: "Options ready", chosen: "Choice made", approved: "Approved",
   booked: "Booked", completed: "Completed", cancelled: "Cancelled", option_added: "Option added",
   option_changed: "Option changed", option_removed: "Option removed", markup: "Margin changed",
-  ai_drafted: "AI drafted options",
+  ai_drafted: "AI drafted options", changes_requested: "Changes asked", payment_plan: "Payment plan set",
+  client_paid: "Payment received", client_unpaid: "Payment unmarked", vendor_paid: "Vendor paid", vendor_unpaid: "Vendor payment unmarked",
+  rated: "Rated",
 };
 
 export function StatusBadge({ status, side }: { status: TripStatus; side: "staff" | "client" | "vendor" }) {

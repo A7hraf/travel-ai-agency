@@ -741,3 +741,14 @@ svg.warn { color: var(--st-waiting); }
 .gx-qx-photo .icon-btn { position: absolute; top: 4px; inset-inline-end: 4px; background: var(--surface-1); }
 .gx-qx-count { align-self: center; }
 .gx-ask-kinds + .gx-grid-2 { margin-top: 10px; }
+.gx-pay-plan { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.gx-pay-plan li { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); }
+.gx-pay-plan li.late { box-shadow: inset 3px 0 0 var(--st-cancelled); }
+.gx-pay-plan li.paid { opacity: .75; }
+.gx-pay-amounts { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+.gx-pay-row { display: grid; grid-template-columns: 1fr 110px 160px auto; gap: 8px; align-items: center; }
+@media (max-width: 600px) { .gx-pay-row { grid-template-columns: 1fr 1fr; } }
+.gx-stars { display: flex; gap: 4px; margin: 4px 0 8px; }
+.gx-stars button { border: 0; background: none; font-size: 28px; line-height: 1; color: var(--line-strong, #c9c9c9); cursor: pointer; padding: 2px; }
+.gx-stars button.on { color: #e0a526; }
+.gx-stars button:disabled { cursor: default; }

@@ -5,6 +5,7 @@ import type { ClientTrip, TripPart } from "../../types";
 import { shortDate } from "../../util";
 import { ArrowLeft, Check, Plus } from "../Icon";
 import { Empty, ErrorBox, Field, Loading } from "../ui";
+import PaymentPlan from "./PaymentPlan";
 import { money, PART_LABEL, PARTS, PartChip, StatusBadge, Steps, Thread, TripFacts } from "./TripParts";
 
 function NewRequest({ onCreated, onCancel }: { onCreated: (t: ClientTrip) => void; onCancel: () => void }) {
@@ -66,13 +67,16 @@ function RequestView({ trip, onChange, onBack, canWrite }: { trip: ClientTrip; o
   const { t, lang } = useI18n();
   const [choice, setChoice] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
+  const [changes, setChanges] = useState<string | null>(null);
+  const [stars, setStars] = useState(trip.client_rating ?? 0);
+  const [comment, setComment] = useState("");
   const base = `/api/partner/requests/${trip.id}`;
   const parts = PARTS.filter((p) => trip.options.some((o) => o.category === p));
   const choosing = trip.status === "with_client" && canWrite;
   const ready = parts.every((p) => choice[p]);
   const run = async (fn: () => Promise<ClientTrip>) => {
     setError(null);
-    try { onChange(await fn()); } catch (err) { setError((err as Error).message); }
+    try { onChange(await fn()); } catch (err) { setError((err as Error).message); throw err; }
   };
   const total = parts.reduce((sum, p) => sum + Number(trip.options.find((o) => o.id === choice[p])?.price ?? 0), 0);
 
@@ -108,13 +112,46 @@ function RequestView({ trip, onChange, onBack, canWrite }: { trip: ClientTrip; o
             <div className="gx-totals">
               <span>{t("Total")} <strong>{ready ? money(total, trip.currency, lang) : "—"}</strong></span>
               <span className="spacer" />
-              <button className="btn btn-primary" disabled={!ready} onClick={() => run(() => post<ClientTrip>(`${base}/choose`, { option_ids: parts.map((p) => choice[p]) }))}><Check />{t("Confirm my choice")}</button>
+              <button className="btn btn-primary" disabled={!ready} onClick={() => run(() => post<ClientTrip>(`${base}/choose`, { option_ids: parts.map((p) => choice[p]) })).catch(() => {})}><Check />{t("Confirm my choice")}</button>
             </div>
           )}
           {!choosing && trip.total_price !== null && <div className="gx-totals"><span>{t("Total")} <strong>{money(trip.total_price, trip.currency, lang)}</strong></span></div>}
+          {canWrite && ["with_client", "chosen"].includes(trip.status) && (changes === null ? (
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setChanges("")}>{t("None of these fit? Ask for changes")}</button>
+          ) : (
+            <form className="gx-qx-form" onSubmit={(e) => { e.preventDefault(); run(() => post<ClientTrip>(`${base}/changes`, { note: changes })).then(() => setChanges(null)).catch(() => {}); }}>
+              <textarea rows={3} value={changes} onChange={(e) => setChanges(e.target.value)} required minLength={3} maxLength={2000} dir="auto"
+                aria-label={t("What should change?")} placeholder={t("e.g. An earlier flight, a hotel closer to the venue, a lower price")} />
+              <div className="gx-wf-save">
+                <button className="btn btn-sm btn-primary" disabled={changes.trim().length < 3}>{t("Send the changes")}</button>
+                <button type="button" className="btn btn-sm btn-ghost" onClick={() => setChanges(null)}>{t("Cancel")}</button>
+              </div>
+            </form>
+          ))}
         </section>
       )}
+      {(trip.payment_plan.length > 0 || ["approved", "booked"].includes(trip.status)) && (
+        <PaymentPlan<ClientTrip> side="client" plan={trip.payment_plan} currency={trip.currency} canEdit={false} onChange={onChange} />
+      )}
       {trip.booking_reference && <section className="gx-card"><h2 className="gx-card-title">{t("Booking reference")}</h2><p className="gx-big" dir="ltr">{trip.booking_reference}</p></section>}
+
+      {["booked", "completed"].includes(trip.status) && (canWrite || trip.client_rating) && (
+        <section className="gx-card">
+          <h2 className="gx-card-title">{t("How was this trip?")}</h2>
+          <div className="gx-stars" role="radiogroup" aria-label={t("Rating")}>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button key={n} type="button" role="radio" aria-checked={stars === n} aria-label={t("{n} of 5", { n })} disabled={!canWrite}
+                className={n <= stars ? "on" : ""} onClick={() => setStars(n)}>★</button>
+            ))}
+          </div>
+          {canWrite && (
+            <form className="gx-qx-form" onSubmit={(e) => { e.preventDefault(); run(() => post<ClientTrip>(`${base}/rating`, { rating: stars, comment: comment || null })).catch(() => {}); }}>
+              <textarea rows={2} value={comment} onChange={(e) => setComment(e.target.value)} maxLength={1000} dir="auto" aria-label={t("Comment (optional)")} placeholder={t("Comment (optional)")} />
+              <div className="gx-wf-save"><button className="btn btn-sm btn-primary" disabled={!stars}>{trip.client_rating ? t("Update my rating") : t("Send my rating")}</button></div>
+            </form>
+          )}
+        </section>
+      )}
 
       <section className="gx-card">
         <h2 className="gx-card-title">{t("Messages")}</h2>
@@ -123,7 +160,7 @@ function RequestView({ trip, onChange, onBack, canWrite }: { trip: ClientTrip; o
       </section>
       <section className="gx-card"><h2 className="gx-card-title">{t("Progress")}</h2><Steps steps={trip.steps} /></section>
       {canWrite && ["new", "with_vendor", "options_ready", "with_client", "chosen"].includes(trip.status) && (
-        <button className="btn btn-ghost btn-danger-text" onClick={() => { if (window.confirm(t("Cancel this request?"))) run(() => post<ClientTrip>(`${base}/cancel`, {})); }}>{t("Cancel request")}</button>
+        <button className="btn btn-ghost btn-danger-text" onClick={() => { if (window.confirm(t("Cancel this request?"))) run(() => post<ClientTrip>(`${base}/cancel`, {})).catch(() => {}); }}>{t("Cancel request")}</button>
       )}
     </div>
   );
