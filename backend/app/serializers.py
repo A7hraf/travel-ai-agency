@@ -50,6 +50,7 @@ def user_out(user: User) -> UserOut:
         created_at=user.created_at,
         last_login_at=user.last_login_at,
         whatsapp_number=user.whatsapp_number,
+        ai_features=user.ai_features or [],
     )
 
 
@@ -58,7 +59,7 @@ def me_out(user: User) -> MeOut:
     if user.company:
         c = user.company
         company = CompanyBrief(id=c.id, name=c.name, slug=c.slug, status=c.status, branding=dashboard_branding(c),
-                               b2b_enabled=b2b_settings(c).enabled, addons=enabled_addons(c),
+                               b2b_enabled=b2b_settings(c).enabled, addons=enabled_addons(c, user),
                                member_levels=staff_member_levels(c), currency=c.currency or "OMR")
     partner = None
     if user.partner is not None:

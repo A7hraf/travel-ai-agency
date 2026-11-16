@@ -3,12 +3,12 @@
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
-from ..addons import require_addon
+from ..addons import require_addon, use, user_may
 from ..database import get_db
 from ..deps import require_permission, require_system_admin
 from ..models import AdvisorMessage, User
@@ -35,6 +35,8 @@ def _out(rows: list[AdvisorMessage]) -> list[MessageOut]:
 
 def company_user(me: User = Depends(require_permission("reports.view"))) -> User:
     require_addon(me.company, "advisor")
+    if not user_may(me, "advisor"):
+        raise HTTPException(403, "Your company admin has not given you this feature")
     return me
 
 
@@ -46,6 +48,7 @@ def company_chat(me: User = Depends(company_user), db: Session = Depends(get_db)
 @router.post("/api/advisor", response_model=list[MessageOut])
 def company_ask(body: AskIn, me: User = Depends(company_user), db: Session = Depends(get_db)):
     limiter.check(f"advisor:{me.company_id}", 60, "The advisor is busy: please try again in a few minutes", window=3600)
+    use(db, me, "advisor")
     return _out(svc.ask(db, me, me.company, body.text))
 
 

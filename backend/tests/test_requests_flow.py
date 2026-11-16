@@ -79,8 +79,10 @@ def test_built_in_services_and_editing(client, company_a, owner):
     assert client.delete(f"/api/services/{sid}", headers=admin).status_code == 204
 
 
-def test_ai_service_builder_drafts_without_saving(client, company_a, scripted):
-    _, admin = company_a
+def test_ai_service_builder_drafts_without_saving(client, company_a, scripted, owner):
+    company, admin = company_a
+    assert client.post("/api/services/ai-draft", headers=admin, json={"text": "We run Umrah trips by bus and plane"}).status_code == 403
+    client.put(f"/api/system/companies/{company['id']}/features", headers=owner, json={"service_builder": {"on": True}})
     draft = {"name_en": "Umrah trips", "name_ar": "رحلات العمرة", "pricing": "fixed", "price": 450, "parts": ["flight", "hotel", "spa"],
              "fields": [{"key": "adults", "label_en": "Pilgrims", "label_ar": "المعتمرون", "type": "number", "required": True},
                         {"key": "BAD", "label_en": "x", "label_ar": "x"}],
@@ -247,7 +249,7 @@ def test_urgency_puts_the_right_request_first(client, wa, scripted, owner):
     assert [r["destination"] for r in rows] == ["Dubai", "Paris"]
     assert rows[0]["urgency"]["reasons"] == ["trip in 2 days"] and rows[1]["urgency"]["score"] == 0
     # A VIP waiting is more urgent.
-    client.put(f"/api/system/companies/{company['id']}/addons", headers=owner, json={"members": True})
+    client.put(f"/api/system/companies/{company['id']}/features", headers=owner, json={"members": {"on": True}})
     client.put(f"/api/members/{cid}", headers=admin, json={"level": "vip"})
     rows = client.get("/api/tickets?sort=urgency", headers=admin).json()
     assert "VIP member" in rows[0]["urgency"]["reasons"] and rows[1]["urgency"]["reasons"] == ["VIP member"]

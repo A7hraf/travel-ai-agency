@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { get } from "../api";
 import { useAuth } from "../auth";
 import { PageTitle } from "../components/admin/AdminUI";
+import MyFeatures from "../components/features/MyFeatures";
 import { Crown, Headset } from "../components/Icon";
 import { Money } from "../components/Money";
 import { endText, PaymentTable, PlanIncludes, StateBadge, UsageMeters } from "../components/plans/PlanUI";
@@ -58,6 +59,8 @@ export default function MyPlan() {
         <h2 className="gx-card-title">{t("Limits and usage")}</h2>
         <UsageMeters usage={data.usage} />
       </section>
+
+      <MyFeatures />
 
       <section className="gx-card">
         <h2 className="gx-card-title">{t("What your plan includes")}</h2>

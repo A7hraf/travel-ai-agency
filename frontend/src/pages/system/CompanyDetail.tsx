@@ -8,7 +8,7 @@ import WhatsAppConnect from "../../components/ai/WhatsAppConnect";
 import BrandingEditor from "../../components/BrandingEditor";
 import ActivityLog from "../../components/ActivityLog";
 import B2BControls from "../../components/b2b/B2BControls";
-import AddonControls from "../../components/members/AddonControls";
+import FeatureControls from "../../components/features/FeatureControls";
 import SubscriptionPanel from "../../components/plans/SubscriptionPanel";
 import { ArrowLeft, ArrowSquareOut, Pause, Play, Trash, WarningOctagon } from "../../components/Icon";
 import { ErrorBox, Field, Loading } from "../../components/ui";
@@ -122,7 +122,7 @@ export default function CompanyDetail() {
       ) : tab === "whatsapp" ? (
         <WhatsAppConnect variant="owner" base={`/api/system/companies/${c.id}/whatsapp`} companyPath={`/api/system/companies/${c.id}`} />
       ) : tab === "b2b" ? (
-        <><AddonControls companyId={c.id} /><B2BControls companyId={c.id} /></>
+        <><FeatureControls companyId={c.id} /><B2BControls companyId={c.id} /></>
       ) : tab === "activity" ? (
         <ActivityLog path={`/api/system/companies/${c.id}/activity`} />
       ) : tab === "instagram" ? (

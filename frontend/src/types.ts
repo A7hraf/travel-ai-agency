@@ -210,6 +210,7 @@ export interface User {
   created_at: string;
   last_login_at: string | null;
   whatsapp_number?: string | null;
+  ai_features?: string[] | null;
 }
 
 export interface Me extends User {

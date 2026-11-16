@@ -6,6 +6,7 @@ from datetime import date, timedelta
 
 from app.ai.llm import LLMResponse, MockTravelLLM, set_llm_client
 from tests.test_request_files import JPEG, b64, hotel_request, media_payload
+from tests.test_library import switch
 from tests.test_requests_flow import PHONE, services, wa  # noqa: F401 (fixture)
 from tests.test_whatsapp import HOOK, meta_stub  # noqa: F401 (fixture)
 
@@ -13,8 +14,9 @@ IN_20 = (date.today() + timedelta(days=20)).isoformat()
 IN_26 = (date.today() + timedelta(days=26)).isoformat()
 
 
-def test_staff_request_money_and_plan(client, wa, scripted):
+def test_staff_request_money_and_plan(client, wa, scripted, owner):
     company, admin, fake = wa
+    switch(client, owner, company["id"], plan_writer=True)
     svc = services(client, admin)
     # A walk-in client: staff save what they know; the rest is added later.
     r = client.post("/api/tickets", headers=admin, json={

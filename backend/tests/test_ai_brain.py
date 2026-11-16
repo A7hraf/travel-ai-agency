@@ -13,7 +13,7 @@ from tests.test_ai_agent import say, start_chat
 
 
 def switch(client, owner, company_id, **addons):
-    r = client.put(f"/api/system/companies/{company_id}/addons", headers=owner, json=addons)
+    r = client.put(f"/api/system/companies/{company_id}/features", headers=owner, json={k: {"on": v} for k, v in addons.items()})
     assert r.status_code == 200, r.text
 
 

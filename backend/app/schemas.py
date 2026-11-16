@@ -91,6 +91,7 @@ class UserOut(ORM):
     created_at: datetime
     last_login_at: datetime | None
     whatsapp_number: str | None = None
+    ai_features: list[str] = []
 
 
 class MeOut(UserOut):

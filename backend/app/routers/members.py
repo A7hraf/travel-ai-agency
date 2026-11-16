@@ -1,6 +1,5 @@
-"""Advanced features switched by the platform owner, and the members community of a travel company.
+"""The members community of a travel company.
 
-* ``/api/system/companies/{id}/addons``: the platform owner switches advanced features on or off.
 * ``/api/members``: staff with ``members.manage`` set up the levels, give ranks and handle requests.
 Every query is limited to the employee's company.
 """
@@ -12,45 +11,14 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..addons import ADDONS, PARTS, AddonSettings, addon_settings, has_addon
+from ..addons import has_addon
 from ..audit import audit
 from ..database import get_db
-from ..deps import require_permission, require_system_admin
+from ..deps import require_permission
 from ..members import LEVELS, LevelKey, MembershipConfig, membership_config
-from ..models import Company, Customer, User, utcnow
+from ..models import Customer, User, utcnow
 
 router = APIRouter(tags=["members"])
-
-# --- Platform owner: advanced features ----------------------------------------------------------------
-
-class AddonsOut(BaseModel):
-    addons: AddonSettings
-    catalog: dict[str, str]
-    parts: dict[str, dict[str, str]] = PARTS
-
-
-def _company(db: Session, company_id: int) -> Company:
-    company = db.get(Company, company_id)
-    if company is None:
-        raise HTTPException(404, "Company not found")
-    return company
-
-
-@router.get("/api/system/companies/{company_id}/addons", response_model=AddonsOut)
-def get_addons(company_id: int, _: User = Depends(require_system_admin), db: Session = Depends(get_db)):
-    return AddonsOut(addons=addon_settings(_company(db, company_id)), catalog=ADDONS)
-
-
-@router.put("/api/system/companies/{company_id}/addons", response_model=AddonsOut)
-def save_addons(company_id: int, body: AddonSettings, me: User = Depends(require_system_admin),
-                db: Session = Depends(get_db)):
-    company = _company(db, company_id)
-    company.addons = body.model_dump()
-    audit(db, me, "addons.saved", target=company.name,
-          detail=", ".join(k for k, v in body.model_dump().items() if v) or "none", company_id=company.id)
-    db.commit()
-    return AddonsOut(addons=body, catalog=ADDONS)
-
 
 # --- Travel company: members --------------------------------------------------------------------------
 

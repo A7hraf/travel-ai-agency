@@ -45,7 +45,7 @@ from ..models import (
     User,
 )
 from ..schemas import UserCreate
-from ..addons import AddonSettings
+from ..addons import FEATURES
 from ..security import random_token, strong_password
 from ..timeutil import local_today
 from . import seats
@@ -550,7 +550,7 @@ def _add_members(db: Session, company: Company, members: tuple, with_people: boo
 
     config, requests = members
     # The luxury demo shows every advanced feature: members, the AI trip planner and AI insights.
-    company.addons = {**(company.addons or {}), **{k: True for k in AddonSettings.model_fields}}
+    company.addons = {k: {"on": True} for k in FEATURES}
     company.membership = config
     if not with_people:
         return

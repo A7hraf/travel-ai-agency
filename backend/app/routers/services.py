@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..ai.llm import LLMError, MockTravelLLM, get_llm_client
+from ..addons import use
 from ..audit import audit
 from ..branding import clean_text
 from ..catalog import PARTS, ServiceIn, ServiceOut, apply, ensure_built_in, service_out
@@ -110,8 +111,10 @@ def _mock_service(text: str) -> dict:
 
 
 @router.post("/ai-draft", response_model=ServiceIn)
-def ai_build(body: DescribeIn, me: User = Depends(manager)):
+def ai_build(body: DescribeIn, me: User = Depends(manager), db: Session = Depends(get_db)):
     """A draft service from the owner's words. Nothing is saved: the owner checks it, then saves it."""
+    use(db, me, "service_builder")
+    db.commit()
     limiter.check(f"service-builder:{me.company_id}", 20, "The AI is busy: please try again in a few minutes", window=3600)
     llm = get_llm_client()
     if isinstance(llm, MockTravelLLM):

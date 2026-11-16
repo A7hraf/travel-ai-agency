@@ -218,6 +218,7 @@ class User(Base):
     # Set for the logins of a business client or vendor (role "partner"); None for staff and the owner.
     partner_id: Mapped[int | None] = mapped_column(ForeignKey("partners.id", ondelete="CASCADE"), index=True)
     whatsapp_number: Mapped[str | None] = mapped_column(String(30))  # staff: where the calendar reminders go
+    ai_features: Mapped[list | None] = mapped_column(JSON)  # features given to this employee when they count seats
 
     company: Mapped[Company | None] = relationship(back_populates="users")
     partner: Mapped["Partner | None"] = relationship(back_populates="users")
@@ -492,6 +493,19 @@ class Appointment(Base):
     ticket: Mapped["Ticket | None"] = relationship()
     customer: Mapped["Customer | None"] = relationship()
     assigned_to: Mapped["User | None"] = relationship()
+
+
+class FeatureUsage(Base):
+    """How many times a company used a metered feature in a period ("2026-11", or "total")."""
+
+    __tablename__ = "feature_usage"
+    __table_args__ = (UniqueConstraint("company_id", "key", "period"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    key: Mapped[str] = mapped_column(String(40))
+    period: Mapped[str] = mapped_column(String(10))
+    count: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class AdvisorMessage(Base):

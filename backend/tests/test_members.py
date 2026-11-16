@@ -8,7 +8,7 @@ from tests.test_ai_agent import say, start_chat
 
 
 def switch_members(client, owner, company_id, on=True):
-    r = client.put(f"/api/system/companies/{company_id}/addons", headers=owner, json={"members": on})
+    r = client.put(f"/api/system/companies/{company_id}/features", headers=owner, json={"members": {"on": on}})
     assert r.status_code == 200, r.text
 
 
@@ -23,21 +23,20 @@ def test_off_until_the_owner_switches_it_on(client, owner, company_a):
     assert me["addons"] == [] and me["member_levels"] is None
     assert client.get(f"/api/public/companies/{company['slug']}").json()["members"] is None
     # Only the owner switches it.
-    assert client.put(f"/api/system/companies/{company['id']}/addons", headers=admin, json={"members": True}).status_code == 403
+    assert client.put(f"/api/system/companies/{company['id']}/features", headers=admin, json={"members": {"on": True}}).status_code == 403
     switch_members(client, owner, company["id"])
     me = client.get("/api/auth/me", headers=admin).json()["company"]
     assert me["addons"] == ["members"] and me["member_levels"]["vip"]["priority"] is True
-    got = client.get(f"/api/system/companies/{company['id']}/addons", headers=owner).json()
-    assert got["addons"]["members"] is True and not any(v for k, v in got["addons"].items() if k != "members")
-    assert "library_analytics" in got["parts"]["library"]
+    got = client.get(f"/api/system/companies/{company['id']}/features", headers=owner).json()
+    assert got["grants"]["members"]["on"] is True and not any(v["on"] for k, v in got["grants"].items() if k != "members")
+    assert {"key": "library_analytics", "parent": "library"}.items() <= next(c for c in got["catalog"] if c["key"] == "library_analytics").items()
     # A part works only while its feature is on.
-    client.put(f"/api/system/companies/{company['id']}/addons", headers=owner,
-               json={**got["addons"], "library_analytics": True})
+    base = f"/api/system/companies/{company['id']}/features"
+    client.put(base, headers=owner, json={"library_analytics": {"on": True}})
     assert "library_analytics" not in client.get("/api/auth/me", headers=admin).json()["company"]["addons"]
-    client.put(f"/api/system/companies/{company['id']}/addons", headers=owner,
-               json={**got["addons"], "library": True, "library_analytics": True})
+    client.put(base, headers=owner, json={"library": {"on": True}})
     assert {"library", "library_analytics"} <= set(client.get("/api/auth/me", headers=admin).json()["company"]["addons"])
-    client.put(f"/api/system/companies/{company['id']}/addons", headers=owner, json=got["addons"])
+    client.put(base, headers=owner, json={"library": {"on": False}, "library_analytics": {"on": False}})
     page = client.get(f"/api/public/companies/{company['slug']}").json()["members"]
     assert [lv["key"] for lv in page] == ["level1", "level2", "level3", "vip"]
     assert page[0]["name_ar"] == "فضي" and page[0]["perks_en"] == ["Priority replies", "Member-only offers"]

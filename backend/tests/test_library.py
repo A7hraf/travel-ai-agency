@@ -10,9 +10,11 @@ from tests.test_whatsapp import meta_stub  # noqa: F401 (fixture)
 
 
 def switch(client, owner, company_id, **on):
-    path = f"/api/system/companies/{company_id}/addons"
-    current = client.get(path, headers=owner).json()["addons"]
-    assert client.put(path, headers=owner, json={**current, **on}).status_code == 200
+    """Switches features on or off for a company (a dict value sets the whole grant)."""
+    body = {k: (v if isinstance(v, dict) else {"on": v}) for k, v in on.items()}
+    r = client.put(f"/api/system/companies/{company_id}/features", headers=owner, json=body)
+    assert r.status_code == 200, r.text
+    return r.json()
 
 
 def dubai_request(client, admin, scripted, mid="wamid.l1"):

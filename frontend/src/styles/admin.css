@@ -967,3 +967,26 @@ a.now-waiting:hover { background: color-mix(in srgb, var(--st-waiting-tint) 18%,
 .gx-adv-form textarea { flex: 1; resize: vertical; min-height: 44px; }
 .gx-svc-row.gx-svc-doc { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto auto; }
 @media (max-width: 640px) { .gx-svc-row.gx-svc-doc { grid-template-columns: 1fr 1fr; } }
+
+/* Features and AI (owner controls and the company's view) */
+.gx-feat { padding: 10px 0; box-shadow: inset 0 -1px 0 var(--line); }
+.gx-feat.part { margin-inline-start: 28px; padding-inline-start: 12px; box-shadow: inset 2px 0 0 var(--line); }
+[dir="rtl"] .gx-feat.part { box-shadow: inset -2px 0 0 var(--line); }
+.gx-feat-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.gx-feat-ai { color: var(--accent); vertical-align: -2px; }
+.gx-feat-use { white-space: nowrap; }
+.gx-feat-opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin: 8px 0 4px 46px; }
+[dir="rtl"] .gx-feat-opts { margin: 8px 46px 4px 0; }
+.gx-feat-opts label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--text-muted); }
+.gx-feat-inline { display: flex; gap: 6px; }
+.gx-feat-inline input { width: 90px; }
+.gx-feat-levels { grid-column: 1 / -1; border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.gx-feat-levels legend { font-size: 12.5px; color: var(--text-muted); margin-bottom: 4px; }
+.gx-feat-check { display: inline-flex !important; flex-direction: row !important; align-items: center; gap: 6px; font-size: 13.5px; color: var(--text); }
+.gx-myfeat { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.gx-myfeat li { padding: 10px 12px; border-radius: 12px; background: rgba(var(--fg-rgb), .04); display: flex; flex-direction: column; gap: 6px; }
+.gx-myfeat li.part { margin-inline-start: 20px; }
+.gx-meter { height: 6px; border-radius: 99px; background: var(--surface-2); overflow: hidden; }
+.gx-meter span { display: block; height: 100%; background: var(--brand); }
+.gx-seats { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+@media (max-width: 640px) { .gx-feat-opts { margin-inline: 0; } }

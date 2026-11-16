@@ -76,6 +76,7 @@ NEW_COLUMNS = [
     ("request_files", "requirement", "VARCHAR(40)"),
     ("companies", "reminder_template", "JSON"),
     ("users", "whatsapp_number", "VARCHAR(30)"),
+    ("users", "ai_features", "JSON"),
     ("trip_options", "supplier_id", "INTEGER REFERENCES suppliers(id) ON DELETE SET NULL"),
     ("trip_options", "image_url", "VARCHAR(500)"),
     ("tickets", "documents_sent_at", "TIMESTAMP WITH TIME ZONE"),

@@ -37,7 +37,7 @@ from ..services.request_files import file_response
 from ..services import requests as flow
 from ..services import seats
 from ..timeutil import local_today
-from ..addons import has_addon, require_addon
+from ..addons import has_addon, require_addon, use
 from ..ratelimit import limiter
 from pydantic import BaseModel, Field, field_validator
 from typing import Literal
@@ -454,8 +454,7 @@ def delete_option(ticket_id: int, option_id: int, me: User = Depends(manage), db
 
 @router.post("/{ticket_id}/ai-draft", response_model=TicketOut)
 def ai_draft(ticket_id: int, me: User = Depends(manage), db: Session = Depends(get_db)):
-    if not has_addon(me.company, "trip_planner"):
-        raise HTTPException(403, "The AI trip planner is not switched on for your company. Ask the platform admin.")
+    use(db, me, "trip_planner")
     limiter.check(f"ai-draft:{me.company_id}", 30, "The AI planner is busy: please try again in a few minutes", window=3600)
     ticket = _get(db, me, ticket_id, lock=True)
     flow.ai_draft(db, ticket, me.company, me)
@@ -761,4 +760,7 @@ def draft_plan(ticket_id: int, me: User = Depends(manage), db: Session = Depends
     """The AI drafts the day-by-day plan (not saved: staff check it first)."""
     limiter.check(f"plan-draft:{me.company_id}", 60, "The AI is busy: please try again in a few minutes", window=3600)
     ticket = _get(db, me, ticket_id)
-    return {"days": desk.draft_plan(ticket)}
+    use(db, me, "plan_writer")
+    days = desk.draft_plan(ticket)
+    db.commit()
+    return {"days": days}
