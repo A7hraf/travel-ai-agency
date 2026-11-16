@@ -90,7 +90,7 @@ def test_chat_welcome_text_is_used_by_the_server(client, company_a):
     en = client.post(f"/api/public/companies/{slug}/chats", json={"lang": "en"}).json()["messages"][0]["content"]
     ar = client.post(f"/api/public/companies/{slug}/chats", json={"lang": "ar"}).json()["messages"][0]["content"]
     assert en.startswith("Hello, ") and company["name"] in en and "{agent}" not in en
-    assert ar == f"مرحبا من {company['name']}"
+    assert ar.startswith(f"مرحبا من {company['name']}\nأقدر أساعدك في: ")  # then the services offered
 
 
 # --- Colours -----------------------------------------------------------------------------------------

@@ -9,15 +9,16 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .. import language
 from ..config import get_settings
-from ..models import Company, Conversation, Message, MessageKind, Sender
+from ..models import Channel, Company, Conversation, Message, MessageKind, Sender
 from ..timeutil import local_today
 from .llm import LLMClient, LLMError, get_llm_client, looks_like_tool_call
 from .prompts import FALLBACK_REPLY, build_system_prompt
 from .b2b_tools import B2B_TOOL_DEFINITIONS, b2b_prompt
 from .history_tools import HISTORY_TOOL_DEFINITIONS, history_prompt
 from .member_tools import member_prompt
-from .request_tools import REQUEST_TOOL_DEFINITIONS, request_prompt
+from .request_tools import REQUEST_TOOL_DEFINITIONS, WEB_TOOL_DEFINITIONS, request_prompt
 from .tools import TOOL_DEFINITIONS, ToolContext, run_tool
 from .training import relevant_examples
 
@@ -138,7 +139,8 @@ def run_agent(db: Session, conversation: Conversation, llm: LLMClient | None = N
 
     customer_text, previous_text = _latest_customer_texts(db, conversation)
     training = relevant_examples(db, company.id, customer_text, previous_text)
-    system = build_system_prompt(company, ctx.customer, conversation.channel, ctx.today, training, customer_text)
+    system = build_system_prompt(company, ctx.customer, conversation.channel, ctx.today, training, customer_text,
+                                 language.prompt_rule(conversation))
     tools = TOOL_DEFINITIONS
     business = b2b_prompt(ctx)  # a business client writing from a linked WhatsApp number
     if business:
@@ -149,6 +151,8 @@ def run_agent(db: Session, conversation: Conversation, llm: LLMClient | None = N
         if services:
             system += "\n" + services
             tools = tools + REQUEST_TOOL_DEFINITIONS
+            if conversation.channel == Channel.WEB:
+                tools = tools + WEB_TOOL_DEFINITIONS
     members = member_prompt(ctx)  # the members community (the customer's level comes from our records)
     if members:
         system += "\n" + members
@@ -253,7 +257,7 @@ def run_sandbox(db: Session, company: Company, message: str, history: list[dict]
     and quoting just read the catalog, and booking and handover are simulated (ToolContext.dry_run).
     ``history`` is the earlier turns of the test chat ([{"role": "user"|"assistant", "content"}]).
     """
-    from ..models import Channel, Customer
+    from ..models import Customer
 
     settings = get_settings()
     llm = llm or get_llm_client()

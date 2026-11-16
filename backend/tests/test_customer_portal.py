@@ -176,7 +176,7 @@ def test_after_trip_message_and_feedback_in_the_chat(client, shop, scripted):
     # Next time the AI no longer asks.
     llm = scripted([LLMResponse("Anything else?")])
     client.post(HOOK, json=wa_payload("PNID-A", PHONE, "thanks", "wamid.4"))
-    assert "TRV-BACK11" not in llm.calls[0][0]["content"]
+    assert "ask once how it was" not in llm.calls[0][0]["content"]
 
 
 def test_no_after_trip_message_outside_the_whatsapp_window(client, shop):

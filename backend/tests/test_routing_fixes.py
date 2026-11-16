@@ -247,7 +247,7 @@ def test_one_broken_message_does_not_drop_the_rest(client, connected, monkeypatc
 # --- 6. Old web chat links --------------------------------------------------------------------------
 
 
-def test_web_chat_link_expires_after_a_quiet_month(client, company_a):
+def test_web_chat_link_expires_after_a_quiet_day(client, company_a):
     company, _ = company_a
     base = f"/api/public/companies/{company['slug']}/chats"
     token = client.post(base, json={}).json()["token"]
@@ -259,9 +259,9 @@ def test_web_chat_link_expires_after_a_quiet_month(client, company_a):
             conv.last_message_at = utcnow() - timedelta(days=days)
             db.commit()
 
-    age(29)
+    age(0.5)
     assert client.get(f"{base}/{token}/messages").status_code == 200
-    age(31)
+    age(1.5)  # a shared device: the next visitor never sees this chat
     for r in (client.get(f"{base}/{token}/messages"),
               client.post(f"{base}/{token}/messages", json={"content": "hello?"})):
         assert r.status_code == 404 and r.json()["detail"] == "Chat not found"  # same as an unknown link

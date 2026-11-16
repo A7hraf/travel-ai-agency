@@ -36,12 +36,13 @@ from ..services import request_files as files
 from .media import media_belongs_to
 from ..services.request_files import file_response
 from ..services import requests as flow
-from ..services import seats
+from ..services import questions, seats
 from ..services.calendar import local_text as calendar_local
 from ..timeutil import local_today
 from ..addons import has_addon, require_addon, use
 from ..ratelimit import limiter
 from .. import workflow
+from ..language import Bi
 from pydantic import BaseModel, Field, field_validator
 from typing import Literal
 
@@ -62,6 +63,7 @@ def ticket_out(ticket: Ticket, me: User, detail: bool = False) -> TicketOut:
     out.current_step = workflow.current(ticket)
     if detail:
         out.process = workflow.view(ticket)
+        out.client_preferences = dict(ticket.customer.preferences or {}) if ticket.customer else {}
         out.current_step = workflow.current(ticket)
         out.request_files = [files.file_out(f) for f in ticket.files]
         out.booking_steps = files.checklist_view(ticket)
@@ -605,8 +607,8 @@ def set_appointment(ticket_id: int, key: str, body: AppointmentIn, me: User = De
         flow.event(db, ticket, me.full_name, "appointment", None, f"{step['label_en']}: {when}", me)
         if body.tell_client:
             place = f" · {appt.location}" if appt.location else ""
-            text = (f"*{ticket.reference}* · {step['label_en']}: *{when}*{place}\nPlease reply *confirm* if this time suits you.\n"
-                    f"*{ticket.reference}* · {step['label_ar']}: *{when}*{place}\nيرجى الرد بـ *تأكيد* إذا كان الموعد مناسبًا.")
+            text = Bi(f"*{ticket.reference}* · {step['label_en']}: *{when}*{place}\nPlease reply *confirm* if this time suits you.",
+                      f"*{ticket.reference}* · {step['label_ar']}: *{when}*{place}\nيرجى الرد بـ *تأكيد* إذا كان الموعد مناسبًا.")
     out = _done(db, ticket, me)
     if text:
         flow.say_in_chat(db, ticket.company_id, ticket.conversation_id, text)
@@ -620,6 +622,38 @@ def confirm_appointment(ticket_id: int, key: str, me: User = Depends(manage), db
     text = flow.confirm_appointment(db, ticket, key, f"{me.full_name} (for the client)")
     db.commit()
     flow.say_in_chat(db, ticket.company_id, ticket.conversation_id, text)  # then the next step (a payment…)
+    return _done(db, ticket, me)
+
+
+# --- Asking the client through the AI ---------------------------------------------------------------------
+
+class AskIn(BaseModel):
+    kind: Literal["info", "documents", "meeting", "feedback"] = "info"
+    note: str = Field(default="", max_length=1000)
+
+
+class AnswerIn(BaseModel):
+    answer: str = Field(min_length=1, max_length=2000)
+
+
+@router.post("/{ticket_id}/ask", response_model=TicketOut)
+def ask_client(ticket_id: int, body: AskIn, me: User = Depends(manage), db: Session = Depends(get_db)):
+    """The AI asks the client in their chat (and language) what the team needs; the answer comes back here."""
+    limiter.check(f"ask-client:{me.company_id}", 120, "Too many questions right now, please wait a little", window=3600)
+    ticket = _get(db, me, ticket_id, lock=True)
+    if ticket.status in workflow.CLOSED:
+        raise HTTPException(409, "This request is closed: reopen it to change it")
+    questions.ask(db, me.company, ticket, body.kind, body.note, me)
+    db.refresh(ticket)
+    return ticket_out(ticket, me, detail=True)
+
+
+@router.post("/{ticket_id}/questions/{question_id}/answer", response_model=TicketOut)
+def answer_question(ticket_id: int, question_id: int, body: AnswerIn, me: User = Depends(manage),
+                    db: Session = Depends(get_db)):
+    """The client answered by phone or in person: the team writes it down."""
+    ticket = _get(db, me, ticket_id, lock=True)
+    questions.answer(db, ticket, question_id, body.answer, f"{me.full_name} (for the client)")
     return _done(db, ticket, me)
 
 

@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from ..ai.agent import run_agent
 from ..ai.prompts import FALLBACK_REPLY
 from ..config import get_settings
+from .. import language
 from ..models import (
     Channel,
     Company,
@@ -72,6 +73,7 @@ def handle_customer_message(db: Session, conversation: Conversation, text: str,
                            content="The customer wrote again: conversation reopened with the AI"))
         conversation.last_message_at = now
         conversation.last_customer_message_at = now
+        language.follow(conversation, text)
         db.add(Message(conversation_id=conversation.id, sender=Sender.CUSTOMER, content=text,
                        external_id=external_id))
         try:

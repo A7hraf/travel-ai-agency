@@ -288,6 +288,9 @@ class TravelPackage(Base):
     image_url: Mapped[str | None] = mapped_column(String(500))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_featured: Mapped[bool] = mapped_column(Boolean, default=False)
+    # shown, or on_request: the price depends on the client (the AI opens a tailor-made request from it).
+    price_mode: Mapped[str] = mapped_column(String(12), default="shown")
+    kind: Mapped[str] = mapped_column(String(12), default="trip")  # trip or experience (a match, a dive…)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, onupdate=utcnow)
 
@@ -315,6 +318,8 @@ class Customer(Base):
     member_level: Mapped[str | None] = mapped_column(String(10), index=True)
     member_since: Mapped[datetime | None] = mapped_column(UTCDateTime())
     member_note: Mapped[str | None] = mapped_column(String(500))
+    # What the client likes (airline, class, seat, hotel stars…), learned by the AI or written by the team.
+    preferences: Mapped[dict | None] = mapped_column(JSON)
     # The customer's private trips page: sessions started before this moment no longer work.
     portal_valid_after: Mapped[datetime | None] = mapped_column(UTCDateTime())
     # The business client this customer writes for (their WhatsApp number is linked to it).
@@ -344,6 +349,9 @@ class Conversation(Base):
     # The last price the AI quoted in this chat (package, date, travellers, total). A booking must match
     # it, so the customer is never booked at a total they did not see (see ai/tools.py).
     booking_quote: Mapped[dict | None] = mapped_column(JSON)
+    language: Mapped[str | None] = mapped_column(String(5))  # en or ar: the AI and the updates use it
+    language_fixed: Mapped[bool] = mapped_column(Boolean, default=False)  # the client asked for this language
+    verify_phone: Mapped[str | None] = mapped_column(String(20))  # website chat: the number a code was sent to
     # When the AI first answered this chat in the current month: counts towards the plan's monthly
     # AI conversation limit (see services/plans.py). Indexed with company_id in migrations.py.
     ai_started_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
@@ -404,6 +412,7 @@ class Ticket(Base):
     checklist: Mapped[dict | None] = mapped_column(JSON)
     workflow: Mapped[list[dict] | None] = mapped_column(JSON)  # this request's steps (see workflow.py)
     cancel_info: Mapped[dict | None] = mapped_column(JSON)  # who closed it, why and at which step
+    questions: Mapped[list[dict] | None] = mapped_column(JSON)  # the team's questions to the client, asked by the AI
     # What the trip costs the company (when not taken from the chosen choices): the profit is price − cost.
     cost_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
     # The day-by-day plan of a tailor-made trip: [{"day": 1, "title": "...", "details": "..."}].

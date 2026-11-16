@@ -57,6 +57,8 @@ export const TEXT_GROUPS: TextGroup[] = [
     f("perPerson", "\"per person\" label"),
     f("perAdult", "\"per adult\" label"),
     f("perChild", "\"per child\" label"),
+    f("onRequest", "\"Price on request\" label"),
+    f("experience", "\"Experience\" badge"),
     f("from", "\"From\" before a price"),
     f("noMatch", "No trip matches the search", M),
     f("askCustom", "Button: ask for a custom trip", S, A),

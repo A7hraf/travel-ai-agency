@@ -33,6 +33,7 @@ export function CardFacts({ p, t, cards, skipDuration, className = "" }: {
 /** Price, with "per person" when the agency wants it. */
 export function CardPrice({ p, t, lang, cards, className = "" }: { p: TravelPackage; t: StorefrontText; lang: Lang; cards: CardDesign; className?: string }) {
   if (!cards.show_price) return null;
+  if (p.price_per_person == null) return <span className={`sf-cprice ${className}`}><small className="sf-cper">{t.onRequest}</small></span>;
   return (
     <span className={`sf-cprice ${className}`}>
       <Money value={p.price_per_person} currency={p.currency} lang={lang} />

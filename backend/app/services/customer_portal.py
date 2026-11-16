@@ -24,6 +24,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..config import get_settings
+from ..language import Bi, pick
 from ..models import (
     Channel,
     Company,
@@ -316,10 +317,11 @@ def send_feedback_requests(db: Session, today: date) -> int:
         if conv is None or last is None or utcnow() - last > WINDOW:
             continue
         name = (ticket.lead_traveler_name or "").split(" ")[0]
-        message = Message(conversation_id=conv.id, sender=Sender.AI, kind=MessageKind.TEXT, content=(
+        message = Message(conversation_id=conv.id, sender=Sender.AI, kind=MessageKind.TEXT, content=pick(Bi(
             f"Welcome back{', ' + name if name else ''}! How was your trip *{ticket.package_title}*? "
-            "Reply with a rating from 1 to 5 and a few words, it helps us a lot.\n"
-            f"حمدالله على السلامة! كيف كانت رحلتك *{ticket.package_title}*؟ رد بتقييم من 1 إلى 5 وكلمتين عن التجربة."))
+            "Reply with a rating from 1 to 5 and a few words, it helps us a lot.",
+            f"حمدالله على السلامة! كيف كانت رحلتك *{ticket.package_title}*؟ رد بتقييم من 1 إلى 5 وكلمتين عن التجربة."),
+            conv.language))
         db.add(message)
         ticket.feedback_requested_at = utcnow()
         db.commit()

@@ -69,8 +69,10 @@ export function PhonePackage({ p, t, lang, agent, onBack, onBook }: {
           <div className="sf-kicker-cyan" dir="auto">{p.destination} · {p.country}</div>
           <h1 className="sf-pd-title" dir="auto">{p.title}</h1>
           <Facts p={p} t={t} />
+          {p.kind === "experience" && <div className="sf-kicker-cyan">{t.experience}</div>}
           <div className={`sf-price-tiles ${p.child_price == null ? "sf-one" : ""}`}>
-            <div className="sf-price-tile"><div className="sf-price-big"><Money value={p.price_per_person} currency={p.currency} lang={lang} /></div><div className="sf-price-cap">{t.perAdult}</div></div>
+            <div className="sf-price-tile"><div className="sf-price-big">{p.price_per_person == null ? t.onRequest : <Money value={p.price_per_person} currency={p.currency} lang={lang} />}</div>
+              {p.price_per_person != null && <div className="sf-price-cap">{t.perAdult}</div>}</div>
             {p.child_price != null && (
               <div className="sf-price-tile"><div className="sf-price-big"><Money value={p.child_price} currency={p.currency} lang={lang} /></div><div className="sf-price-cap">{t.perChild}</div></div>
             )}
@@ -86,7 +88,8 @@ export function PhonePackage({ p, t, lang, agent, onBack, onBook }: {
         </div>
       </div>
       <div className="sf-pd-foot">
-        <div className="sf-pd-from"><span>{t.from}</span><strong><Money value={p.price_per_person} currency={p.currency} lang={lang} /></strong></div>
+        <div className="sf-pd-from">{p.price_per_person == null ? <strong>{t.onRequest}</strong>
+          : <><span>{t.from}</span><strong><Money value={p.price_per_person} currency={p.currency} lang={lang} /></strong></>}</div>
         <button type="button" className="sf-cta" onClick={onBook}><Sparkle />{t.bookWith(agent)}</button>
       </div>
     </>
@@ -126,8 +129,8 @@ export function WebPackage({ p, t, lang, agent, onClose, onBook }: {
           {p.excludes.length > 0 && <div><div className="sf-pkgwin-h">{t.notIncluded}</div><ul className="sf-inc sf-sm sf-exc">{p.excludes.map((x) => <li key={x}><XCircle className="sf-inc-icon" /><bdi>{x}</bdi></li>)}</ul></div>}
         </div>
         <div className="sf-pkgwin-foot">
-          <div className="sf-pkgwin-price"><Money value={p.price_per_person} currency={p.currency} lang={lang} /></div>
-          <span className="sf-muted-sm">{t.perAdult}</span>
+          <div className="sf-pkgwin-price">{p.price_per_person == null ? t.onRequest : <Money value={p.price_per_person} currency={p.currency} lang={lang} />}</div>
+          {p.price_per_person != null && <span className="sf-muted-sm">{t.perAdult}</span>}
           {p.child_price != null && <span className="sf-muted-sm">· <Money value={p.child_price} currency={p.currency} lang={lang} /> {t.perChild}</span>}
           <button type="button" className="sf-cta" onClick={onBook}><Sparkle />{t.bookWith(agent)}</button>
         </div>

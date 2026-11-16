@@ -5,7 +5,8 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { download, get, patch } from "../api";
 import { useAuth } from "../auth";
 import { PageTitle } from "../components/admin/AdminUI";
-import { AddressBook, ArrowLeft, ChatsCircle, DownloadSimple, MagnifyingGlass, Ticket } from "../components/Icon";
+import { PREFERENCE_LABELS } from "../components/clients/preferences";
+import { AddressBook, ArrowLeft, ChatsCircle, DownloadSimple, Heart, MagnifyingGlass, Ticket } from "../components/Icon";
 import { Money } from "../components/Money";
 import { ErrorBox, Field, Loading } from "../components/ui";
 import { useI18n } from "../lang";
@@ -162,6 +163,52 @@ function CustomerListPage() {
   );
 }
 
+const LOYALTY: Record<string, string> = { new: "New client", returning: "Returning client", loyal: "Loyal client" };
+
+/** What the client likes (learned by the AI in the chat, or written by the team) and their history with us. */
+function PreferencesCard({ c, onSaved }: { c: CustomerDetail; onSaved: (x: CustomerDetail) => void }) {
+  const { t } = useI18n();
+  const { can } = useAuth();
+  const [values, setValues] = useState<Record<string, string>>({ ...c.preferences });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const manage = can("customers.manage");
+  const dirty = PREFERENCE_LABELS.some(([k]) => (values[k] ?? "") !== (c.preferences[k] ?? ""));
+  const h = c.history;
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true); setError(null); setSaved(false);
+    try {
+      const updated = await patch<CustomerDetail>(`/api/customers/${c.id}`, { preferences: Object.fromEntries(PREFERENCE_LABELS.map(([k]) => [k, values[k] ?? ""])) });
+      onSaved(updated); setValues({ ...updated.preferences }); setSaved(true);
+    } catch (err) { setError((err as Error).message); } finally { setBusy(false); }
+  };
+  return (
+    <form className="gx-card" onSubmit={save}>
+      <h2 className="gx-card-title"><span className="gx-card-icon"><Heart /></span>{t("Preferences and history")}</h2>
+      {(h.requests ?? 0) > 0 && (
+        <p className="gx-card-note">
+          <strong>{t(LOYALTY[h.loyalty ?? "new"])}</strong> · {t("{n} requests, {b} booked, {d} completed", { n: h.requests ?? 0, b: h.booked ?? 0, d: h.completed ?? 0 })}
+          {!!h.favourite_places?.length && <> · {t("Likes: {list}", { list: h.favourite_places.join(", ") })}</>}
+          {!!h.favourite_services?.length && <> · {t("Usually asks for: {list}", { list: h.favourite_services.map((x) => t(x)).join(", ") })}</>}
+        </p>
+      )}
+      <p className="muted small">{t("The AI learns these in the chat and uses them to suggest what the client likes. Your team can correct them.")}</p>
+      <fieldset disabled={!manage || busy} className="gx-grid-2" style={{ border: 0, padding: 0, margin: 0 }}>
+        {PREFERENCE_LABELS.map(([k, label]) => (
+          <Field key={k} label={t(label)}>
+            <input value={values[k] ?? ""} maxLength={120} dir="auto" onChange={(e) => { setSaved(false); setValues({ ...values, [k]: e.target.value }); }} />
+          </Field>
+        ))}
+      </fieldset>
+      <ErrorBox error={error} />
+      {saved && <div className="ok-box gx-notice" role="status">{t("Saved.")}</div>}
+      {manage && <div className="gx-form-actions"><button className="btn btn-primary" disabled={busy || !dirty}>{busy ? t("Saving…") : t("Save")}</button></div>}
+    </form>
+  );
+}
+
 interface FormState { name: string; phone: string; email: string; notes: string; tags: string }
 const formOf = (c: CustomerDetail): FormState => ({
   name: c.name ?? "", phone: c.phone ?? "", email: c.email ?? "", notes: c.notes, tags: c.tags.join(", "),
@@ -233,6 +280,7 @@ function CustomerPage({ id }: { id: number }) {
       </div>
 
       <RankCard customerId={c.id} level={c.member_level} onChanged={load} />
+      <PreferencesCard key={c.id} c={c} onSaved={setC} />
 
       <form className="gx-card" onSubmit={save}>
         <h2 className="gx-card-title"><span className="gx-card-icon"><AddressBook /></span>{t("Contact details")}</h2>

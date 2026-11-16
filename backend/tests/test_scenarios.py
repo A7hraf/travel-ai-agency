@@ -648,7 +648,7 @@ def test_page_editor_changes_show_on_the_customer_page(client, owner, agency):
     assert client.get("/api/auth/me", headers=admin).json()["company"]["branding"]["dashboard_color"] == "#0088b0"
     # The chat welcome follows the editor, with the names filled in.
     r = client.post(f"{PUBLIC.format(slug=slug)}/chats", json={"lang": "ar"})
-    assert r.json()["messages"][0]["content"] == "هلا! معك Sara من Muscat Horizons"
+    assert r.json()["messages"][0]["content"].startswith("هلا! معك Sara من Muscat Horizons\nأقدر أساعدك في: ")
     # Support staff can't change the page.
     assert client.patch("/api/company/branding", headers=agency["support"],
                         json={"primary_color": "#000000"}).status_code == 403

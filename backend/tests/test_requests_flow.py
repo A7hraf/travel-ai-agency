@@ -106,14 +106,21 @@ def test_ai_asks_the_service_questions_then_sends_the_card(client, wa, scripted)
     llm = wa_say(client, "I need flights to London", "wamid.1", [LLMResponse(None, [partial]), LLMResponse("When do you travel?")], scripted)
     system = llm.calls[0][0]["content"]
     assert f"[{flights['id']}] Flight tickets" in system and "cabin: Class [Economy, Premium economy, Business, First]" in system
-    assert "Missing:" in tool_results(llm)[0]["error"] and "depart_date" in tool_results(llm)[0]["error"]
+    # The request opens at once for the team, with the questions still missing.
+    first = tool_results(llm)[0]
+    assert first["created"] and "depart_date (Departure date)" in first["missing"] and "Save each answer with update_request" in first["next"]
+    t = client.get("/api/tickets", headers=admin).json()[0]
+    assert t["reference"] == first["reference"] and t["current_step"]["type"] == "intake" and t["status"] == "new"
     full = ToolCall("c2", "create_request", {"service_id": flights["id"], "summary": "Business class, aisle seats",
                                              "answers": {"origin": "Muscat", "destination": "London", "depart_date": "2030-05-01",
                                                          "adults": "2 adults", "cabin": "Business", "full_name": "Omar Al Said"}})
     llm = wa_say(client, "1 May, 2 people, business", "wamid.2", [LLMResponse(None, [full]), LLMResponse("Sent!")], scripted)
     ref = tool_results(llm)[0]["reference"]
-    t = client.get("/api/tickets", headers=admin).json()[0]
+    rows = client.get("/api/tickets", headers=admin).json()
+    t = rows[0]
+    assert len(rows) == 1 and ref == first["reference"]  # the same request, completed
     assert t["reference"] == ref and t["status"] == "new" and t["service"]["key"] == "flights"
+    assert t["current_step"]["type"] == "review" and tool_results(llm)[0]["missing"] == []
     assert t["destination"] == "London" and t["adults"] == 2 and t["answers"]["phone"] == f"+{PHONE}"
     assert t["parts"] == ["flight"] and t["special_requests"] == "Business class, aisle seats"
 
@@ -125,7 +132,7 @@ def test_website_needs_the_whatsapp_number_and_instagram_goes_to_whatsapp(client
         "destination": "UK", "nationality": "Omani", "depart_date": "2030-01-01", "adults": "1", "full_name": "Ali"}})
     llm = scripted([LLMResponse(None, [call]), LLMResponse("What is your WhatsApp number?")])
     say(client, company["slug"], start_chat(client, company["slug"]), "UK visa please")
-    assert "always ask for the client's WhatsApp number" in llm.calls[0][0]["content"]
+    assert "ask for the client's WhatsApp number early" in llm.calls[0][0]["content"]
     assert "WhatsApp number" in tool_results(llm)[0]["error"]
 
 
@@ -177,7 +184,7 @@ def test_full_loop_from_choices_to_booked(client, wa, scripted):
     # Final quotation, client approves: the payment details go to the chat.
     r = client.post(f"{base}/send-final", headers=admin, json={"note": "Includes airport transfers"}).json()
     assert r["status"] == "final" and r["total_price"] == 1490
-    assert "Total · الإجمالي: 1,490.000 OMR" in fake.sent[-1][2]
+    assert "Total: 1,490.000 OMR" in fake.sent[-1][2] and "الإجمالي" not in fake.sent[-1][2]  # the client writes English
     ok = ToolCall("a", "answer_quotation", {"reference": ref, "decision": "approve"})
     wa_say(client, "approve", "wamid.4", [LLMResponse(None, [ok]), LLMResponse("Thanks!")], scripted)
     # The next step of this service is the client's documents: the client is asked for them first.

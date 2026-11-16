@@ -5,7 +5,9 @@ import { useI18n } from "../../lang";
 import type { Service, ServiceField, Ticket } from "../../types";
 import { shortDate, travelersText } from "../../util";
 import { PencilSimple, WarningCircle } from "../Icon";
+import { PREFERENCE_LABEL } from "../clients/preferences";
 import { ErrorBox } from "../ui";
+import AskClient from "./AskClient";
 
 export function FieldInput({ f, value, onChange }: { f: ServiceField; value: string; onChange: (v: string) => void }) {
   const { t } = useI18n();
@@ -38,6 +40,7 @@ export default function RequestDetails({ ticket, services, onChange }: { ticket:
   const label = (f: ServiceField) => (lang === "ar" ? f.label_ar : f.label_en);
   const missing = fields.filter((f) => f.required && !answers[f.key]?.trim());
   const extra = Object.keys(answers).filter((k) => !fields.some((f) => f.key === k));
+  const prefs = Object.entries(ticket.client_preferences ?? {});
   const editable = can("tickets.manage") && !!service && service.pricing !== "packages" && !["cancelled", "rejected", "confirmed"].includes(ticket.status);
   const show = (f: ServiceField) => {
     const v = answers[f.key];
@@ -108,6 +111,13 @@ export default function RequestDetails({ ticket, services, onChange }: { ticket:
           )}
         </>
       )}
+      {prefs.length > 0 && (
+        <div className="rw-summary gx-prefs">
+          <h4>{t("What this client likes")}</h4>
+          <dl className="rw-answers">{prefs.map(([k, v]) => <div key={k}><dt>{t(PREFERENCE_LABEL[k] ?? k)}</dt><dd dir="auto">{v}</dd></div>)}</dl>
+        </div>
+      )}
+      <AskClient ticket={ticket} onChange={onChange} />
     </div>
   );
 }

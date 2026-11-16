@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from ..models import (
     Channel, Company, Conversation, RequestFile, Ticket, TicketStatus as T, User, utcnow,
 )
+from ..language import Bi
 from .notify import say_in_chat
 from .. import workflow
 from .requests import QUOTING, _require, event
@@ -271,15 +272,13 @@ def send_documents(db: Session, company: Company, ticket: Ticket, note: str | No
     workflow.refresh(db, ticket, user.full_name, user)
     db.commit()
 
-    lines = [f"*{ticket.reference}* is fully booked ✅ · تم حجز *{ticket.reference}* بالكامل ✅"]
-    if docs:
-        lines.append("Your travel documents · وثائق سفرك:")
-        lines += [f"• {f.name}" for f in docs]
-    if note and note.strip():
-        lines.append(note.strip()[:800])
-    lines.append("You can also open them any time on your private trips page (ask us for \"my trips\").\n"
-                 "يمكنك فتحها في أي وقت من صفحة رحلاتك الخاصة (اكتب لنا «رحلاتي»).")
-    say_in_chat(db, ticket.company_id, ticket.conversation_id, "\n".join(lines))
+    names = [f"• {f.name}" for f in docs]
+    extra = [note.strip()[:800]] if note and note.strip() else []
+    say_in_chat(db, ticket.company_id, ticket.conversation_id, Bi(
+        "\n".join([f"*{ticket.reference}* is fully booked ✅", *(["Your travel documents:", *names] if docs else []), *extra,
+                   "You can also open them any time on your private trips page (ask us for \"my trips\")."]),
+        "\n".join([f"تم حجز *{ticket.reference}* بالكامل ✅", *(["وثائق سفرك:", *names] if docs else []), *extra,
+                   "يمكنك فتحها في أي وقت من صفحة رحلاتك الخاصة (اكتب لنا «رحلاتي»)."])))
 
     failed = 0
     conv = db.get(Conversation, ticket.conversation_id) if ticket.conversation_id else None

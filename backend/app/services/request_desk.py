@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from ..ai.llm import LLMError, MockTravelLLM, clean_content, get_llm_client
 from ..branding import clean_text
 from ..models import RequestFile, Ticket, TicketPayment, TicketStatus as T, User, utcnow
+from ..language import Bi
 from .notify import say_in_chat
 from .requests import event
 
@@ -154,9 +155,9 @@ def reject(db: Session, ticket: Ticket, payment_id: int, note: str, user: User) 
     event(db, ticket, user.full_name, "payment_rejected", None, note, user)
     _settle(db, ticket, user.full_name, user)
     db.commit()
-    say_in_chat(db, ticket.company_id, ticket.conversation_id,
-                f"We could not confirm the payment receipt for *{ticket.reference}*: {note}\nPlease send a clear receipt.\n"
-                f"لم نتمكن من تأكيد إيصال الدفع للطلب *{ticket.reference}*: {note}\nيرجى إرسال إيصال واضح.")
+    say_in_chat(db, ticket.company_id, ticket.conversation_id, Bi(
+        f"We could not confirm the payment receipt for *{ticket.reference}*: {note}\nPlease send a clear receipt.",
+        f"لم نتمكن من تأكيد إيصال الدفع للطلب *{ticket.reference}*: {note}\nيرجى إرسال إيصال واضح."))
 
 
 # --- The client's documents ---------------------------------------------------------------------------

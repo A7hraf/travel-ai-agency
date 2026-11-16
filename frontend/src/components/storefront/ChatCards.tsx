@@ -21,7 +21,8 @@ export function ChatPackageCard({ card, t, lang, onView, onBook, disabled }: {
       <div className="sf-cpkg-body">
         <div className="sf-cpkg-title" dir="auto">{card.title}</div>
         <div className="sf-cpkg-meta">
-          {t.days(card.duration_days)} · <Money value={card.price_per_person} currency={card.currency} lang={lang} /> {t.perAdult}
+          {t.days(card.duration_days)} · {card.price_per_person == null ? t.onRequest
+            : <><Money value={card.price_per_person} currency={card.currency} lang={lang} /> {t.perAdult}</>}
         </div>
         <div className={`sf-cpkg-actions ${onView ? "" : "sf-one"}`}>
           {onView && <button type="button" className="sf-btn-surface" onClick={onView}>{t.viewTrip}</button>}

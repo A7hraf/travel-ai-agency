@@ -72,8 +72,9 @@ class Settings(BaseSettings):
     # Use the token above for companies without their own token. Turn off when the platform
     # does not share its Meta app, so a company's number is never used with the platform's token.
     whatsapp_share_default_token: bool = True
-    # Days a web chat link stays usable after its last message; older chats start fresh.
-    public_chat_resume_days: int = 30
+    # Days a web chat link stays usable after its last message; older chats start fresh (shared devices: the
+    # next visitor never sees an earlier chat, and earlier requests open only with a WhatsApp code).
+    public_chat_resume_days: int = 1
 
     # Abuse protection (also protects your AI provider quota)
     # Number of proxies in front of the app that append to X-Forwarded-For (Render: 1).

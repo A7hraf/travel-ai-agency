@@ -41,6 +41,7 @@ from ..models import (
 from ..security import ticket_reference
 from ..trip_schemas import CATEGORIES, MAX_CHOICES, MAX_OPTIONS
 from .. import workflow
+from ..language import Bi
 from . import trip_requests as shared
 from .notify import say_in_chat
 
@@ -321,7 +322,7 @@ def client_paid(db: Session, ticket: Ticket, transfer_reference: str, actor: str
     workflow.refresh(db, ticket, actor)
 
 
-def confirm_appointment(db: Session, ticket: Ticket, key: str, actor: str) -> str:
+def confirm_appointment(db: Session, ticket: Ticket, key: str, actor: str) -> Bi:
     """The client confirmed the time the team booked: the appointment step is done. Returns the confirmation
     for the client's chat (sent after the commit)."""
     step = next((s for s in workflow.steps(ticket) if s["key"] == key), None)
@@ -335,8 +336,8 @@ def confirm_appointment(db: Session, ticket: Ticket, key: str, actor: str) -> st
     place = f" · {step['appointment']['location']}" if step["appointment"].get("location") else ""
     event(db, ticket, actor, "appointment_confirmed", None, when)
     workflow.refresh(db, ticket, actor)
-    return (f"*{ticket.reference}* · {step['label_en']} confirmed ✅ *{when}*{place}. We will remind you before it.\n"
-            f"*{ticket.reference}* · تم تأكيد {step['label_ar']} ✅ *{when}*{place}. سنذكرك قبله.")
+    return Bi(f"*{ticket.reference}* · {step['label_en']} confirmed ✅ *{when}*{place}. We will remind you before it.",
+              f"*{ticket.reference}* · تم تأكيد {step['label_ar']} ✅ *{when}*{place}. سنذكرك قبله.")
 
 
 # --- Texts sent in the client's chat ------------------------------------------------------------------
@@ -354,73 +355,74 @@ def numbered(ticket: Ticket) -> list[tuple[int, TripOption]]:
     return list(enumerate([o for o in shared.ordered(ticket.options) if o.sent_to_client], start=1))
 
 
-def choices_text(ticket: Ticket, company: Company) -> str:
+def choices_text(ticket: Ticket, company: Company) -> Bi:
     cur = ticket.currency
-    lines = [f"*{ticket.reference}* · {ticket.package_title}",
-             "Here are your options. Reply with the number of your choice for each part, or tell us what to change.",
-             "هذه خياراتك. رد برقم اختيارك لكل جزء، أو أخبرنا بما تريد تغييره.", ""]
+    head = f"*{ticket.reference}* · {ticket.package_title}"
+    en = [head, "Here are your options. Reply with the number of your choice for each part, or tell us what to change.", ""]
+    ar = [head, "هذه خياراتك. رد برقم اختيارك لكل جزء، أو أخبرنا بما تريد تغييره.", ""]
     current = None
     for n, o in numbered(ticket):
         if o.category != current:
             current = o.category
-            en, ar = PART_LABEL.get(o.category, (o.category, o.category))
-            lines.append(f"*{en} · {ar}*")
+            part_en, part_ar = PART_LABEL.get(o.category, (o.category, o.category))
+            en.append(f"*{part_en}*")
+            ar.append(f"*{part_ar}*")
         line = f"{n}. {o.title}" + (f" ({o.provider})" if o.provider else "") + f" · {_money(o.price, cur)}"
-        lines.append(line + (f"\n   {o.link}" if o.link else ""))
-    return "\n".join(lines)
+        line += f"\n   {o.link}" if o.link else ""
+        en.append(line)
+        ar.append(line)
+    return Bi("\n".join(en), "\n".join(ar))
 
 
-def final_text(ticket: Ticket, company: Company, note: str | None) -> str:
+def final_text(ticket: Ticket, company: Company, note: str | None) -> Bi:
     chosen = [o for o in shared.ordered(ticket.options) if o.chosen]
-    lines = [f"*{ticket.reference}* · final quotation · عرض السعر النهائي"]
-    lines += [f"• {o.title}" + (f" ({o.provider})" if o.provider else "") for o in chosen]
-    lines.append(f"*Total · الإجمالي: {_money(ticket.total_price, ticket.currency)}*")
-    if note:
-        lines.append(note.strip()[:600])
-    lines.append("Reply *approve* to confirm, or tell us what to change.\nرد بـ *موافق* للتأكيد، أو أخبرنا بما تريد تغييره.")
-    return "\n".join(lines)
+    items = [f"• {o.title}" + (f" ({o.provider})" if o.provider else "") for o in chosen]
+    total = _money(ticket.total_price, ticket.currency)
+    extra = [note.strip()[:600]] if note else []
+    return Bi("\n".join([f"*{ticket.reference}* · final quotation", *items, f"*Total: {total}*", *extra,
+                         "Reply *approve* to confirm, or tell us what to change."]),
+              "\n".join([f"*{ticket.reference}* · عرض السعر النهائي", *items, f"*الإجمالي: {total}*", *extra,
+                         "رد بـ *موافق* للتأكيد، أو أخبرنا بما تريد تغييره."]))
 
 
-def payment_text(ticket: Ticket, company: Company, step: dict | None = None) -> str:
+def payment_text(ticket: Ticket, company: Company, step: dict | None = None) -> Bi:
     """Asks the client to pay what the active payment step needs (the whole amount, a deposit, the balance)."""
     info = company.payment_info if isinstance(company.payment_info, dict) else {}
-    how = "\n".join(x for x in ((info.get("en") or "").strip(), (info.get("ar") or "").strip()) if x)
     due = workflow.due_now(ticket)
     amount = _money(due if due is not None else ticket.total_price, ticket.currency)
     total = Decimal(str(ticket.total_price or 0))
     part = step is not None and due is not None and Decimal(str(due)) + Decimal("0.0005") < total
-    label = f" ({step['label_en']} · {step['label_ar']})" if part else ""
-    return "\n".join(x for x in [
-        f"*{ticket.reference}* · please pay *{amount}*{label}" + (f" of {_money(total, ticket.currency)}" if part else ""),
-        "Send us the transfer receipt here (a photo or PDF) or its number.",
-        f"*{ticket.reference}* · يرجى دفع *{amount}*" + (f" من {_money(total, ticket.currency)}" if part else "")
-        + "، وإرسال إيصال التحويل هنا (صورة أو PDF) أو رقمه.",
-        how or "Our team will send you the payment details. سيرسل لك فريقنا تفاصيل الدفع.",
-    ] if x)
+    of = _money(total, ticket.currency)
+    how_en = (info.get("en") or "").strip() or (info.get("ar") or "").strip() or "Our team will send you the payment details."
+    how_ar = (info.get("ar") or "").strip() or (info.get("en") or "").strip() or "سيرسل لك فريقنا تفاصيل الدفع."
+    return Bi(
+        f"*{ticket.reference}* · please pay *{amount}*" + (f" ({step['label_en']} of {of})" if part else "")
+        + "\nSend us the transfer receipt here (a photo or PDF) or its number.\n" + how_en,
+        f"*{ticket.reference}* · يرجى دفع *{amount}*" + (f" ({step['label_ar']} من {of})" if part else "")
+        + "\nأرسل لنا إيصال التحويل هنا (صورة أو PDF) أو رقمه.\n" + how_ar)
 
 
-def documents_text(ticket: Ticket) -> str | None:
+def documents_text(ticket: Ticket) -> Bi | None:
     from .request_desk import documents_view  # noqa: PLC0415
 
     missing = [i for i in documents_view(ticket)["items"] if i["required"] and not i["done"]]
     if not missing:
         return None
-    lines = [f"*{ticket.reference}* · to continue we need these documents. Send them here as photos or PDF files:",
-             f"*{ticket.reference}* · لنكمل نحتاج هذه المستندات، أرسلها هنا كصور أو ملفات PDF:"]
-    for i in missing:
-        count = f" × {i['need'] - i['have']}" if i["need"] - i["have"] > 1 else ""
-        lines.append(f"• {i['label_en']} · {i['label_ar']}{count}")
-    return "\n".join(lines)
+    count = lambda i: f" × {i['need'] - i['have']}" if i["need"] - i["have"] > 1 else ""  # noqa: E731
+    return Bi("\n".join([f"*{ticket.reference}* · to continue we need these documents. Send them here as photos or PDF files:",
+                         *[f"• {i['label_en']}{count(i)}" for i in missing]]),
+              "\n".join([f"*{ticket.reference}* · لنكمل نحتاج هذه المستندات، أرسلها هنا كصور أو ملفات PDF:",
+                         *[f"• {i['label_ar'] or i['label_en']}{count(i)}" for i in missing]]))
 
 
-def schedule_text(ticket: Ticket, step: dict) -> str:
-    return (f"*{ticket.reference}* · {step['label_en']}: which days and times suit you, and which times are not possible "
-            f"for you? We will book the closest time and confirm it with you.\n"
-            f"*{ticket.reference}* · {step['label_ar']}: ما الأيام والأوقات المناسبة لك، وما الأوقات غير الممكنة؟ "
-            f"سنحجز أقرب موعد ونؤكده معك.")
+def schedule_text(ticket: Ticket, step: dict) -> Bi:
+    return Bi(f"*{ticket.reference}* · {step['label_en']}: which days and times suit you, and which times are not "
+              "possible for you? We will book the closest time and confirm it with you.",
+              f"*{ticket.reference}* · {step['label_ar']}: ما الأيام والأوقات المناسبة لك، وما الأوقات غير الممكنة؟ "
+              "سنحجز أقرب موعد ونؤكده معك.")
 
 
-def step_text(ticket: Ticket, company: Company, step: dict, after: dict | None) -> str | None:
+def step_text(ticket: Ticket, company: Company, step: dict, after: dict | None) -> Bi | None:
     """What the client is told when a step starts (None: nothing to say)."""
     kind = step["type"]
     if kind == "payment":
@@ -430,8 +432,8 @@ def step_text(ticket: Ticket, company: Company, step: dict, after: dict | None) 
     if kind == "schedule":
         return None if step.get("appointment") else schedule_text(ticket, step)
     if after and after["type"] == "payment" and kind in workflow.TEAM_WORK:
-        return (f"Payment received for *{ticket.reference}* ✅ We are working on it now.\n"
-                f"استلمنا الدفع لـ *{ticket.reference}* ✅ نعمل عليه الآن.")
+        return Bi(f"Payment received for *{ticket.reference}* ✅ We are working on it now.",
+                  f"استلمنا الدفع لـ *{ticket.reference}* ✅ نعمل عليه الآن.")
     return None
 
 
@@ -447,17 +449,17 @@ def announce(db: Session, company: Company, ticket: Ticket) -> int:
 
 
 STATUS_TEXT = {
-    T.PAID: ("Payment received for *{ref}* ✅ We are working on it now.", "استلمنا الدفع لـ *{ref}* ✅ نعمل عليه الآن."),
-    T.CONFIRMED: ("*{ref}* is fully booked ✈️ Your travel documents are on their way. Have a wonderful trip!",
-                  "تم حجز *{ref}* بالكامل ✈️ وثائق سفرك في الطريق. رحلة سعيدة!"),
-    T.CANCELLED: ("*{ref}* was cancelled. Contact us if you have a question.", "تم إلغاء *{ref}*. تواصل معنا إذا عندك سؤال."),
+    T.PAID: Bi("Payment received for *{ref}* ✅ We are working on it now.", "استلمنا الدفع لـ *{ref}* ✅ نعمل عليه الآن."),
+    T.CONFIRMED: Bi("*{ref}* is fully booked ✈️ Your travel documents are on their way. Have a wonderful trip!",
+                    "تم حجز *{ref}* بالكامل ✈️ وثائق سفرك في الطريق. رحلة سعيدة!"),
+    T.CANCELLED: Bi("*{ref}* was cancelled. Contact us if you have a question.", "تم إلغاء *{ref}*. تواصل معنا إذا عندك سؤال."),
 }
 
 
 def notify_status(db: Session, ticket: Ticket) -> None:
     pair = STATUS_TEXT.get(ticket.status)
     if pair and ticket.service_id is not None:
-        say_in_chat(db, ticket.company_id, ticket.conversation_id, "\n".join(p.format(ref=ticket.reference) for p in pair))
+        say_in_chat(db, ticket.company_id, ticket.conversation_id, Bi(*(p.format(ref=ticket.reference) for p in pair)))
 
 
 # --- Urgency (which request to work on first) ---------------------------------------------------------

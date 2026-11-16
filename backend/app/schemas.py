@@ -294,6 +294,9 @@ class PackageBase(BaseModel):
     image_url: str | None = Field(default=None, max_length=500)
     is_active: bool = True
     is_featured: bool = False
+    # on_request: clients and the AI never see the price; the team prices it for each client.
+    price_mode: Literal["shown", "on_request"] = "shown"
+    kind: Literal["trip", "experience"] = "trip"
 
     @field_validator("price_per_person", "child_price")
     @classmethod
@@ -344,6 +347,8 @@ class PackageOut(ORM):
     image_url: str | None
     is_active: bool
     is_featured: bool
+    price_mode: str = "shown"
+    kind: str = "trip"
     created_at: datetime
     updated_at: datetime
 
@@ -467,6 +472,8 @@ class TicketOut(ORM):
     client_documents: dict = {}
     itinerary: list[dict] | None = None
     current_step: dict | None = None
+    questions: list[dict] | None = None  # the team's questions to the client and the answers
+    client_preferences: dict | None = None  # detail only
     process: dict | None = None  # detail only: the workflow steps, installments, amount due now, why it was closed
     departure_date: str | None
     adults: int
@@ -557,9 +564,11 @@ class PublicPackageOut(ORM):
     country: str
     description: str
     duration_days: int
-    price_per_person: float
+    price_per_person: float | None  # None: priced on request
     child_price: float | None
     currency: str
+    price_mode: str = "shown"
+    kind: str = "trip"
     departure_dates: list[str]
     includes: list[str]
     excludes: list[str]

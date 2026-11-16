@@ -16,12 +16,13 @@ type FormState = {
   price_per_person: string; child_price: string; currency: string; departure_dates: string[];
   includes: string; excludes: string; tags: string; hotel_name: string; hotel_stars: string;
   seats_available: string; image_url: string; is_active: boolean; is_featured: boolean;
+  price_mode: "shown" | "on_request"; kind: "trip" | "experience";
 };
 
 const EMPTY: FormState = {
   title: "", destination: "", country: "", description: "", duration_days: "7", price_per_person: "",
   child_price: "", currency: "", departure_dates: [], includes: "", excludes: "", tags: "", hotel_name: "",
-  hotel_stars: "", seats_available: "", image_url: "", is_active: true, is_featured: false,
+  hotel_stars: "", seats_available: "", image_url: "", is_active: true, is_featured: false, price_mode: "shown", kind: "trip",
 };
 
 function toForm(p: TravelPackage): FormState {
@@ -32,7 +33,7 @@ function toForm(p: TravelPackage): FormState {
     departure_dates: p.departure_dates, includes: p.includes.join("\n"), excludes: p.excludes.join("\n"),
     tags: p.tags.join(", "), hotel_name: p.hotel_name ?? "", hotel_stars: p.hotel_stars ? String(p.hotel_stars) : "",
     seats_available: p.seats_available == null ? "" : String(p.seats_available), image_url: p.image_url ?? "",
-    is_active: p.is_active, is_featured: p.is_featured,
+    is_active: p.is_active, is_featured: p.is_featured, price_mode: p.price_mode ?? "shown", kind: p.kind ?? "trip",
   };
 }
 
@@ -98,6 +99,8 @@ export default function Packages() {
                 <Poster destination={p.destination} country={p.country} title={p.title} imageUrl={p.image_url} className="pk-poster">
                   <div className="pk-flags">
                     {p.is_featured && <span className="pk-flag featured"><Star weight="fill" />{t("Featured")}</span>}
+                    {p.kind === "experience" && <span className="pk-flag">{t("Experience")}</span>}
+                    {p.price_mode === "on_request" && <span className="pk-flag">{t("Price on request")}</span>}
                     {!p.is_active && <span className="pk-flag hidden">{t("Hidden")}</span>}
                   </div>
                   <div className="poster-body">
@@ -179,7 +182,7 @@ function PackageForm({ pkg, onClose, onSaved }: {
       includes: lines(f.includes), excludes: lines(f.excludes),
       tags: f.tags.split(/[,،]/).map((x) => x.trim()).filter(Boolean),
       hotel_name: f.hotel_name || null, hotel_stars: optNum(f.hotel_stars), seats_available: optNum(f.seats_available),
-      image_url: f.image_url || null, is_active: f.is_active, is_featured: f.is_featured,
+      image_url: f.image_url || null, is_active: f.is_active, is_featured: f.is_featured, price_mode: f.price_mode, kind: f.kind,
     };
     // The seat count the form was opened with: if it was not changed here, the server keeps the
     // current count (someone may have changed it meanwhile).
@@ -221,6 +224,20 @@ function PackageForm({ pkg, onClose, onSaved }: {
     <Modal title={pkg ? t("Edit {title}", { title: pkg.title }) : t("New package")} onClose={onClose} wide dirty={dirty}>
       <form onSubmit={save} className="pk-form">
         <div className="pk-form-section">
+          <div className="gx-grid-2">
+            <Field label={t("Type")}>
+              <select value={f.kind} onChange={(e) => set("kind", e.target.value as FormState["kind"])}>
+                <option value="trip">{t("Trip")}</option>
+                <option value="experience">{t("Experience (a match, a race, a dive…)")}</option>
+              </select>
+            </Field>
+            <Field label={t("Price for clients")} hint={t("On request: clients and the AI never see the price; the AI opens a tailor-made request and your team prices it.")}>
+              <select value={f.price_mode} onChange={(e) => set("price_mode", e.target.value as FormState["price_mode"])}>
+                <option value="shown">{t("Shown")}</option>
+                <option value="on_request">{t("On request (hidden)")}</option>
+              </select>
+            </Field>
+          </div>
           <div className="gx-grid-3">
             <Field label={t("Title")}><input value={f.title} onChange={(e) => set("title", e.target.value)} required minLength={2} maxLength={200} dir="auto" /></Field>
             <Field label={t("Destination")} hint={t("City or region")}><input value={f.destination} onChange={(e) => set("destination", e.target.value)} required maxLength={120} dir="auto" /></Field>

@@ -677,3 +677,15 @@ svg.warn { color: var(--st-waiting); }
 .gx-close-by legend { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
 @media (max-width: 600px) { .gx-wf-names, .gx-wf-pay, .gx-wf-appt-row { grid-template-columns: 1fr; } }
 .rq-step { display: block; max-width: 24ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gx-ask h3 { display: flex; align-items: center; gap: 6px; }
+.gx-ask-list { list-style: none; margin: 4px 0 10px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.gx-ask-list li { display: grid; grid-template-columns: 20px 1fr; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); }
+.gx-ask-list li > svg { margin-top: 2px; color: var(--st-waiting); }
+.gx-ask-list li.done > svg { color: var(--st-confirmed); }
+.gx-ask-list li > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.gx-ask-answer { margin: 4px 0 0; font-weight: 600; }
+.gx-ask-row { display: flex; gap: 8px; margin-top: 6px; }
+.gx-ask-row input { flex: 1; min-width: 0; }
+.gx-ask-form { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.gx-ask-form textarea { width: 100%; }
+.gx-ask-kinds { display: flex; flex-wrap: wrap; gap: 6px; }

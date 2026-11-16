@@ -255,9 +255,12 @@ def _summary(pkg: TravelPackage, today: date) -> dict:
         "destination": pkg.destination,
         "country": pkg.country,
         "duration_days": pkg.duration_days,
-        "price_per_person": _money(pkg.price_per_person),
-        "child_price": _money(pkg.child_price),
+        **({"price_per_person": _money(pkg.price_per_person), "child_price": _money(pkg.child_price)}
+           if pkg.price_mode != "on_request" else
+           {"price": "on request: tailored to the client. Never guess it; open a tailor-made request linked to this "
+                     "package (create_request with package_id) and our team sends the price."}),
         "currency": pkg.currency,
+        "kind": pkg.kind,
         "next_departures": open_dates[:6] or "flexible, on request",
         "hotel": f"{pkg.hotel_name} ({pkg.hotel_stars}*)" if pkg.hotel_name and pkg.hotel_stars else pkg.hotel_name,
         "tags": pkg.tags or [],
@@ -302,7 +305,7 @@ def search_packages(ctx: ToolContext, query="", max_price_per_person=None, min_d
         ignored.append("departure_month (use YYYY-MM)")
 
     def passes_filters(p: TravelPackage) -> bool:
-        if budget is not None and p.price_per_person > budget:
+        if budget is not None and p.price_mode != "on_request" and p.price_per_person > budget:
             return False
         if min_d is not None and p.duration_days < min_d:
             return False
@@ -367,6 +370,9 @@ def _check_booking(ctx: ToolContext, package_id, departure_date, adults, childre
     pkg = _get_package(ctx, package_id)
     if pkg is None or not is_bookable(pkg, ctx.today):
         return {"error": f"Package {package_id} not found or not available. Use search_packages."}, None
+    if pkg.price_mode == "on_request":
+        return {"error": "This package is priced for each client: open a tailor-made request linked to it "
+                         "(create_request with package_id) and our team sends the price."}, None
 
     n_adults = _count(adults)
     n_children = _count(children, 0)

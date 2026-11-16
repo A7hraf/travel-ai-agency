@@ -70,6 +70,12 @@ POLLS_PER_CHAT_PER_MINUTE = 30
 POLLS_PER_IP_PER_MINUTE = 600
 
 
+def _service_names(db: Session, company: Company) -> list[tuple[str, str]]:
+    from ..catalog import active_services  # noqa: PLC0415
+
+    return [(s.name_en, s.name_ar) for s in active_services(db, company.id)][:8]
+
+
 def _limit_reads(request: Request) -> None:
     limiter.check(f"public-read:{client_ip(request)}", PUBLIC_READS_PER_IP_PER_MINUTE)
 
@@ -82,7 +88,7 @@ def company_info(slug: str, request: Request, db: Session = Depends(get_db)):
         name=c.name,
         slug=c.slug,
         ai_agent_name=c.ai_agent_name,
-        welcome_message=welcome_message(c),
+        welcome_message=welcome_message(c, "en", _service_names(db, c)),
         currency=c.currency,
         whatsapp_number=c.whatsapp_display_number,
         contact_email=c.contact_email,
@@ -104,6 +110,8 @@ def packages(slug: str, request: Request, db: Session = Depends(get_db)):
     for p in visible:  # customers only need the dates still ahead
         item = PublicPackageOut.model_validate(p)
         item.departure_dates = [d for d in item.departure_dates if d >= today.isoformat()]
+        if p.price_mode == "on_request":
+            item.price_per_person = item.child_price = None
         out.append(item)
     return out
 
@@ -128,7 +136,8 @@ def start_chat(slug: str, body: StartChatIn, request: Request, db: Session = Dep
                         public_token=random_token())
     db.add(conv)
     db.flush()
-    welcome = Message(conversation_id=conv.id, sender=Sender.AI, content=welcome_override(company, body.lang) or welcome_message(company, body.lang))
+    welcome = Message(conversation_id=conv.id, sender=Sender.AI, content=welcome_message(
+        company, body.lang, _service_names(db, company), welcome_override(company, body.lang)))
     db.add(welcome)
     db.commit()
     return StartChatOut(token=conv.public_token, status=conv.status, messages=[public_message_out(welcome)])

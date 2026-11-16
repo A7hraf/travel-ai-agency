@@ -322,6 +322,9 @@ export interface TravelPackage {
   image_url: string | null;
   is_active: boolean;
   is_featured: boolean;
+  /** on_request: the price is hidden from clients (null on the customer page) and set for each client. */
+  price_mode?: "shown" | "on_request";
+  kind?: "trip" | "experience";
   /** Seats left on each departure date ("YYYY-MM-DD"), when the package limits seats. */
   seats_left_by_date?: Record<string, number> | null;
 }
@@ -413,6 +416,10 @@ export interface WorkflowStep {
 }
 export interface Installment { key: string; label_en: string; label_ar: string; amount: number; through: number; state?: string; covered: boolean }
 export interface CloseInfo { by: "client" | "team"; name: string; reason: string; step: string | null; step_en: string | null; step_ar: string | null; at: string }
+export interface TicketQuestion {
+  id: number; kind: "info" | "documents" | "meeting" | "feedback"; note: string; by: string; at: string;
+  answer: string | null; answered_at: string | null; answered_by?: string;
+}
 export interface Process { steps: WorkflowStep[]; installments: Installment[]; due_now: number | null; cancel: CloseInfo | null }
 
 export type Stage = "quote" | "client" | "payment" | "booking" | "confirmed" | "closed";
@@ -470,6 +477,8 @@ export interface Ticket {
   /** The step the request is at (every request) and its whole process (one request). */
   current_step: Pick<WorkflowStep, "key" | "type" | "label_en" | "label_ar" | "started_at"> | null;
   process?: Process | null;
+  questions?: TicketQuestion[] | null;
+  client_preferences?: Record<string, string> | null;
   departure_date: string | null;
   adults: number;
   children: number;
@@ -699,6 +708,12 @@ export interface CustomerDetail extends CustomerRow {
   }[];
   can_see_tickets: boolean;
   currency: string;
+  preferences: Record<string, string>;
+  /** Empty for colleagues who can't see requests. */
+  history: Partial<{
+    requests: number; booked: number; completed: number; cancelled: number; spent: number | null; currency: string | null;
+    favourite_services: string[]; favourite_places: string[]; loyalty: "new" | "returning" | "loyal";
+  }>;
 }
 
 export interface ActivityItem {

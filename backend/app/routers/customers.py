@@ -15,6 +15,7 @@ from ..audit import audit
 from ..csvutil import csv_response
 from ..database import get_db
 from ..deps import require_permission
+from ..services import client_profile
 from ..models import Conversation, Customer, Ticket, TicketStatus, User
 from ..permissions import effective_permissions
 from ..timeutil import local_today
@@ -80,6 +81,9 @@ class CustomerDetail(CustomerRow):
     ticket_list: list[CustomerTicket]
     can_see_tickets: bool
     currency: str
+    preferences: dict[str, str] = {}
+    preference_labels: dict[str, tuple[str, str]] = {}
+    history: dict = {}
 
 
 class CustomerUpdate(BaseModel):
@@ -88,6 +92,7 @@ class CustomerUpdate(BaseModel):
     email: str | None = Field(default=None, max_length=200)  # empty clears it
     notes: str | None = Field(default=None, max_length=5000)
     tags: list[str] | None = Field(default=None, max_length=MAX_TAGS)
+    preferences: dict[str, str] | None = None  # the keys of client_profile.PREFERENCES; empty removes one
 
     @field_validator("email")
     @classmethod
@@ -244,6 +249,8 @@ def _detail(db: Session, me: User, customer: Customer) -> CustomerDetail:
                                     created_at=t.created_at) for t in tickets] if can_tickets else [],
         can_see_tickets=can_tickets,
         currency=currency,
+        preferences=dict(customer.preferences or {}), preference_labels=client_profile.PREFERENCES,
+        history=client_profile.history(db, customer) if can_tickets else {},
     )
 
 
@@ -270,6 +277,10 @@ def update_customer(customer_id: int, body: CustomerUpdate, me: User = Depends(c
     if "tags" in data and (data["tags"] or []) != list(customer.tags or []):
         customer.tags = data["tags"] or []
         changed.append("labels")
+    if data.get("preferences") is not None:
+        before = dict(customer.preferences or {})
+        if client_profile.merge(customer, data["preferences"]) != before:
+            changed.append("preferences")
     if changed:
         audit(db, me, "customer.updated", target=customer.name or f"#{customer.id}",
               detail=", ".join(changed))
