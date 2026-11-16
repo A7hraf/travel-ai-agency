@@ -1020,17 +1020,13 @@ class PaymentIn(BaseModel):
     file_id: int | None = None
 
 
-def _after_payment(db: Session, ticket: Ticket, me: User, became_paid: bool) -> TicketOut:
-    return _done(db, ticket, me)
-
-
 @router.post("/{ticket_id}/payments", response_model=TicketOut, status_code=201)
 def add_payment(ticket_id: int, body: PaymentIn, me: User = Depends(manage), db: Session = Depends(get_db)):
     """A payment received (deposit, balance, cash at the office…). Fully paid moves the request to booking."""
     ticket = _get(db, me, ticket_id, lock=True)
-    paid = desk.record(db, ticket, body.amount, body.method, (body.reference or "").strip() or None, body.note, body.file_id, me)
+    desk.record(db, ticket, body.amount, body.method, (body.reference or "").strip() or None, body.note, body.file_id, me)
     audit(db, me, "ticket.payment", target=ticket.reference, detail=f"{body.amount} {ticket.currency} recorded")
-    return _after_payment(db, ticket, me, paid)
+    return _done(db, ticket, me)
 
 
 class ApproveIn(BaseModel):
@@ -1043,9 +1039,9 @@ class ApproveIn(BaseModel):
 def approve_payment(ticket_id: int, payment_id: int, body: ApproveIn, me: User = Depends(manage),
                     db: Session = Depends(get_db)):
     ticket = _get(db, me, ticket_id, lock=True)
-    paid = desk.approve(db, ticket, payment_id, body.amount, body.method, (body.reference or "").strip() or None, me)
+    desk.approve(db, ticket, payment_id, body.amount, body.method, (body.reference or "").strip() or None, me)
     audit(db, me, "ticket.payment", target=ticket.reference, detail=f"receipt approved: {body.amount} {ticket.currency}")
-    return _after_payment(db, ticket, me, paid)
+    return _done(db, ticket, me)
 
 
 class RejectIn(BaseModel):

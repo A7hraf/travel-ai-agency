@@ -394,9 +394,6 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); opaci
 .skeleton { background: linear-gradient(90deg, var(--skeleton-base) 25%, var(--skeleton-shine) 50%, var(--skeleton-base) 75%); background-size: 200% 100%; animation: gjShimmer 1.4s infinite; border-radius: 12px; }
 
 /* --- Page layout ---------------------------------------------------------------- */
-.page-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
-.page-header p { margin: .2rem 0 0; color: var(--text-muted); }
-.page-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
 .toolbar { display: flex; gap: .75rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: center; }
 .toolbar input, .toolbar select { max-width: 300px; }
 .narrow { max-width: 860px; }

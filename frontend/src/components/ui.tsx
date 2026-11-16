@@ -134,34 +134,8 @@ export function Loading({ height = 220, label, compact }: { height?: number; lab
   );
 }
 
-/** Loading, then the data, or the error with a Retry button. */
-export function LoadGate<T>({ data, error, onRetry, height, label, children }: {
-  data: T | null | undefined;
-  error: string | null | undefined;
-  onRetry?: () => void;
-  height?: number;
-  label?: string;
-  children: (data: T) => ReactNode;
-}) {
-  if (data !== null && data !== undefined) return <>{children(data)}</>;
-  if (error) return <ErrorBox error={error} onRetry={onRetry} />;
-  return <Loading height={height} label={label} />;
-}
-
 export function Empty({ children }: { children: ReactNode }) {
   return <div className="empty">{children}</div>;
-}
-
-export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
-  return (
-    <div className="page-header">
-      <div>
-        <h1>{title}</h1>
-        {subtitle && <p className="muted">{subtitle}</p>}
-      </div>
-      {actions && <div className="page-actions">{actions}</div>}
-    </div>
-  );
 }
 
 /** Renders chat text: line breaks and WhatsApp-style *bold*, without injecting HTML. */
@@ -183,19 +157,3 @@ export function ChatText({ text }: { text: string }) {
     </>
   );
 }
-
-export const TICKET_TONES: Record<string, string> = {
-  new: "blue",
-  quoted: "teal",
-  changes: "amber",
-  chosen: "blue",
-  final: "teal",
-  rejected: "gray",
-  pending_payment: "amber",
-  in_progress: "blue",
-  paid: "teal",
-  confirmed: "green",
-  cancelled: "gray",
-};
-
-export const CONVERSATION_TONES: Record<string, string> = { ai: "teal", human: "amber", closed: "gray" };

@@ -6,7 +6,6 @@ import { useCountUp } from "../components/admin/AdminUI";
 import { AreaChart, CHART, DayColumns, DayPoint, Meter, Ring } from "../components/Charts";
 import { ChatCircleDots, Globe, InstagramLogo, Storefront, Suitcase, TrendDown, TrendUp, WhatsappLogo } from "../components/Icon";
 import "../components/ai/instagram.css";
-import "../components/ai/instagram-i18n";
 import { Money, moneyText } from "../components/Money";
 import { currentLocale, useI18n } from "../lang";
 import type { Analytics, ConversationSummary, Dashboard as DashboardData } from "../types";

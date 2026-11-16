@@ -10,7 +10,6 @@ import {
 } from "../components/Icon";
 import { ChatText, ErrorBox, Loading } from "../components/ui";
 import "../components/ai/instagram.css";
-import "../components/ai/instagram-i18n";
 import { ConfirmRequest, ConfirmSheet } from "../components/staff/Sheet";
 import { initials, useStaff } from "../components/staff/StaffContext";
 import { currentLocale, trServer, tr, useI18n } from "../lang";

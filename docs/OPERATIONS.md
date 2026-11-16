@@ -128,10 +128,17 @@ variable for the reminder text); the agency enters its name and language under *
 Photos and PDFs clients send on WhatsApp (payment receipts, papers) and the travel documents the
 team sends are kept in the database with their request, like uploaded images.
 
-Background jobs (after-trip feedback, calendar reminders every 5 minutes, the AI advisor's daily
-findings) run inside the web service while it is awake; a sleeping instance catches up when it wakes.
-Advanced features (members, trip planner, insights, supplier library, quotations, reports, calendar,
-advisor) and their parts are switched on per company from the company page in the platform console.
+Background jobs run inside the web service while it is awake; a sleeping instance catches up when it
+wakes. Every 5 minutes: calendar reminders, after-trip feedback, mid-trip check-ins and late-step
+alerts. Once a day: business payment reminders, moving finished trips on, clearing old notifications
+and the AI advisor's findings. A failing job is logged and the others still run.
+
+Features are switched on per company from the company page in the platform console, each with its
+limits (per month or in total), the employees who may use it and its price: members, supplier library,
+quotations, reports, calendar, broadcasts, insights (basic, marketing, deep, finance), the advisor and
+the AI helpers (trip planner, plan, quotation and package writers, service builder, daily brief).
+Business clients and vendors are switched on there too, with the number of partner accounts, logins
+per partner and the partner services allowed.
 
 ## 6. Backups
 

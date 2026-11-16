@@ -1,4 +1,4 @@
-import { createContext, ReactNode, useContext, useEffect, useState } from "react";
+import { createContext, ReactNode, useContext } from "react";
 
 /** A glass toast at the top of the team app. Tap opens what it is about. */
 export interface StaffToast {
@@ -32,20 +32,6 @@ export const StaffContext = createContext<StaffState>({
 
 export function useStaff(): StaffState {
   return useContext(StaffContext);
-}
-
-/** True on phones and small tablets (the layout with the bottom tab bar). */
-export function useIsPhone(): boolean {
-  const query = "(max-width: 900px)";
-  const [phone, setPhone] = useState(() => typeof window !== "undefined" && window.matchMedia(query).matches);
-  useEffect(() => {
-    const mq = window.matchMedia(query);
-    const on = () => setPhone(mq.matches);
-    on();
-    mq.addEventListener("change", on);
-    return () => mq.removeEventListener("change", on);
-  }, []);
-  return phone;
 }
 
 /** "AB" from "Ali Bakr"; empty when the label is not a name (a phone number or an email). */

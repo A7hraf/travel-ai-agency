@@ -102,16 +102,6 @@ def keyword_groups(text: str) -> list[set[str]]:
     return groups
 
 
-def keywords(text: str) -> list[str]:
-    """Main form of every meaningful word (kept for callers that need plain words)."""
-    out = []
-    for raw in re.findall(r"\w+", normalize(text)):
-        w = _strip_arabic_prefix(raw)
-        if len(w) >= 3 and w not in _STOPWORDS and not w.isdigit():
-            out.append(w)
-    return out
-
-
 def _one_edit(a: str, b: str) -> bool:
     """True when a and b differ by at most one inserted, deleted or replaced letter."""
     if abs(len(a) - len(b)) > 1:

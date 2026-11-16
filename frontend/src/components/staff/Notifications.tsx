@@ -25,6 +25,7 @@ const TEXT: Record<string, string> = {
   b2b_changes: "{client} asked for changes on {ref}: “{text}”",
   b2b_plan: "A payment plan was set on {ref}",
   b2b_payment_due: "Payment due on {ref}: {label} ({date})",
+  b2b_payment_due_vendor: "Pay the vendor on {ref}: {label} ({date})",
 };
 const POLL_MS = 60_000;
 
@@ -48,7 +49,8 @@ export default function NotificationBell({ className = "" }: { className?: strin
 
   const text = (n: Note) => {
     const p = { ...n.params, step: lang === "ar" ? n.params.step_ar || n.params.step : n.params.step };
-    return t(TEXT[n.kind] ?? n.kind, p);
+    const kind = n.kind === "b2b_payment_due" && n.params.side === "vendor" ? "b2b_payment_due_vendor" : n.kind;
+    return t(TEXT[kind] ?? kind, p);
   };
   const openOne = (n: Note) => {
     if (!n.read) post("/api/notifications/read", { ids: [n.id] }).then(load).catch(() => {});

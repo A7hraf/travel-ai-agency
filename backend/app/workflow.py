@@ -143,12 +143,6 @@ def template_for(service) -> list[dict]:
     return [StepIn.model_validate(s).model_dump(mode="json") for s in raw]
 
 
-def clean_template(raw: list) -> list[dict]:
-    """A workflow the owner wrote for a service, checked."""
-    items = validate([StepIn.model_validate(s) for s in raw])
-    return [s.model_dump(mode="json") for s in items]
-
-
 def steps(ticket: Ticket) -> list[dict]:
     return [dict(s) for s in (ticket.workflow or [])]
 

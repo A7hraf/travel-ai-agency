@@ -45,15 +45,6 @@ export const NEXT_TICKET_STATUSES: Record<string, string[]> = {
 };
 
 /** These statuses need a payment reference (receipt or transfer number). */
-export const NEEDS_PAYMENT_REFERENCE = ["paid", "confirmed"];
-
-export const DELIVERY_LABELS: Record<string, string> = {
-  sent: "Sent",
-  delivered: "Delivered",
-  read: "Read",
-  failed: "Not delivered",
-};
-
 export const CONVERSATION_STATUS_LABELS: Record<string, string> = {
   ai: "AI handling",
   human: "Needs a human",
@@ -118,12 +109,6 @@ export function usePolling(fn: () => void, ms: number, deps: unknown[] = []) {
 }
 
 /** A stable gradient per destination, used as the package card background. */
-export function gradientFor(text: string): string {
-  let h = 0;
-  for (const ch of text) h = (h * 31 + ch.charCodeAt(0)) % 360;
-  return `linear-gradient(135deg, hsl(${h} 70% 45%), hsl(${(h + 40) % 360} 75% 35%))`;
-}
-
 export function customerLabel(c: { name: string | null; phone: string | null; email: string | null; id: number }) {
   return c.name || c.phone || c.email || tr("Visitor #{id}", { id: c.id });
 }

@@ -8,7 +8,6 @@ import { CopyValue } from "./WhatsAppConnect";
 import "./ai.css";
 import "./instagram.css";
 import "./i18n";
-import "./instagram-i18n";
 
 export function InstagramBadge({ status }: { status: InstagramStatus["status"] }) {
   const { t } = useI18n();

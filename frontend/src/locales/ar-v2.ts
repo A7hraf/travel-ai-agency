@@ -370,6 +370,7 @@ export const AR_V2: Record<string, string> = {
   "Vendor paid": "دُفع للمورّد",
   "Vendor payment unmarked": "أُلغي تسجيل الدفع للمورّد",
   "Rated": "تم التقييم",
+  "Pay the vendor on {ref}: {label} ({date})": "ادفع للمورّد على {ref}: {label} ({date})",
 };
 
 export const AR_V2_PATTERNS: [RegExp, string][] = [
