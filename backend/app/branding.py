@@ -20,16 +20,19 @@ from .models import Company
 HEX = r"^#[0-9a-fA-F]{6}$"
 VERSION = 2
 SECTIONS = ("search", "featured", "offers", "how", "about", "contact")
-# Story sections (The Brand, Experiences, Services, Leadership, The Community): off by default, each with its
-# own title, intro and cards, written in both languages.
-STORY_SECTIONS = ("brand", "experiences", "services", "leadership", "community")
+# Story sections (The Brand, Experiences, Services, Leadership, The Community, and with the "More brand sections"
+# feature Mission, Philosophy, Our promise and FAQ): off by default, each with its own title, intro and cards,
+# written in both languages.
+STORY_SECTIONS = ("brand", "experiences", "services", "leadership", "community", "mission", "philosophy", "promise", "faq")
+MORE_SECTIONS = {"mission", "philosophy", "promise", "faq"}
+TEMPLATES = ("classic", "editorial")
 DASHBOARD_FIELDS = {"dashboard_color", "dashboard_sidebar"}
 IMAGE_FIELDS = ("logo", "hero_image", "about_image", "about_bg_image", "how_bg_image")
 LANGS = ("en", "ar")
 
 Section = Literal["search", "featured", "offers", "how", "about", "contact",
-                  "brand", "experiences", "services", "leadership", "community"]
-StoryKey = Literal["brand", "experiences", "services", "leadership", "community"]
+                  "brand", "experiences", "services", "leadership", "community", "mission", "philosophy", "promise", "faq"]
+StoryKey = Literal["brand", "experiences", "services", "leadership", "community", "mission", "philosophy", "promise", "faq"]
 MAX_STORY_ITEMS = 12
 
 # Customer-page texts that can be replaced, with their maximum length. The keys are the string
@@ -61,6 +64,8 @@ TEXT_KEYS: dict[str, int] = {
     "aboutQuote": MEDIUM, "contactTitle": SHORT, "contactText": LONG,
     # Footer
     "footer": MEDIUM,
+    # Editorial design: the main button, the menu button and the closing call
+    "edCta": SHORT, "edMenu": SHORT, "edClosing": MEDIUM, "edClosingText": LONG,
     # Chat
     "chatWith": SHORT, "chatButtonSub": SHORT, "aiSub": SHORT, "humanSub": SHORT, "consultant": SHORT,
     "live": SHORT, "welcome": LONG, "qHoney": SHORT, "qFamily": SHORT, "qHuman": SHORT, "typeHere": SHORT,
@@ -131,6 +136,7 @@ class CardDesign(BaseModel):
     show_tags: bool = False
     per_person: bool = False      # "per person" after the price
     show_button: bool = True      # Book button on the card
+    price_on_request: bool = False  # every price reads "Price on request"
 
 
 Texts = dict[str, dict[str, str]]
@@ -267,6 +273,10 @@ def story_image_urls(stories: Any) -> list[str]:
 class Branding(BaseModel):
     # Defaults follow the Ghanjah brand: Gulf Cyan for actions, Ink for the sidebar.
     version: int = VERSION
+    # Page design: "editorial" needs the "Editorial customer page" feature (else the page shows "classic")
+    template: Literal["classic", "editorial"] = "classic"
+    tagline_en: str = Field(default="", max_length=80)  # short line under the name ("The modern travel brand")
+    tagline_ar: str = Field(default="", max_length=80)
     # Colours of the customer page (empty = the standard dark design)
     primary_color: str = Field(default="#0088b0", pattern=HEX)   # buttons, links, highlighted word
     accent_color: str = Field(default="#4fb6dc", pattern=HEX)    # AI consultant avatar
@@ -315,7 +325,7 @@ class Branding(BaseModel):
     def check_image(cls, v: str | None) -> str | None:
         return _image_ref(v)
 
-    @field_validator("hero_title_en", "hero_title_ar", "about_title_en", "about_title_ar")
+    @field_validator("hero_title_en", "hero_title_ar", "about_title_en", "about_title_ar", "tagline_en", "tagline_ar")
     @classmethod
     def one_line(cls, v: str) -> str:
         return clean_text(v, multiline=False)
@@ -354,6 +364,9 @@ class BrandingUpdate(BaseModel):
     """Partial update: only the fields sent are changed. `elements` and `cards` are merged key by
     key; `texts` replaces the texts of each language sent."""
 
+    template: Literal["classic", "editorial"] | None = None
+    tagline_en: str | None = Field(default=None, max_length=80)
+    tagline_ar: str | None = Field(default=None, max_length=80)
     primary_color: str | None = Field(default=None, pattern=HEX)
     accent_color: str | None = Field(default=None, pattern=HEX)
     bg_color: str | None = None
@@ -397,6 +410,9 @@ class BrandingUpdate(BaseModel):
 class PublicBranding(BaseModel):
     """What the customer page needs (no dashboard colours)."""
 
+    template: str
+    tagline_en: str
+    tagline_ar: str
     primary_color: str
     accent_color: str
     bg_color: str | None
@@ -485,8 +501,29 @@ def apply_update(company: Company, update: BrandingUpdate, allow_dashboard: bool
     return branding
 
 
+def prices_on_request(company: Company) -> bool:
+    """The company shows no prices: every package reads "Price on request" and the AI never quotes one."""
+    return get_branding(company).cards.price_on_request
+
+
+def page_features(company: Company) -> list[str]:
+    """The customer-page features the company has (the page editor shows the others as locked)."""
+    from .addons import has_addon  # noqa: PLC0415
+
+    return [k for k in ("page_editorial", "page_more_sections") if has_addon(company, k)]
+
+
 def public_branding(company: Company) -> PublicBranding:
-    return PublicBranding(**get_branding(company).model_dump(exclude=DASHBOARD_FIELDS | {"version"}))
+    """The saved design, less what the company's features don't include: a design prepared before a feature
+    is switched on (or kept after it is taken back) shows the standard page and sections meanwhile."""
+    data = get_branding(company).model_dump(exclude=DASHBOARD_FIELDS | {"version"})
+    allowed = page_features(company)
+    if "page_editorial" not in allowed:
+        data["template"] = "classic"
+    if "page_more_sections" not in allowed:
+        data["sections"] = [x for x in data["sections"] if x not in MORE_SECTIONS]
+        data["stories"] = {k: v for k, v in data["stories"].items() if k not in MORE_SECTIONS}
+    return PublicBranding(**data)
 
 
 def branding_image_urls(branding: dict | None) -> set[str]:

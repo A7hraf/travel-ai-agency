@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from ..addons import FEATURES, Grant, grants, usage
 from ..audit import audit
+from ..catalog import sync_pack
 from ..database import get_db
 from ..deps import get_current_user, require_permission, require_system_admin
 from ..models import Company, Role, User
@@ -56,6 +57,7 @@ def save_features(company_id: int, body: dict[str, Grant], me: User = Depends(re
     if unknown:
         raise HTTPException(422, f"Unknown feature: {', '.join(sorted(unknown))}")
     current = grants(company)
+    pack_was = current["concierge_services"].on
     current.update(body)
     company.addons = {k: v.model_dump(mode="json") for k, v in current.items()}
     # Employees beyond a new, smaller number of seats lose the feature.
@@ -64,6 +66,8 @@ def save_features(company_id: int, body: dict[str, Grant], me: User = Depends(re
             holders = [u for u in db.scalars(select(User).where(User.company_id == company.id)).all() if key in (u.ai_features or [])]
             for u in holders[g.seats:]:
                 u.ai_features = [x for x in u.ai_features if x != key]
+    if current["concierge_services"].on != pack_was:
+        sync_pack(db, company)
     audit(db, me, "features.saved", target=company.name, company_id=company.id,
           detail=", ".join(f"{k}{'' if v.limit is None else f' ({v.limit}/{v.period})'}" for k, v in current.items() if v.on) or "none")
     db.commit()

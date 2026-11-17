@@ -40,6 +40,19 @@ export function pageVars(b: Pick<PublicBranding, "primary_color" | "accent_color
   return vars;
 }
 
+/** Colours of the editorial design: paper (the background), ink (the text, the buttons and the dark bands)
+ *  and a quiet accent. Without colours of its own the page is warm cream and near-black. */
+export function editorialVars(b: Pick<PublicBranding, "bg_color" | "text_color" | "highlight_color">): Record<string, string> {
+  const paper = ok(b.bg_color) ? b.bg_color : "#f2ebdd";
+  const ink = ok(b.text_color) ? b.text_color : isDark(paper) ? "#f3efe6" : "#141210";
+  return {
+    "--ed-paper": paper, "--ed-ink": ink, "--ed-accent": ok(b.highlight_color) ? b.highlight_color : ink,
+    "--ed-soft": rgba(ink, 0.62), "--ed-hair": rgba(ink, 0.16), "--ed-paper-soft": rgba(paper, 0.72),
+    "--ed-photo": rgba(ink, 0.08),
+    "--sf-bg": paper, "--sf-text": ink, "--text": ink, "--brand": ink, "--brand-hover": ink, "--on-brand": paper,
+  };
+}
+
 /** WCAG contrast ratio of two #rrggbb colours. */
 export function contrastRatio(a: string, b: string): number {
   const lum = (hex: string) => {
@@ -63,5 +76,5 @@ export const DEFAULT_ELEMENTS: PageElements = {
 
 export const DEFAULT_CARDS: CardDesign = {
   style: "poster", columns: 3, show_price: true, show_duration: true, show_hotel: false,
-  show_next_date: false, show_seats: false, show_tags: false, per_person: false, show_button: true,
+  show_next_date: false, show_seats: false, show_tags: false, per_person: false, show_button: true, price_on_request: false,
 };

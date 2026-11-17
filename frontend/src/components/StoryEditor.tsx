@@ -14,6 +14,10 @@ export const STORY_LABELS: Record<StoryKey, string> = {
   services: "Services",
   leadership: "Leadership",
   community: "The Community",
+  mission: "Mission",
+  philosophy: "Philosophy",
+  promise: "Our promise",
+  faq: "Questions (FAQ)",
 };
 
 /** What each section is for, and what a card holds there. */
@@ -25,6 +29,10 @@ const STORY_HELP: Record<StoryKey, { note: string; card: string; tag?: string; s
   leadership: { note: "How the idea was built, and the people behind it.", card: "Person", subtitle: "Role" },
   community: { note: "Your members' community and what members get. A \"Ask to join\" button opens the chat.",
     card: "Member level or benefit", tag: "Label (for example \"By invitation\")", subtitle: "Short line" },
+  mission: { note: "Why you exist and what you promise your clients. The intro is shown large; cards can list the goals.", card: "Goal" },
+  philosophy: { note: "How you see travel, in a sentence or two. The intro is shown large, with a photo band if you add one.", card: "Belief" },
+  promise: { note: "What clients can count on (for example \"Attention to detail\"): one card each.", card: "Promise" },
+  faq: { note: "Questions clients often ask: the card title is the question, the text is the answer.", card: "Question" },
 };
 
 const EMPTY_ITEM: StoryItem = { tag_en: "", tag_ar: "", title_en: "", title_ar: "", subtitle_en: "", subtitle_ar: "", text_en: "", text_ar: "", image: null };
@@ -45,7 +53,7 @@ function Input({ id, label, value, onChange, max, long, lang, placeholder }: {
 }
 
 /** Editor of the story sections (The Brand, Experiences, Services, Leadership, The Community). */
-export default function StoryEditor({ stories, onChange, uploadPath, lang, langTabs, isOn, turnOn }: {
+export default function StoryEditor({ stories, onChange, uploadPath, lang, langTabs, isOn, turnOn, locked }: {
   stories: Partial<Record<StoryKey, StorySection>>;
   onChange: (key: StoryKey, section: StorySection) => void;
   uploadPath: string;
@@ -53,6 +61,8 @@ export default function StoryEditor({ stories, onChange, uploadPath, lang, langT
   langTabs: React.ReactNode;
   isOn: (key: StoryKey) => boolean;
   turnOn: (key: StoryKey) => void;
+  /** Sections whose feature is off: they can be prepared, customers don't see them yet. */
+  locked?: (key: StoryKey) => boolean;
 }) {
   const { t } = useI18n();
   const [key, setKey] = useState<StoryKey>("brand");
@@ -81,6 +91,9 @@ export default function StoryEditor({ stories, onChange, uploadPath, lang, langT
             </button>
           ))}
         </div>
+        {locked?.(key) && (
+          <div className="warn-box">{t("This section needs the \"More brand sections\" feature, which the platform has not switched on for your company yet. You can prepare it now: customers will see it once the feature is on.")}</div>
+        )}
         {!isOn(key) && (
           <div className="gx-notice gx-story-off">
             <span>{t("This section is switched off, so customers don't see it.")}</span>
@@ -97,7 +110,7 @@ export default function StoryEditor({ stories, onChange, uploadPath, lang, langT
         <p className="gx-card-note">{t(help.note)}</p>
         <Input id={`st-kicker-${L}`} label={t("Small line above the title (also the menu link)")} lang={L} max={80}
           value={String(s[sk("kicker")])} onChange={(v) => set({ [sk("kicker")]: v })} placeholder={t(STORY_LABELS[key])} />
-        <Input id={`st-title-${L}`} label={t("Title")} lang={L} max={120} value={String(s[sk("title")])} onChange={(v) => set({ [sk("title")]: v })} />
+        <Input id={`st-title-${L}`} label={t("Title (write *words* between stars for italics)")} lang={L} max={120} value={String(s[sk("title")])} onChange={(v) => set({ [sk("title")]: v })} />
         <Input id={`st-intro-${L}`} label={t("Intro text")} lang={L} max={1500} long value={String(s[sk("intro")])} onChange={(v) => set({ [sk("intro")]: v })} />
         <div className="field">
           <span className="field-label">{t("Section photo (optional)")}</span>

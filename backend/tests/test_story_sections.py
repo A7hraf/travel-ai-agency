@@ -3,7 +3,7 @@
 import re
 from pathlib import Path
 
-from app.branding import MAX_STORY_ITEMS, SECTIONS, STORY_SECTIONS, Branding, branding_image_urls
+from app.branding import Branding, MAX_STORY_ITEMS, MORE_SECTIONS, SECTIONS, STORY_SECTIONS, branding_image_urls
 from app.services.demo_luxury import branding_for
 from tests.conftest import make_company
 from tests.test_page_editor import public, upload
@@ -98,8 +98,9 @@ def test_story_photos_are_kept_by_the_cleanup():
 
 def test_luxury_demo_has_every_story_section():
     b = Branding.model_validate(branding_for("WE ARE ESCAPE"))
-    assert set(b.stories) == set(STORY_SECTIONS)
-    assert all(key in b.sections for key in STORY_SECTIONS)
+    standard = set(STORY_SECTIONS) - MORE_SECTIONS  # the others come with the "More brand sections" feature
+    assert set(b.stories) == standard
+    assert all(key in b.sections for key in standard)
     for key, section in b.stories.items():
         assert section.title_en and section.title_ar and section.items, key
         for item in section.items:

@@ -96,6 +96,12 @@ export const TEXT_GROUPS: TextGroup[] = [
     f("contactTitle", "Contact title (when there is no about text)"),
     f("contactText", "Contact text (when there is no about text)", L, { long: true }),
   ] },
+  { id: "editorial", title: "Editorial design", fields: [
+    f("edCta", "Main button"),
+    f("edMenu", "Menu button (phone)"),
+    f("edClosing", "Closing title (write *words* in italics)", M),
+    f("edClosingText", "Closing text", L, { long: true }),
+  ] },
   { id: "footer", title: "Footer", fields: [
     f("footer", "Footer sentence", M),
   ] },

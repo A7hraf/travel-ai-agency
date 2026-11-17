@@ -50,9 +50,11 @@ export default function FeatureControls({ companyId }: { companyId: number }) {
                 </span>
               </label>
             )}
-            <label>{t("Employees")}
-              <input type="number" min={1} value={g.seats ?? ""} placeholder={t("All staff")} onChange={(e) => set(key, { seats: num(e.target.value) })} dir="ltr" />
-            </label>
+            {f.kind !== "extra" && (
+              <label>{t("Employees")}
+                <input type="number" min={1} value={g.seats ?? ""} placeholder={t("All staff")} onChange={(e) => set(key, { seats: num(e.target.value) })} dir="ltr" />
+              </label>
+            )}
             <label>{t("Price per month")}
               <input inputMode="decimal" value={g.price ?? ""} placeholder={t("Included")} onChange={(e) => set(key, { price: e.target.value.trim() || null })} dir="ltr" />
             </label>
@@ -79,6 +81,8 @@ export default function FeatureControls({ companyId }: { companyId: number }) {
       {data.catalog.filter((f) => f.kind === "tab").map((f) => row(f.key))}
       <h3 className="gx-section-label">{t("AI capabilities")}</h3>
       {data.catalog.filter((f) => f.kind === "ai").map((f) => row(f.key))}
+      <h3 className="gx-section-label">{t("Customer page and services")}</h3>
+      {data.catalog.filter((f) => f.kind === "extra").map((f) => row(f.key))}
       <ErrorBox error={error} />
       <div className="gx-form-actions">
         {monthly > 0 && <span className="muted small">{t("Add-ons: {v} per month", { v: monthly.toFixed(3) })}</span>}

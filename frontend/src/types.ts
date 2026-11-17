@@ -93,7 +93,7 @@ export interface PartnerHome {
 }
 
 export type Section = "search" | "featured" | "offers" | "how" | "about" | "contact"
-  | "brand" | "experiences" | "services" | "leadership" | "community";
+  | "brand" | "experiences" | "services" | "leadership" | "community" | "mission" | "philosophy" | "promise" | "faq";
 
 /** Smaller parts of the customer page that can be hidden ("powered_by": platform owner only). */
 export interface PageElements {
@@ -126,12 +126,14 @@ export interface CardDesign {
   show_tags: boolean;
   per_person: boolean;
   show_button: boolean;
+  /** Every price reads "Price on request". */
+  price_on_request: boolean;
 }
 
 /** Customer-page texts replacing the standard ones: {en: {key: text}, ar: {key: text}}. */
 export type PageTexts = Record<"en" | "ar", Record<string, string>>;
 
-export type StoryKey = "brand" | "experiences" | "services" | "leadership" | "community";
+export type StoryKey = "brand" | "experiences" | "services" | "leadership" | "community" | "mission" | "philosophy" | "promise" | "faq";
 
 /** One card of a story section: a brand pillar, an experience, a service, a leader or a member perk. */
 export interface StoryItem {
@@ -151,6 +153,10 @@ export interface StorySection {
 }
 
 export interface PublicBranding {
+  /** "editorial" needs the Editorial customer page feature (the public page shows "classic" without it). */
+  template: "classic" | "editorial";
+  tagline_en: string;
+  tagline_ar: string;
   primary_color: string;
   accent_color: string;
   bg_color: string | null;
@@ -538,6 +544,8 @@ export interface PublicCompany {
   contact_email: string | null;
   contact_phone: string | null;
   branding: PublicBranding;
+  /** Customer-page features of the company (page_editorial, page_more_sections). */
+  page_features?: string[];
   /** Members community levels for the Community section (when switched on). */
   members?: PublicMemberLevel[] | null;
 }

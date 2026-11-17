@@ -18,6 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, object_session
 
 from .. import workflow
+from ..branding import prices_on_request
 from ..models import (
     utcnow,
     Company,
@@ -240,7 +241,11 @@ def is_bookable(pkg: TravelPackage, today: date) -> bool:
     return True
 
 
-def _summary(pkg: TravelPackage, today: date) -> dict:
+def _on_request(ctx: "ToolContext", pkg: TravelPackage) -> bool:
+    return pkg.price_mode == "on_request" or prices_on_request(ctx.company)
+
+
+def _summary(pkg: TravelPackage, today: date, on_request: bool = False) -> dict:
     left = _seats_left(pkg, today)
     open_dates = _open_dates(pkg, today, left)
     if pkg.seats_available is None:
@@ -256,7 +261,7 @@ def _summary(pkg: TravelPackage, today: date) -> dict:
         "country": pkg.country,
         "duration_days": pkg.duration_days,
         **({"price_per_person": _money(pkg.price_per_person), "child_price": _money(pkg.child_price)}
-           if pkg.price_mode != "on_request" else
+           if not on_request else
            {"price": "on request: tailored to the client. Never guess it; open a tailor-made request linked to this "
                      "package (create_request with package_id) and our team sends the price."}),
         "currency": pkg.currency,
@@ -305,7 +310,7 @@ def search_packages(ctx: ToolContext, query="", max_price_per_person=None, min_d
         ignored.append("departure_month (use YYYY-MM)")
 
     def passes_filters(p: TravelPackage) -> bool:
-        if budget is not None and p.price_mode != "on_request" and p.price_per_person > budget:
+        if budget is not None and not _on_request(ctx, p) and p.price_per_person > budget:
             return False
         if min_d is not None and p.duration_days < min_d:
             return False
@@ -335,7 +340,7 @@ def search_packages(ctx: ToolContext, query="", max_price_per_person=None, min_d
 
     extra = {"ignored_filters": ignored} if ignored else {}
     if matches:
-        return {"results": [_summary(p, ctx.today) for p in matches[:MAX_RESULTS]], "total_matches": len(matches),
+        return {"results": [_summary(p, ctx.today, _on_request(ctx, p)) for p in matches[:MAX_RESULTS]], "total_matches": len(matches),
                 **extra}
 
     alternatives = sorted(packages, key=lambda p: (not p.is_featured, p.price_per_person))[:3]
@@ -343,7 +348,7 @@ def search_packages(ctx: ToolContext, query="", max_price_per_person=None, min_d
         "results": [],
         "note": "No package matches these criteria. Tell the customer honestly and suggest the "
         "alternatives below, or offer a human consultant for a custom trip.",
-        "alternatives": [_summary(p, ctx.today) for p in alternatives],
+        "alternatives": [_summary(p, ctx.today, _on_request(ctx, p)) for p in alternatives],
         **extra,
     }
 
@@ -352,7 +357,7 @@ def get_package_details(ctx: ToolContext, package_id=None, **_) -> dict:
     pkg = _get_package(ctx, package_id)
     if pkg is None or not is_bookable(pkg, ctx.today):
         return {"error": f"Package {package_id} not found or not available. Use search_packages."}
-    details = _summary(pkg, ctx.today)
+    details = _summary(pkg, ctx.today, _on_request(ctx, pkg))
     details.update(
         {
             "description": (pkg.description or "")[:2000],
@@ -370,7 +375,7 @@ def _check_booking(ctx: ToolContext, package_id, departure_date, adults, childre
     pkg = _get_package(ctx, package_id)
     if pkg is None or not is_bookable(pkg, ctx.today):
         return {"error": f"Package {package_id} not found or not available. Use search_packages."}, None
-    if pkg.price_mode == "on_request":
+    if _on_request(ctx, pkg):
         return {"error": "This package is priced for each client: open a tailor-made request linked to it "
                          "(create_request with package_id) and our team sends the price."}, None
 

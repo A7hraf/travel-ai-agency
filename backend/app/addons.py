@@ -24,7 +24,7 @@ from .timeutil import local_today
 @dataclass(frozen=True)
 class Feature:
     label: str
-    kind: Literal["tab", "ai", "part"]
+    kind: Literal["tab", "ai", "part", "extra"]  # extra: on/off and a price (customer page designs, service packs)
     parent: str | None = None
     metered: bool = False  # each use counts against the limit
     levels: tuple[str, ...] = ()
@@ -50,6 +50,11 @@ FEATURES: dict[str, Feature] = {
     "insights": Feature("AI insights: business analysis, customer needs and growth plan", "ai", metered=True,
                         levels=("basic", "marketing", "deep", "finance")),
     "advisor": Feature("AI advisor: a chat with the AI about the business, with its recommendations", "ai", metered=True),
+    "page_editorial": Feature("Editorial customer page: a magazine-style design with full-width photos, large serif titles, "
+                              "a strip of experiences and numbered offerings", "extra"),
+    "page_more_sections": Feature("More brand sections on the customer page: mission, philosophy, our promise and questions (FAQ)", "extra"),
+    "concierge_services": Feature("Luxury concierge services: private aviation, yacht charters, villas, cruises, dining and nightlife, "
+                                  "VIP access and events, chauffeur and car rental", "extra"),
 }
 PARTS = {key: {k: f.label for k, f in FEATURES.items() if f.parent == key} for key in FEATURES if FEATURES[key].kind != "part"}
 PARTS = {k: v for k, v in PARTS.items() if v}

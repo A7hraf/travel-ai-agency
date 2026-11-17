@@ -4,7 +4,18 @@ import type { Lang } from "../Money";
 import { ChatCircleDots } from "../Icon";
 import type { StoreCtx } from "./context";
 
-export const STORY_KEYS: StoryKey[] = ["brand", "experiences", "services", "leadership", "community"];
+export const STORY_KEYS: StoryKey[] = ["brand", "experiences", "services", "leadership", "community", "mission", "philosophy", "promise", "faq"];
+/** Sections that need the "More brand sections" feature. */
+export const MORE_STORY_KEYS: StoryKey[] = ["mission", "philosophy", "promise", "faq"];
+
+/** A title where *words between stars* are set in italics. */
+export function Emph({ text }: { text: string }) {
+  const parts = text.split(/(\*[^*]+\*)/g).filter(Boolean);
+  return <>{parts.map((p, i) => (p.length > 2 && p.startsWith("*") && p.endsWith("*") ? <em key={i}>{p.slice(1, -1)}</em> : p))}</>;
+}
+
+/** Plain text of a title written with *stars*. */
+export const plain = (text: string) => text.replace(/\*([^*]+)\*/g, "$1");
 
 const pick = (lang: Lang, en: string, ar: string) => (lang === "ar" ? ar || en : en || ar).trim();
 
@@ -26,13 +37,14 @@ function Card({ ctx, k, item, i }: { ctx: StoreCtx; k: StoryKey; item: StoryItem
   const text = pick(lang, item.text_en, item.text_ar);
   const tag = pick(lang, item.tag_en, item.tag_ar);
   const ask = k === "experiences" || k === "services";
+  const numbered = k === "brand" || k === "promise";
   return (
     <article className={`sf-story-card ${item.image ? "sf-has-photo" : ""}`}>
       {item.image && <img className="sf-story-photo" src={item.image} alt="" loading="lazy" />}
       <div className="sf-story-body">
-        {k === "brand" && <div className="sf-story-num" aria-hidden="true">{String(i + 1).padStart(2, "0")}</div>}
-        {tag && k !== "brand" && <div className="sf-story-tag" dir="auto">{tag}</div>}
-        {title && <h3 dir="auto">{title}</h3>}
+        {numbered && <div className="sf-story-num" aria-hidden="true">{String(i + 1).padStart(2, "0")}</div>}
+        {tag && !numbered && <div className="sf-story-tag" dir="auto">{tag}</div>}
+        {title && <h3 dir="auto"><Emph text={title} /></h3>}
         {subtitle && <div className="sf-story-sub" dir="auto">{subtitle}</div>}
         {text && <p dir="auto">{text}</p>}
         {ask && title && (
@@ -90,9 +102,9 @@ export function StoryBlock({ ctx, k }: { ctx: StoreCtx; k: StoryKey }) {
     <section id={k} className={`sf-story sf-story-${k}`} {...(title ? { "aria-labelledby": `sf-${k}-title` } : { "aria-label": kicker })}>
       <div className="sf-story-head">
         <div className="sf-kicker-cyan" dir="auto">{kicker}</div>
-        {title && <h2 id={`sf-${k}-title`} className="sf-story-title" dir="auto">{title}</h2>}
+        {title && <h2 id={`sf-${k}-title`} className="sf-story-title" dir="auto"><Emph text={title} /></h2>}
         {s.image && <img className="sf-story-cover" src={s.image} alt="" loading="lazy" />}
-        {intro && <p className="sf-story-intro" dir="auto">{intro}</p>}
+        {intro && <p className={`sf-story-intro ${k === "mission" || k === "philosophy" ? "sf-story-statement" : ""}`} dir="auto">{intro}</p>}
       </div>
       {filters && (
         <div className="sf-chips" role="group" aria-label={kicker}>
@@ -102,7 +114,16 @@ export function StoryBlock({ ctx, k }: { ctx: StoreCtx; k: StoryKey }) {
           ))}
         </div>
       )}
-      {levels ? <MemberLevels ctx={ctx} /> : items.length > 0 && (
+      {k === "faq" ? (
+        <div className="sf-faq">
+          {items.map((it, i) => (
+            <details key={i} className="sf-faq-item">
+              <summary dir="auto">{pick(lang, it.title_en, it.title_ar)}</summary>
+              <p dir="auto">{pick(lang, it.text_en, it.text_ar)}</p>
+            </details>
+          ))}
+        </div>
+      ) : levels ? <MemberLevels ctx={ctx} /> : items.length > 0 && (
         <div className="sf-story-grid">
           {items.map((item, i) => <Card key={`${active ?? ""}-${i}`} ctx={ctx} k={k} item={item} i={i} />)}
         </div>

@@ -9,10 +9,10 @@ import type { Lang } from "./Money";
 import ImageUpload from "./ImageUpload";
 import { Switch } from "./admin/AdminUI";
 import StoryEditor, { STORY_LABELS } from "./StoryEditor";
-import { STORY_KEYS } from "./storefront/Stories";
+import { MORE_STORY_KEYS, STORY_KEYS } from "./storefront/Stories";
 import {
   ArrowCounterClockwise, ArrowDown, BookOpenText, ArrowSquareOut, ArrowUp, Cards, Check, DeviceMobile, Images, MagnifyingGlass,
-  Monitor, PaintBrush, Rows, SquaresFour, SquaresFour as Layout, TextT, UserGear, Warning, X,
+  DownloadSimple, FileText, Monitor, PaintBrush, Rows, SquaresFour, SquaresFour as Layout, TextT, UserGear, UploadSimple, Warning, X,
 } from "./Icon";
 import { StorefrontPage } from "../pages/Storefront";
 import { DEFAULT_CARDS, DEFAULT_ELEMENTS, contrastRatio, pageVars } from "./storefront/style";
@@ -67,6 +67,7 @@ const STD = { bg: "#201e1d", text: "#f3f2f2" };
 
 /** The standard design (what "Reset all to default" goes back to). Logo and dashboard colours are kept. */
 const DEFAULTS: Omit<Branding, "logo" | "dashboard_color" | "dashboard_sidebar"> = {
+  template: "classic", tagline_en: "", tagline_ar: "",
   primary_color: "#0088b0", accent_color: "#4fb6dc", bg_color: null, surface_color: null, text_color: null,
   highlight_color: null, hero_style: "gradient", hero_image: null,
   hero_title_en: "", hero_title_ar: "", hero_text_en: "", hero_text_ar: "",
@@ -186,6 +187,8 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
   const [device, setDevice] = useState<"phone" | "web">("phone");
   const [find, setFind] = useState("");
   const [confirmReset, setConfirmReset] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
   const [showPreview, setShowPreview] = useState(() => typeof window === "undefined" || window.innerWidth > 640);
 
   const load = (data: Branding) => {
@@ -211,6 +214,10 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
   if (!b) return error ? <ErrorBox error={t("The page design could not be loaded: {error}", { error })} onRetry={fetchBranding} /> : <Loading height={420} />;
 
   const agent = info?.ai_agent_name ?? "Sara";
+  const features = info?.page_features;
+  const editorialOn = !features || features.includes("page_editorial");
+  const moreOn = !features || features.includes("page_more_sections");
+  const isLocked = (s: Section) => !moreOn && (MORE_STORY_KEYS as string[]).includes(s);
   const companyName = name ?? info?.name ?? "";
   const update = (patch: Partial<Branding>) => { setSaved(false); setB({ ...b, ...patch }); };
   const set = <K extends keyof Branding>(k: K, v: Branding[K]) => update({ [k]: v } as Partial<Branding>);
@@ -266,6 +273,62 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
     }
   };
 
+  const exportDesign = () => {
+    const data: Partial<Branding> = { ...b };
+    delete data.version;
+    if (!owner) { delete data.dashboard_color; delete data.dashboard_sidebar; }
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${slug}-design.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  // Loads a design file into the editor (nothing is saved until "Save design"). Photos of another company
+  // can't be used here: only web addresses and photos this design already uses are kept.
+  const importDesign = async (file: File) => {
+    setError(null);
+    setNotice(null);
+    try {
+      if (file.size > 1_000_000) throw new Error(t("The file is too large."));
+      const raw: unknown = JSON.parse(await file.text());
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error(t("It does not contain a design."));
+      const known = new Set(Object.keys(b).filter((k) => k !== "version" && (owner || !k.startsWith("dashboard_"))));
+      const data = Object.fromEntries(Object.entries(raw as Record<string, unknown>).filter(([k]) => known.has(k))) as Partial<Branding>;
+      if (!Object.keys(data).length) throw new Error(t("It does not contain a design."));
+      const used = JSON.stringify(b);
+      const photo = (v: unknown) => (typeof v === "string" && (v.startsWith("https://") || (v.startsWith("/api/media/") && used.includes(v))) ? v : null);
+      let dropped = 0;
+      for (const f of ["logo", "hero_image", "about_image", "about_bg_image", "how_bg_image"] as const) {
+        if (!(f in data)) continue;
+        const v = photo(data[f]);
+        if (data[f] && !v) dropped++;
+        if (v) data[f] = v; else delete data[f];
+      }
+      const stories = { ...b.stories };
+      for (const [k, sec] of Object.entries(data.stories ?? {})) {
+        if (!sec || typeof sec !== "object") continue;
+        const items = Array.isArray(sec.items) ? sec.items : [];
+        dropped += [sec.image, ...items.map((it) => it?.image)].filter((v) => v && !photo(v)).length;
+        stories[k as keyof typeof stories] = { ...sec, image: photo(sec.image), items: items.map((it) => ({ ...it, image: photo(it?.image) })) };
+      }
+      update({
+        ...data,
+        elements: { ...b.elements, ...(data.elements ?? {}) },
+        cards: { ...b.cards, ...(data.cards ?? {}) },
+        texts: { en: { ...b.texts.en, ...(data.texts?.en ?? {}) }, ar: { ...b.texts.ar, ...(data.texts?.ar ?? {}) } },
+        stories,
+      });
+      setNotice(t("Design loaded. Check the preview, then press Save design.")
+        + (dropped ? ` ${t("{n} photos from another company were left out: upload them again.", { n: dropped })}` : ""));
+    } catch (err) {
+      setError(t("This file could not be loaded: {error}", { error: err instanceof SyntaxError ? t("It is not a design file.") : (err as Error).message }));
+    } finally {
+      if (fileInput.current) fileInput.current.value = "";
+    }
+  };
+
   const resetAll = () => {
     setConfirmReset(false);
     update({ ...DEFAULTS, elements: { ...DEFAULT_ELEMENTS, powered_by: owner || canHidePoweredBy ? true : b.elements.powered_by } });
@@ -301,6 +364,8 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
     whatsapp_number: info?.whatsapp_number ?? null, contact_email: info?.contact_email ?? null, contact_phone: info?.contact_phone ?? null,
     branding: b,
   };
+
+  const previewPkgs = (pkgs.length ? pkgs : SAMPLE).map((p) => (b.cards.price_on_request ? { ...p, price_per_person: null, child_price: null } as unknown as TravelPackage : p));
 
   const langTabs = (
     <div className="seg pe-langs" role="tablist" aria-label={t("Language")}>
@@ -345,6 +410,29 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
         </div>
 
         {tab === "theme" && (<>
+          <section className="gx-card">
+            <h2 className="gx-card-title"><span className="gx-card-icon"><Layout /></span>{t("Page style")}</h2>
+            <div className="pe-styles" role="group" aria-label={t("Page style")}>
+              {([
+                { v: "classic", label: t("Classic"), hint: t("Search, trip cards and the live chat at the top") },
+                { v: "editorial", label: t("Editorial"), hint: t("Magazine style: large serif titles, full-width photos, numbered offerings") },
+              ] as const).map((o) => (
+                <button key={o.v} type="button" className={`pe-style ${b.template === o.v ? "active" : ""}`} aria-pressed={b.template === o.v}
+                  onClick={() => set("template", o.v)}>
+                  <span className={`pe-style-pic pe-pic-${o.v === "classic" ? "photo" : "poster"}`} aria-hidden="true"><i /><i /><i /></span>
+                  <strong>{o.label}</strong><small>{o.hint}</small>
+                </button>
+              ))}
+            </div>
+            {b.template === "editorial" && !editorialOn && (
+              <p className="warn-box">{t("The editorial style is not switched on for your company yet: customers see the classic page until the platform switches it on. You can prepare it now.")}</p>
+            )}
+            {b.template === "editorial" && (
+              <p className="gx-card-note">{t("The editorial style uses your background and text colours (buttons are in the text colour). In titles, write *words* between stars to set them in italics.")}</p>
+            )}
+            <div className="gx-story-head"><span className="field-label">{t("Tagline")}</span>{langTabs}</div>
+            {own(`tagline_${L}` as keyof Branding, t("Short line under your name"), 80, L === "ar" ? "علامة السفر العصرية" : "The modern travel brand")}
+          </section>
           <section className="gx-card">
             <h2 className="gx-card-title"><span className="gx-card-icon"><PaintBrush /></span>{t("Colours")}</h2>
             <div className="gx-section-label">{t("Ready themes")}</div>
@@ -395,6 +483,17 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
             )}
             <p className="field-hint">{t("The banner title and text are in the Texts tab.")}</p>
           </section>
+          <section className="gx-card">
+            <h2 className="gx-card-title"><span className="gx-card-icon"><FileText /></span>{t("Design file")}</h2>
+            <p className="gx-card-note">{t("Save this design to a file, or load one (for example a design prepared for you). Loading changes nothing until you save.")}</p>
+            <div className="pe-file-actions">
+              <button type="button" className="btn btn-soft btn-sm" onClick={exportDesign}><DownloadSimple />{t("Download the design")}</button>
+              <button type="button" className="btn btn-soft btn-sm" onClick={() => fileInput.current?.click()}><UploadSimple />{t("Load a design file")}</button>
+              <input ref={fileInput} type="file" accept="application/json,.json" hidden aria-hidden="true" tabIndex={-1}
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) importDesign(f); }} />
+            </div>
+            {notice && dirty && <div className="ok-box gx-notice" role="status">{notice}</div>}
+          </section>
         </>)}
 
         {tab === "texts" && (
@@ -433,7 +532,8 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
         {tab === "stories" && (
           <StoryEditor stories={b.stories} uploadPath={uploadPath} lang={textLang} langTabs={langTabs}
             onChange={(k, sec) => update({ stories: { ...b.stories, [k]: sec } })}
-            isOn={(k) => b.sections.includes(k)} turnOn={(k) => { if (!b.sections.includes(k)) toggle(k); }} />
+            isOn={(k) => b.sections.includes(k)} turnOn={(k) => { if (!b.sections.includes(k)) toggle(k); }}
+            locked={(k) => isLocked(k)} />
         )}
 
         {tab === "layout" && (<>
@@ -446,7 +546,8 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
               </li>
               {order.map((s, i) => (
                 <li key={s} className={b.sections.includes(s) ? "" : "off"}>
-                  <Switch checked={b.sections.includes(s)} onChange={() => toggle(s)} label={t(SECTION_LABELS[s])} />
+                  <Switch checked={b.sections.includes(s)} onChange={() => toggle(s)} label={t(SECTION_LABELS[s])}
+                    hint={isLocked(s) ? t("Needs the \"More brand sections\" feature") : undefined} />
                   <span className="spacer" />
                   <button type="button" className="icon-btn" disabled={i === 0} onClick={() => move(s, -1)} aria-label={`${t("Move up")}: ${t(SECTION_LABELS[s])}`}><ArrowUp /></button>
                   <button type="button" className="icon-btn" disabled={i === order.length - 1} onClick={() => move(s, 1)} aria-label={`${t("Move down")}: ${t(SECTION_LABELS[s])}`}><ArrowDown /></button>
@@ -548,6 +649,13 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
                 </li>
               ))}
             </ul>
+            <div className="gx-section-label md-label">{t("Prices")}</div>
+            <ul className="bz-sections pe-elements">
+              <li className={b.cards.price_on_request ? "" : "off"}>
+                <Switch checked={b.cards.price_on_request} onChange={(v) => setCards({ price_on_request: v })} label={t("Prices on request")}
+                  hint={t("No price is shown anywhere and the AI never quotes one: clients ask, and your team prices each request.")} />
+              </li>
+            </ul>
             <div className="gx-section-label md-label">{t("Button texts")}</div>
             {langTabs}
             <div className="gx-grid-2 pe-btn-texts">
@@ -609,7 +717,7 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
           </button>
         </div>
         {showPreview && <PreviewFrame key={device} width={device === "phone" ? 390 : 1280} height={device === "phone" ? 780 : 1500}>
-          <StorefrontPage slug={slug} company={previewCompany} packages={pkgs.length ? pkgs : SAMPLE} lang={previewLang}
+          <StorefrontPage slug={slug} company={previewCompany} packages={previewPkgs} lang={previewLang}
             setLang={setPreviewLang} layout={device} preview />
         </PreviewFrame>}
         <p className="field-hint pe-preview-note">{t("You can click around in the preview. The chat does not send messages here.")}</p>

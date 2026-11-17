@@ -10,10 +10,11 @@ import type { Block, StoreCtx } from "../components/storefront/context";
 import { PhoneLayout } from "../components/storefront/PhoneLayout";
 import { STORY_KEYS, storyHasContent } from "../components/storefront/Stories";
 import { matchesBudget, matchesCategory, matchesQuery, usefulCategories, waLink } from "../components/storefront/shared";
-import { DEFAULT_CARDS, DEFAULT_ELEMENTS, pageVars } from "../components/storefront/style";
+import { DEFAULT_CARDS, DEFAULT_ELEMENTS, editorialVars, pageVars } from "../components/storefront/style";
 import { applyTexts } from "../components/storefront/texts";
 import { useChat } from "../components/storefront/useChat";
 import { WebLayout } from "../components/storefront/WebLayout";
+import { EditorialLayout } from "../components/storefront/EditorialLayout";
 import { STOREFRONT_TEXT, useLang } from "../i18n";
 import type { Lang } from "../components/Money";
 import type { PublicCompany, StoryKey, TravelPackage } from "../types";
@@ -200,6 +201,36 @@ export function StorefrontPage({ slug, company, packages, lang, setLang, layout,
   };
 
   const style = pageVars(b) as CSSProperties;
+  const editorial = b.template === "editorial";
+  const paper = editorial ? editorialVars(b)["--ed-paper"] : null;
+  // The editorial page's paper colour also behind the page (overscroll, short pages); not in the editor's preview.
+  useEffect(() => {
+    if (!paper || preview) return;
+    const before = document.body.style.background;
+    document.body.style.background = paper;
+    return () => { document.body.style.background = before; };
+  }, [paper, preview]);
+
+  if (editorial) {
+    return (
+      <div className={`sf sf-ed ${desktop ? "sf-is-web" : "sf-is-phone"} ${preview ? "sf-preview" : ""}`} dir={lang === "ar" ? "rtl" : "ltr"} lang={lang}
+        style={{ ...style, ...editorialVars(b) } as CSSProperties}>
+        <EditorialLayout ctx={ctx} desktop={desktop} pkg={pkg} closePackage={() => setPkg(null)} chatOpen={chatOpen} closeChat={() => setChatOpen(false)} />
+        {confirmNew && (
+          <Modal title={t.newChat} onClose={() => setConfirmNew(false)}>
+            <div className="sf-confirm" dir={lang === "ar" ? "rtl" : "ltr"}>
+              <p>{t.newChatQ}</p>
+              <div className="modal-actions">
+                <span className="spacer" />
+                <button type="button" className="btn" onClick={() => setConfirmNew(false)}>{t.cancel}</button>
+                <button type="button" className="btn btn-primary" onClick={() => { setConfirmNew(false); chat.restart(); }}>{t.start}</button>
+              </div>
+            </div>
+          </Modal>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={`sf sf-hero-${b.hero_style} ${b.card_style === "square" ? "sf-square" : ""} ${desktop ? "sf-is-web" : "sf-is-phone"} sf-cards-${cards.style} ${preview ? "sf-preview" : ""}`}

@@ -990,3 +990,5 @@ a.now-waiting:hover { background: color-mix(in srgb, var(--st-waiting-tint) 18%,
 .gx-meter span { display: block; height: 100%; background: var(--brand); }
 .gx-seats { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
 @media (max-width: 640px) { .gx-feat-opts { margin-inline: 0; } }
+.pe-file-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.pe-styles + .warn-box, .pe-styles + .gx-card-note { margin-top: 16px; }

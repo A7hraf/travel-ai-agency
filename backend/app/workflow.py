@@ -128,6 +128,15 @@ DEFAULTS: dict[str, list[dict]] = {
                        _t("feedback")],
     "airport_transfer": [_t("intake"), _t("review"), _t("schedule", en="Pick-up time", ar="وقت الاستقبال"), PAY,
                          _t("task", "drive", "Drive the client", "توصيل العميل"), _t("feedback")],
+    # Luxury concierge services
+    "villa": STANDARD,
+    "private_jet": STANDARD,
+    "cruise": STANDARD,
+    "yacht": [_t("intake"), _t("review"), _t("quote"), _t("documents"), PAY, _t("booking"), _t("trip"), _t("feedback")],
+    "dining": [_t("intake"), _t("review"), _t("booking", en="Reserve the table", ar="حجز الطاولة"), _t("feedback")],
+    "vip_events": [_t("intake"), _t("review"), _t("quote"), PAY, _t("booking", en="Secure the tickets", ar="تأمين التذاكر"),
+                   _t("delivery", en="Send the tickets", ar="إرسال التذاكر"), _t("feedback")],
+    "car_rental": [_t("intake"), _t("review"), _t("quote"), PAY, _t("booking"), _t("trip"), _t("feedback")],
 }
 GENERIC = [_t("intake"), _t("review"), _t("quote"), _t("documents"), PAY, _t("booking"), _t("delivery"), _t("feedback")]
 

@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fontsource/cormorant-garamond": "5.3.0",
+    "@fontsource/inter": "5.3.0",
     "@fontsource/noto-naskh-arabic": "5.3.0",
     "@fontsource/source-serif-4": "5.3.0",
     "@phosphor-icons/react": "2.1.10",

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from ..ai.prompts import welcome_message
 from ..ai.tools import is_bookable
-from ..branding import public_branding, welcome_override
+from ..branding import page_features, prices_on_request, public_branding, welcome_override
 from ..members import public_member_levels
 from ..config import get_settings
 from ..database import get_db
@@ -94,6 +94,7 @@ def company_info(slug: str, request: Request, db: Session = Depends(get_db)):
         contact_email=c.contact_email,
         contact_phone=c.contact_phone,
         branding=public_branding(c),
+        page_features=page_features(c),
         members=public_member_levels(c),
     )
 
@@ -106,11 +107,12 @@ def packages(slug: str, request: Request, db: Session = Depends(get_db)):
     today = local_today()
     visible = [p for p in rows if is_bookable(p, today)]
     visible.sort(key=lambda p: (not p.is_featured, p.price_per_person))
+    hide_prices = prices_on_request(company)
     out = []
     for p in visible:  # customers only need the dates still ahead
         item = PublicPackageOut.model_validate(p)
         item.departure_dates = [d for d in item.departure_dates if d >= today.isoformat()]
-        if p.price_mode == "on_request":
+        if hide_prices or p.price_mode == "on_request":
             item.price_per_person = item.child_price = None
         out.append(item)
     return out

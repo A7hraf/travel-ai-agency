@@ -136,7 +136,12 @@ and the AI advisor's findings. A failing job is logged and the others still run.
 Features are switched on per company from the company page in the platform console, each with its
 limits (per month or in total), the employees who may use it and its price: members, supplier library,
 quotations, reports, calendar, broadcasts, insights (basic, marketing, deep, finance), the advisor and
-the AI helpers (trip planner, plan, quotation and package writers, service builder, daily brief).
+the AI helpers (trip planner, plan, quotation and package writers, service builder, daily brief), and
+for the customer page and services: the editorial page design, the extra brand sections (mission,
+philosophy, promise, FAQ) and the luxury concierge services pack (added to the company's services when
+switched on, switched off again when taken back). A design can be prepared before its feature is on:
+customers see the classic page until then. Designs can be downloaded and loaded as files from the
+page editor (photos of another company are left out).
 Business clients and vendors are switched on there too, with the number of partner accounts, logins
 per partner and the partner services allowed.
 

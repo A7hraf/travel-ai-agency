@@ -260,10 +260,77 @@ BUILT_IN: list[dict] = [
 ]
 
 
+WHEN = _f("depart_date", "Date", "التاريخ", "date")
+GUESTS = _f("adults", "Guests", "عدد الضيوف", "number")
+BOOK = _s("book", "Book it with the provider", "الحجز مع المزوّد")
+CONFIRM = _s("confirm", "Confirm the details to the client", "تأكيد التفاصيل للعميل")
+
+# Given with the "Luxury concierge services" feature; taken back (switched off, not deleted) when it is removed.
+CONCIERGE_PACK: list[dict] = [
+    {"key": "villa", "name_en": "Private villas & estates", "name_ar": "فلل وقصور خاصة", "pricing": "dynamic", "parts": ["hotel"],
+     "description_en": "Private villas, chalets and estates with staff, chosen for privacy and comfort.",
+     "description_ar": "فلل وشاليهات وقصور خاصة مع طاقم خدمة، مختارة للخصوصية والراحة.",
+     "fields": [_f("destination", "Destination", "الوجهة"), _f("depart_date", "Arrival", "الوصول", "date"),
+                _f("return_date", "Departure", "المغادرة", "date"), GUESTS, _f("bedrooms", "Bedrooms", "غرف النوم", "number"),
+                _f("preferences", "Wishes (pool, chef, beach…)", "الرغبات (مسبح، طاهٍ، شاطئ…)", "long_text", False), *CONTACT],
+     "steps": [BOOK, CONFIRM, DOCS], "documents": [PASSPORT]},
+    {"key": "private_jet", "name_en": "Private aviation", "name_ar": "الطيران الخاص", "pricing": "dynamic", "parts": ["flight"],
+     "description_en": "Private jets and helicopters, on your schedule.", "description_ar": "طائرات ومروحيات خاصة، في الوقت الذي يناسبك.",
+     "fields": [_f("origin", "From", "من"), _f("destination", "To", "إلى"), _f("depart_date", "Departure date", "تاريخ المغادرة", "date"),
+                _f("return_date", "Return date (empty for one way)", "تاريخ العودة (فارغ لذهاب فقط)", "date", False), GUESTS,
+                _f("preferences", "Times, luggage, pets, catering…", "الأوقات، الأمتعة، الحيوانات الأليفة، الضيافة…", "long_text", False), *CONTACT],
+     "steps": [BOOK, CONFIRM, DOCS], "documents": [PASSPORT]},
+    {"key": "yacht", "name_en": "Yacht charter", "name_ar": "استئجار يخت", "pricing": "dynamic", "parts": ["activity"],
+     "description_en": "Day or week charters with crew.", "description_ar": "رحلات يخت ليوم أو أسبوع مع الطاقم.",
+     "fields": [_f("destination", "Where", "المكان"), WHEN, _f("days", "Days", "عدد الأيام", "number"), GUESTS,
+                _f("preferences", "Wishes (size, crew, catering…)", "الرغبات (الحجم، الطاقم، الضيافة…)", "long_text", False), *CONTACT],
+     "steps": [BOOK, CONFIRM], "documents": [PASSPORT]},
+    {"key": "cruise", "name_en": "Luxury cruise", "name_ar": "رحلة بحرية فاخرة", "pricing": "dynamic", "parts": ["activity"],
+     "description_en": "Ocean, river and expedition cruises.", "description_ar": "رحلات بحرية في المحيطات والأنهار والرحلات الاستكشافية.",
+     "fields": [_f("destination", "Region or route", "المنطقة أو المسار"), WHEN, *TRAVELLERS,
+                _f("preferences", "Cabin, cruise line, wishes", "الكابينة، شركة الرحلات، الرغبات", "long_text", False), *CONTACT],
+     "steps": [BOOK, CONFIRM, DOCS], "documents": [PASSPORT]},
+    {"key": "dining", "name_en": "Dining & nightlife", "name_ar": "المطاعم والسهرات", "pricing": "dynamic", "parts": ["food"],
+     "description_en": "Tables at the most sought-after restaurants and venues.", "description_ar": "طاولات في أكثر المطاعم والأماكن طلبًا.",
+     "fields": [_f("destination", "City", "المدينة"), WHEN, GUESTS,
+                _f("details", "Restaurant, time, occasion", "المطعم، الوقت، المناسبة", "long_text"), *CONTACT],
+     "steps": [BOOK, CONFIRM]},
+    {"key": "vip_events", "name_en": "VIP access & events", "name_ar": "الدخول المميز والفعاليات", "pricing": "dynamic", "parts": ["activity"],
+     "description_en": "Tickets and hospitality for sport, fashion, music and cultural events worldwide.",
+     "description_ar": "تذاكر وضيافة لفعاليات الرياضة والأزياء والموسيقى والثقافة حول العالم.",
+     "fields": [_f("details", "Event", "الفعالية"), WHEN, GUESTS, *CONTACT], "steps": [BOOK, CONFIRM]},
+    {"key": "car_rental", "name_en": "Chauffeur & car rental", "name_ar": "سائق خاص وتأجير سيارات", "pricing": "dynamic", "parts": ["transport"],
+     "description_en": "A car with a driver, or a car of your choice to drive.", "description_ar": "سيارة مع سائق، أو سيارة من اختيارك تقودها بنفسك.",
+     "fields": [_f("destination", "City", "المدينة"), _f("depart_date", "From", "من تاريخ", "date"), _f("return_date", "Until", "إلى تاريخ", "date"),
+                _f("cabin", "Service", "الخدمة", "choice", True, ["With a driver", "Self-drive"]),
+                _f("preferences", "Car type", "نوع السيارة", required=False), *CONTACT],
+     "steps": [BOOK, CONFIRM], "documents": [_d("licence", "Driving licence (self-drive)", "رخصة القيادة (للقيادة الذاتية)", False)]},
+]
+PACK_KEYS = {raw["key"] for raw in CONCIERGE_PACK}
+
+
+def _built_in_for(company: Company) -> list[dict]:
+    from .addons import has_addon  # noqa: PLC0415 (addons reads the catalog's company)
+
+    return BUILT_IN + (CONCIERGE_PACK if has_addon(company, "concierge_services") else [])
+
+
+def sync_pack(db: Session, company: Company) -> None:
+    """The luxury services follow the feature: added and switched on with it, switched off without it."""
+    from .addons import has_addon  # noqa: PLC0415
+
+    on = has_addon(company, "concierge_services")
+    if on:
+        ensure_built_in(db, company)
+    for service in db.scalars(select(Service).where(Service.company_id == company.id, Service.key.in_(PACK_KEYS))).all():
+        service.is_active = on
+    db.flush()
+
+
 def ensure_built_in(db: Session, company: Company) -> None:
     """Gives a company the built-in services it doesn't have yet (never changes the ones it edited)."""
     have = set(db.scalars(select(Service.key).where(Service.company_id == company.id, Service.key.is_not(None))).all())
-    for i, raw in enumerate(BUILT_IN):
+    for i, raw in enumerate(_built_in_for(company)):
         if raw["key"] in have:
             continue
         data = ServiceIn.model_validate({k: v for k, v in raw.items() if k != "key"})
@@ -271,7 +338,7 @@ def ensure_built_in(db: Session, company: Company) -> None:
         apply(service, data)
         db.add(service)
     # Built-in services made before client documents existed get their usual documents once.
-    defaults = {raw["key"]: raw.get("documents", []) for raw in BUILT_IN}
+    defaults = {raw["key"]: raw.get("documents", []) for raw in BUILT_IN + CONCIERGE_PACK}
     for service in db.scalars(select(Service).where(Service.company_id == company.id, Service.key.is_not(None),
                                                     Service.documents.is_(None))).all():
         service.documents = defaults.get(service.key, [])

@@ -562,6 +562,7 @@ class PublicCompanyOut(BaseModel):
     contact_email: str | None
     contact_phone: str | None
     branding: PublicBranding
+    page_features: list[str] = []
     # Members community levels for the Community section (when switched on and shown on the page).
     members: list[dict] | None = None
 
