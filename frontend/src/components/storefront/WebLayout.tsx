@@ -7,7 +7,7 @@ import { ChatAvatar, ChatHeader, ChatTitle, ChatView } from "./ChatView";
 import type { StoreCtx } from "./context";
 import { WebPackage } from "./PackageDetails";
 import { AboutBlock, AgencyMark, CategoryChips, HowSteps, PoweredBy, TripsEmpty } from "./Sections";
-import { STORY_KEYS, StoryBlock, storyNavLabel } from "./Stories";
+import { Emph, STORY_KEYS, StoryBlock, storyNavLabel } from "./Stories";
 import type { StoryKey } from "../../types";
 import { telLink } from "./shared";
 import { PhotoCard, WebPoster, WebRow } from "./TripCards";
@@ -130,7 +130,7 @@ export function WebLayout({ ctx, pkg, closePackage, widgetOpen, closeWidget, her
           <div className="sf-whero-text">
             {el.kicker && <div className="sf-kicker-cyan sf-kicker-magenta-dot">{t.fromOman}</div>}
             <h1 className={`sf-wtitle ${custom && custom.length > 26 ? "sf-long" : ""}`} dir="auto">
-              {custom ?? <>{t.heroA}<br /><em className="sf-accent">{t.heroB}</em></>}
+              {custom ? <Emph text={custom} /> : <>{t.heroA}<br /><em className="sf-accent">{t.heroB}</em></>}
             </h1>
             <p className="sf-wlead" dir="auto">{ctx.heroText ?? t.webLead(agent)}</p>
             {ctx.showSearch && <form className="sf-wsearch" role="search" onSubmit={findTrips}>

@@ -40,15 +40,25 @@ export function pageVars(b: Pick<PublicBranding, "primary_color" | "accent_color
   return vars;
 }
 
-/** Colours of the editorial design: paper (the background), ink (the text, the buttons and the dark bands)
- *  and a quiet accent. Without colours of its own the page is warm cream and near-black. */
-export function editorialVars(b: Pick<PublicBranding, "bg_color" | "text_color" | "highlight_color">): Record<string, string> {
+/** Mixes two #rrggbb colours (t = share of the second one). */
+function mix(a: string, b: string, t: number): string {
+  const p = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const [x, y] = [p(a), p(b)];
+  return "#" + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, "0")).join("");
+}
+
+/** Colours of the editorial designs: paper (the background), ink (the text, the buttons and the dark bands),
+ *  a quiet accent, and for the club design a line, card and muted colour made from them. Without colours of
+ *  their own both designs are warm cream with a near-black (club: brown-black) ink. */
+export function editorialVars(b: Pick<PublicBranding, "bg_color" | "text_color" | "highlight_color">, club = false): Record<string, string> {
   const paper = ok(b.bg_color) ? b.bg_color : "#f2ebdd";
-  const ink = ok(b.text_color) ? b.text_color : isDark(paper) ? "#f3efe6" : "#141210";
+  const ink = ok(b.text_color) ? b.text_color : isDark(paper) ? "#f3efe6" : club ? "#231b16" : "#141210";
+  const muted = ok(b.highlight_color) ? b.highlight_color : mix(ink, paper, 0.3);
   return {
     "--ed-paper": paper, "--ed-ink": ink, "--ed-accent": ok(b.highlight_color) ? b.highlight_color : ink,
-    "--ed-soft": rgba(ink, 0.62), "--ed-hair": rgba(ink, 0.16), "--ed-paper-soft": rgba(paper, 0.72),
-    "--ed-photo": rgba(ink, 0.08),
+    "--ed-soft": club ? muted : rgba(ink, 0.62), "--ed-hair": club ? mix(paper, ink, 0.15) : rgba(ink, 0.16),
+    "--ed-paper-soft": rgba(paper, 0.72), "--ed-photo": rgba(ink, 0.08),
+    "--ed-card": mix(paper, isDark(paper) ? "#000000" : "#ffffff", 0.55), "--ed-muted": muted,
     "--sf-bg": paper, "--sf-text": ink, "--text": ink, "--brand": ink, "--brand-hover": ink, "--on-brand": paper,
   };
 }

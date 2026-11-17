@@ -137,8 +137,9 @@ Features are switched on per company from the company page in the platform conso
 limits (per month or in total), the employees who may use it and its price: members, supplier library,
 quotations, reports, calendar, broadcasts, insights (basic, marketing, deep, finance), the advisor and
 the AI helpers (trip planner, plan, quotation and package writers, service builder, daily brief), and
-for the customer page and services: the editorial page design, the extra brand sections (mission,
-philosophy, promise, FAQ) and the luxury concierge services pack (added to the company's services when
+for the customer page and services: the editorial designs ("Editorial" and "Members club", chosen
+as ready designs on the page editor), the extra brand sections (mission, philosophy, promise,
+testimonials, FAQ) and the luxury concierge services pack (added to the company's services when
 switched on, switched off again when taken back). A design can be prepared before its feature is on:
 customers see the classic page until then. Designs can be downloaded and loaded as files from the
 page editor (photos of another company are left out).

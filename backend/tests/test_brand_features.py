@@ -117,3 +117,21 @@ def test_prices_on_request_hide_every_price(client, owner):
     found, details = ai_sees()
     assert "price_per_person" not in found and "on request" in found["price"]
     assert "2400" not in str(details) and "2,400" not in str(details)
+
+
+def test_members_club_design_testimonials_and_social_links(client, owner):
+    company, admin = make_company(client, owner)
+    quote = {"title_en": "Testimonials", "items": [{"title_en": "Maryam", "subtitle_en": "Maldives", "text_en": "Every detail was right."}]}
+    r = client.patch("/api/company/branding", headers=admin, json={
+        "template": "club", "sections": ["brand", "testimonials"], "stories": {"testimonials": quote},
+        "social": {"instagram": "https://instagram.com/escape", "youtube": ""}})
+    assert r.status_code == 200, r.text
+    assert r.json()["social"] == {"instagram": "https://instagram.com/escape"}
+    b = page(client, company["slug"])["branding"]
+    assert b["template"] == "classic" and "testimonials" not in b["stories"]  # until the owner gives the features
+    assert b["social"] == {"instagram": "https://instagram.com/escape"}
+    switch(client, owner, company["id"], page_editorial=True, page_more_sections=True)
+    b = page(client, company["slug"])["branding"]
+    assert b["template"] == "club" and b["stories"]["testimonials"]["items"][0]["title_en"] == "Maryam"
+    for bad in ({"instagram": "http://instagram.com/escape"}, {"myspace": "https://myspace.com/x"}, {"x": "javascript:alert(1)"}):
+        assert client.patch("/api/company/branding", headers=admin, json={"social": bad}).status_code == 422, bad

@@ -6,7 +6,7 @@ import { ChatHeader, ChatView } from "./ChatView";
 import type { StoreCtx } from "./context";
 import { PhonePackage } from "./PackageDetails";
 import { AboutBlock, AgencyMark, CategoryChips, HowSteps, PoweredBy, TripsEmpty } from "./Sections";
-import { STORY_KEYS, StoryBlock } from "./Stories";
+import { Emph, STORY_KEYS, StoryBlock } from "./Stories";
 import type { StoryKey } from "../../types";
 import { FeaturedPoster, OfferRow, PhotoCard } from "./TripCards";
 
@@ -135,7 +135,7 @@ export function PhoneLayout({ ctx, pkg, pkgOnTop, closePackage, chatOpen, closeC
             <div className="sf-p-hero">
               {el.kicker && <div className="sf-kicker-online"><span className="sf-online-dot" />{t.online(agent)}</div>}
               <h1 className="sf-p-title" dir="auto">
-                {custom ?? <>{t.heroA} <em className="sf-accent">{t.heroB}</em></>}
+                {custom ? <Emph text={custom} /> : <>{t.heroA} <em className="sf-accent">{t.heroB}</em></>}
               </h1>
               {ctx.heroText && <p className="sf-p-lead" dir="auto">{ctx.heroText}</p>}
               {ctx.showSearch && <div className="sf-p-search">

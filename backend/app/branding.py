@@ -23,16 +23,22 @@ SECTIONS = ("search", "featured", "offers", "how", "about", "contact")
 # Story sections (The Brand, Experiences, Services, Leadership, The Community, and with the "More brand sections"
 # feature Mission, Philosophy, Our promise and FAQ): off by default, each with its own title, intro and cards,
 # written in both languages.
-STORY_SECTIONS = ("brand", "experiences", "services", "leadership", "community", "mission", "philosophy", "promise", "faq")
-MORE_SECTIONS = {"mission", "philosophy", "promise", "faq"}
-TEMPLATES = ("classic", "editorial")
+STORY_SECTIONS = ("brand", "experiences", "services", "leadership", "community", "mission", "philosophy", "promise", "faq",
+                  "testimonials")
+MORE_SECTIONS = {"mission", "philosophy", "promise", "faq", "testimonials"}
+# classic: the standard page; editorial and club (a members-club look) come with the "Editorial designs" feature.
+TEMPLATES = ("classic", "editorial", "club")
+Template = Literal["classic", "editorial", "club"]
+SOCIAL = ("instagram", "youtube", "tiktok", "x", "linkedin", "facebook", "snapchat")
 DASHBOARD_FIELDS = {"dashboard_color", "dashboard_sidebar"}
 IMAGE_FIELDS = ("logo", "hero_image", "about_image", "about_bg_image", "how_bg_image")
 LANGS = ("en", "ar")
 
 Section = Literal["search", "featured", "offers", "how", "about", "contact",
-                  "brand", "experiences", "services", "leadership", "community", "mission", "philosophy", "promise", "faq"]
-StoryKey = Literal["brand", "experiences", "services", "leadership", "community", "mission", "philosophy", "promise", "faq"]
+                  "brand", "experiences", "services", "leadership", "community", "mission", "philosophy", "promise", "faq",
+                  "testimonials"]
+StoryKey = Literal["brand", "experiences", "services", "leadership", "community", "mission", "philosophy", "promise", "faq",
+                   "testimonials"]
 MAX_STORY_ITEMS = 12
 
 # Customer-page texts that can be replaced, with their maximum length. The keys are the string
@@ -170,6 +176,25 @@ def _check_texts(value: Any) -> Texts:
     return out
 
 
+def _check_social(value: Any) -> dict[str, str]:
+    """Links to the company's pages on social networks (https only; empty removes one)."""
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ValueError("social must be an object")
+    out = {}
+    for key, url in value.items():
+        if key not in SOCIAL:
+            raise ValueError(f"'{key}' is not a supported social network")
+        url = clean_text(str(url or ""), multiline=False)
+        if not url:
+            continue
+        if not url.startswith("https://") or len(url) > 300 or " " in url:
+            raise ValueError(f"The {key} link must be an https:// address")
+        out[key] = url
+    return out
+
+
 def _migrate(data: Any) -> Any:
     """Designs saved before the page editor: "How booking works" was always shown after the trips,
     and the "list" layout showed compact rows with the hotel and the price per adult."""
@@ -274,9 +299,10 @@ class Branding(BaseModel):
     # Defaults follow the Ghanjah brand: Gulf Cyan for actions, Ink for the sidebar.
     version: int = VERSION
     # Page design: "editorial" needs the "Editorial customer page" feature (else the page shows "classic")
-    template: Literal["classic", "editorial"] = "classic"
+    template: Template = "classic"
     tagline_en: str = Field(default="", max_length=80)  # short line under the name ("The modern travel brand")
     tagline_ar: str = Field(default="", max_length=80)
+    social: dict[str, str] = Field(default_factory=dict)  # instagram, youtube… → https:// address
     # Colours of the customer page (empty = the standard dark design)
     primary_color: str = Field(default="#0088b0", pattern=HEX)   # buttons, links, highlighted word
     accent_color: str = Field(default="#4fb6dc", pattern=HEX)    # AI consultant avatar
@@ -345,6 +371,11 @@ class Branding(BaseModel):
     def check_texts(cls, v: Any) -> Texts:
         return _check_texts(v)
 
+    @field_validator("social", mode="before")
+    @classmethod
+    def check_social(cls, v: Any) -> dict[str, str]:
+        return _check_social(v)
+
     @field_validator("sections")
     @classmethod
     def unique_sections(cls, v: list[str]) -> list[str]:
@@ -364,7 +395,8 @@ class BrandingUpdate(BaseModel):
     """Partial update: only the fields sent are changed. `elements` and `cards` are merged key by
     key; `texts` replaces the texts of each language sent."""
 
-    template: Literal["classic", "editorial"] | None = None
+    template: Template | None = None
+    social: dict[str, Any] | None = None
     tagline_en: str | None = Field(default=None, max_length=80)
     tagline_ar: str | None = Field(default=None, max_length=80)
     primary_color: str | None = Field(default=None, pattern=HEX)
@@ -413,6 +445,7 @@ class PublicBranding(BaseModel):
     template: str
     tagline_en: str
     tagline_ar: str
+    social: dict[str, str]
     primary_color: str
     accent_color: str
     bg_color: str | None
@@ -519,7 +552,7 @@ def public_branding(company: Company) -> PublicBranding:
     data = get_branding(company).model_dump(exclude=DASHBOARD_FIELDS | {"version"})
     allowed = page_features(company)
     if "page_editorial" not in allowed:
-        data["template"] = "classic"
+        data["template"] = "classic"  # the editorial and club designs come with the feature
     if "page_more_sections" not in allowed:
         data["sections"] = [x for x in data["sections"] if x not in MORE_SECTIONS]
         data["stories"] = {k: v for k, v in data["stories"].items() if k not in MORE_SECTIONS}

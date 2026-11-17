@@ -422,6 +422,19 @@ export const AR_V2: Record<string, string> = {
   "Own services (maximum)": "خدمات الشركة الخاصة (الحد الأقصى)",
   "{n} in use. Empty: no limit. Built-in services and the service packs you give don't count.": "{n} مستخدمة. فارغ: بلا حد. لا تُحتسب الخدمات المدمجة وحزم الخدمات التي تمنحها.",
   "The company edits its AI: knowledge, welcome message and training examples (you can always edit them from the company page)": "تعدّل الشركة ذكاءها الاصطناعي: المعرفة ورسالة الترحيب وأمثلة التدريب (يمكنك دائمًا تعديلها من صفحة الشركة)",
+  "Ready designs: choose one, then change its colours, texts, sections and photos like any design. Your texts and photos are kept.": "تصاميم جاهزة: اختر واحدًا، ثم غيّر ألوانه ونصوصه وأقسامه وصوره مثل أي تصميم. تبقى نصوصك وصورك كما هي.",
+  "This design is not switched on for your company yet: customers see the classic page until the platform switches it on. You can prepare it now.": "هذا التصميم غير مفعّل لشركتك بعد: يرى العملاء الصفحة الكلاسيكية حتى تفعّله المنصة. يمكنك تجهيزه الآن.",
+  "This design uses your background and text colours (buttons are in the text colour). In titles, write *words* between stars to set them in italics.": "يستخدم هذا التصميم لون الخلفية ولون النص (الأزرار بلون النص). في العناوين، اكتب *الكلمات* بين نجمتين لتظهر مائلة.",
+  "Social links": "روابط التواصل الاجتماعي",
+  "Shown in the footer. Paste the full address of each page (https://…); leave empty to hide it.": "تظهر في أسفل الصفحة. الصق العنوان الكامل لكل صفحة (https://…)، واتركه فارغًا لإخفائه.",
+  "Members club": "نادي الأعضاء",
+  "Light and refined: centred menu, sans and serif titles, framed photos, testimonials": "فاتح وراقٍ: قائمة في الوسط، عناوين بخطين، صور مؤطرة، وآراء العملاء",
+  "Testimonials": "آراء العملاء",
+  "Testimonial": "رأي عميل",
+  "Trip or city": "الرحلة أو المدينة",
+  "Words from your clients: the text is the quote, the title their name, the short line their trip or city. Add a photo if they agree.": "كلمات عملائك: النص هو الاقتباس، والعنوان اسم العميل، والسطر القصير رحلته أو مدينته. أضف صورة إن وافق.",
+  "Editorial designs for the customer page: \"Editorial\" (magazine style) and \"Members club\" (light, refined, with testimonials), ready to choose and change": "تصاميم تحريرية لصفحة العملاء: \"تحريري\" (بأسلوب المجلات) و\"نادي الأعضاء\" (فاتح وراقٍ مع آراء العملاء)، جاهزة للاختيار والتعديل",
+  "More brand sections on the customer page: mission, philosophy, our promise, testimonials and questions (FAQ)": "أقسام إضافية للعلامة في صفحة العملاء: الرسالة والفلسفة ووعدنا وآراء العملاء والأسئلة الشائعة",
 };
 
 export const AR_V2_PATTERNS: [RegExp, string][] = [

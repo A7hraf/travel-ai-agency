@@ -151,7 +151,7 @@ export const STOREFRONT_TEXT = {
     loading: "Loading trips…",
     // Story sections (The Brand, Experiences, Services, Leadership, The Community)
     storyNav: { brand: "The Brand", experiences: "Experiences", services: "Services", leadership: "Leadership", community: "Community",
-      mission: "Mission", philosophy: "Philosophy", promise: "Our promise", faq: "Questions" },
+      mission: "Mission", philosophy: "Philosophy", promise: "Our promise", faq: "Questions", testimonials: "Testimonials" },
     storyAll: "All",
     storyAsk: (agent: string) => `Ask ${agent}`,
     storyAskMsg: (title: string) => `Hi! I'd like to know more about "${title}".`,
@@ -295,7 +295,7 @@ export const STOREFRONT_TEXT = {
     pausedHint: "ستعود الوكالة قريباً. يُرجى المحاولة لاحقاً.",
     loading: "جارٍ تحميل الرحلات…",
     storyNav: { brand: "البراند", experiences: "التجارب", services: "الخدمات", leadership: "القيادة", community: "المجتمع",
-      mission: "الرسالة", philosophy: "الفلسفة", promise: "وعدنا", faq: "الأسئلة" },
+      mission: "الرسالة", philosophy: "الفلسفة", promise: "وعدنا", faq: "الأسئلة", testimonials: "آراء العملاء" },
     storyAll: "الكل",
     storyAsk: (agent: string) => `اسأل ${agent}`,
     storyAskMsg: (title: string) => `مرحباً! أبغى أعرف أكثر عن "${title}".`,

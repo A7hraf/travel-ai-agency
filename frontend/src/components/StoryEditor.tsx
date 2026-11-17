@@ -18,6 +18,7 @@ export const STORY_LABELS: Record<StoryKey, string> = {
   philosophy: "Philosophy",
   promise: "Our promise",
   faq: "Questions (FAQ)",
+  testimonials: "Testimonials",
 };
 
 /** What each section is for, and what a card holds there. */
@@ -33,6 +34,8 @@ const STORY_HELP: Record<StoryKey, { note: string; card: string; tag?: string; s
   philosophy: { note: "How you see travel, in a sentence or two. The intro is shown large, with a photo band if you add one.", card: "Belief" },
   promise: { note: "What clients can count on (for example \"Attention to detail\"): one card each.", card: "Promise" },
   faq: { note: "Questions clients often ask: the card title is the question, the text is the answer.", card: "Question" },
+  testimonials: { note: "Words from your clients: the text is the quote, the title their name, the short line their trip or city. Add a photo if they agree.",
+    card: "Testimonial", subtitle: "Trip or city" },
 };
 
 const EMPTY_ITEM: StoryItem = { tag_en: "", tag_ar: "", title_en: "", title_ar: "", subtitle_en: "", subtitle_ar: "", text_en: "", text_ar: "", image: null };

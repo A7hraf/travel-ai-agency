@@ -201,8 +201,9 @@ export function StorefrontPage({ slug, company, packages, lang, setLang, layout,
   };
 
   const style = pageVars(b) as CSSProperties;
-  const editorial = b.template === "editorial";
-  const paper = editorial ? editorialVars(b)["--ed-paper"] : null;
+  const editorial = b.template === "editorial" || b.template === "club";
+  const club = b.template === "club";
+  const paper = editorial ? editorialVars(b, club)["--ed-paper"] : null;
   // The editorial page's paper colour also behind the page (overscroll, short pages); not in the editor's preview.
   useEffect(() => {
     if (!paper || preview) return;
@@ -213,9 +214,9 @@ export function StorefrontPage({ slug, company, packages, lang, setLang, layout,
 
   if (editorial) {
     return (
-      <div className={`sf sf-ed ${desktop ? "sf-is-web" : "sf-is-phone"} ${preview ? "sf-preview" : ""}`} dir={lang === "ar" ? "rtl" : "ltr"} lang={lang}
-        style={{ ...style, ...editorialVars(b) } as CSSProperties}>
-        <EditorialLayout ctx={ctx} desktop={desktop} pkg={pkg} closePackage={() => setPkg(null)} chatOpen={chatOpen} closeChat={() => setChatOpen(false)} />
+      <div className={`sf sf-ed ${club ? "sf-club" : ""} ${desktop ? "sf-is-web" : "sf-is-phone"} ${preview ? "sf-preview" : ""}`} dir={lang === "ar" ? "rtl" : "ltr"} lang={lang}
+        style={{ ...style, ...editorialVars(b, club) } as CSSProperties}>
+        <EditorialLayout ctx={ctx} desktop={desktop} club={club} pkg={pkg} closePackage={() => setPkg(null)} chatOpen={chatOpen} closeChat={() => setChatOpen(false)} />
         {confirmNew && (
           <Modal title={t.newChat} onClose={() => setConfirmNew(false)}>
             <div className="sf-confirm" dir={lang === "ar" ? "rtl" : "ltr"}>

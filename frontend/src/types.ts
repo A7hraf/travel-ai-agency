@@ -93,7 +93,7 @@ export interface PartnerHome {
 }
 
 export type Section = "search" | "featured" | "offers" | "how" | "about" | "contact"
-  | "brand" | "experiences" | "services" | "leadership" | "community" | "mission" | "philosophy" | "promise" | "faq";
+  | "brand" | "experiences" | "services" | "leadership" | "community" | "mission" | "philosophy" | "promise" | "faq" | "testimonials";
 
 /** Smaller parts of the customer page that can be hidden ("powered_by": platform owner only). */
 export interface PageElements {
@@ -133,7 +133,8 @@ export interface CardDesign {
 /** Customer-page texts replacing the standard ones: {en: {key: text}, ar: {key: text}}. */
 export type PageTexts = Record<"en" | "ar", Record<string, string>>;
 
-export type StoryKey = "brand" | "experiences" | "services" | "leadership" | "community" | "mission" | "philosophy" | "promise" | "faq";
+export type StoryKey = "brand" | "experiences" | "services" | "leadership" | "community" | "mission" | "philosophy" | "promise" | "faq"
+  | "testimonials";
 
 /** One card of a story section: a brand pillar, an experience, a service, a leader or a member perk. */
 export interface StoryItem {
@@ -152,11 +153,15 @@ export interface StorySection {
   items: StoryItem[];
 }
 
+export type SocialKey = "instagram" | "youtube" | "tiktok" | "x" | "linkedin" | "facebook" | "snapchat";
+
 export interface PublicBranding {
   /** "editorial" needs the Editorial customer page feature (the public page shows "classic" without it). */
-  template: "classic" | "editorial";
+  template: "classic" | "editorial" | "club";
   tagline_en: string;
   tagline_ar: string;
+  /** Links to the company's social pages (instagram, youtube, tiktok, x, linkedin, facebook, snapchat). */
+  social: Partial<Record<SocialKey, string>>;
   primary_color: string;
   accent_color: string;
   bg_color: string | null;

@@ -4,7 +4,7 @@ import { useI18n } from "../lang";
 import { dashboardVars, sidebarIsDark } from "../theme";
 import { useTheme } from "../themeMode";
 import { GhanjahMark } from "./Brand";
-import type { Branding, CardDesign, PageElements, PublicCompany, Section, TravelPackage } from "../types";
+import type { Branding, CardDesign, PageElements, PublicCompany, Section, SocialKey, TravelPackage } from "../types";
 import type { Lang } from "./Money";
 import ImageUpload from "./ImageUpload";
 import { Switch } from "./admin/AdminUI";
@@ -62,12 +62,25 @@ const THEMES: { name: string; p: string; a: string }[] = [
   { name: "Night", p: "#2b3a55", a: "#7fa7d9" },
 ];
 
+/** Ready designs: the layout with its own colours (the company changes them afterwards like any design). */
+const READY: { v: Branding["template"]; label: string; hint: string;
+  colours: Pick<Branding, "primary_color" | "accent_color" | "bg_color" | "surface_color" | "text_color" | "highlight_color"> }[] = [
+  { v: "classic", label: "Classic", hint: "Search, trip cards and the live chat at the top",
+    colours: { primary_color: "#0088b0", accent_color: "#4fb6dc", bg_color: null, surface_color: null, text_color: null, highlight_color: null } },
+  { v: "editorial", label: "Editorial", hint: "Magazine style: large serif titles, full-width photos, numbered offerings",
+    colours: { primary_color: "#141210", accent_color: "#8c7a5b", bg_color: "#f2ebdd", surface_color: null, text_color: "#141210", highlight_color: null } },
+  { v: "club", label: "Members club", hint: "Light and refined: centred menu, sans and serif titles, framed photos, testimonials",
+    colours: { primary_color: "#231b16", accent_color: "#68594a", bg_color: "#f2ebdd", surface_color: null, text_color: "#231b16", highlight_color: "#68594a" } },
+];
+const SOCIAL_KEYS: [SocialKey, string][] = [
+  ["instagram", "Instagram"], ["youtube", "YouTube"], ["tiktok", "TikTok"], ["x", "X"], ["linkedin", "LinkedIn"], ["facebook", "Facebook"], ["snapchat", "Snapchat"],
+];
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const STD = { bg: "#201e1d", text: "#f3f2f2" };
 
 /** The standard design (what "Reset all to default" goes back to). Logo and dashboard colours are kept. */
 const DEFAULTS: Omit<Branding, "logo" | "dashboard_color" | "dashboard_sidebar"> = {
-  template: "classic", tagline_en: "", tagline_ar: "",
+  template: "classic", tagline_en: "", tagline_ar: "", social: {},
   primary_color: "#0088b0", accent_color: "#4fb6dc", bg_color: null, surface_color: null, text_color: null,
   highlight_color: null, hero_style: "gradient", hero_image: null,
   hero_title_en: "", hero_title_ar: "", hero_text_en: "", hero_text_ar: "",
@@ -412,26 +425,39 @@ export default function BrandingEditor({ loadPath, uploadPath, slug, owner, onSa
         {tab === "theme" && (<>
           <section className="gx-card">
             <h2 className="gx-card-title"><span className="gx-card-icon"><Layout /></span>{t("Page style")}</h2>
-            <div className="pe-styles" role="group" aria-label={t("Page style")}>
-              {([
-                { v: "classic", label: t("Classic"), hint: t("Search, trip cards and the live chat at the top") },
-                { v: "editorial", label: t("Editorial"), hint: t("Magazine style: large serif titles, full-width photos, numbered offerings") },
-              ] as const).map((o) => (
+            <p className="gx-card-note">{t("Ready designs: choose one, then change its colours, texts, sections and photos like any design. Your texts and photos are kept.")}</p>
+            <div className="pe-styles pe-ready" role="group" aria-label={t("Page style")}>
+              {READY.map((o) => (
                 <button key={o.v} type="button" className={`pe-style ${b.template === o.v ? "active" : ""}`} aria-pressed={b.template === o.v}
-                  onClick={() => set("template", o.v)}>
-                  <span className={`pe-style-pic pe-pic-${o.v === "classic" ? "photo" : "poster"}`} aria-hidden="true"><i /><i /><i /></span>
-                  <strong>{o.label}</strong><small>{o.hint}</small>
+                  onClick={() => update({ template: o.v, ...o.colours })}>
+                  <span className={`pe-ready-pic pe-ready-${o.v}`} aria-hidden="true">
+                    <i style={{ background: o.colours.bg_color ?? "#201e1d", color: o.colours.text_color ?? "#f3f2f2" }}>Aa</i>
+                    <b style={{ background: o.colours.primary_color }} />
+                  </span>
+                  <strong>{t(o.label)}</strong><small>{t(o.hint)}</small>
                 </button>
               ))}
             </div>
-            {b.template === "editorial" && !editorialOn && (
-              <p className="warn-box">{t("The editorial style is not switched on for your company yet: customers see the classic page until the platform switches it on. You can prepare it now.")}</p>
+            {b.template !== "classic" && !editorialOn && (
+              <p className="warn-box">{t("This design is not switched on for your company yet: customers see the classic page until the platform switches it on. You can prepare it now.")}</p>
             )}
-            {b.template === "editorial" && (
-              <p className="gx-card-note">{t("The editorial style uses your background and text colours (buttons are in the text colour). In titles, write *words* between stars to set them in italics.")}</p>
+            {b.template !== "classic" && (
+              <p className="gx-card-note">{t("This design uses your background and text colours (buttons are in the text colour). In titles, write *words* between stars to set them in italics.")}</p>
             )}
             <div className="gx-story-head"><span className="field-label">{t("Tagline")}</span>{langTabs}</div>
             {own(`tagline_${L}` as keyof Branding, t("Short line under your name"), 80, L === "ar" ? "علامة السفر العصرية" : "The modern travel brand")}
+          </section>
+          <section className="gx-card">
+            <h2 className="gx-card-title">{t("Social links")}</h2>
+            <p className="gx-card-note">{t("Shown in the footer. Paste the full address of each page (https://…); leave empty to hide it.")}</p>
+            <div className="gx-grid-2">
+              {SOCIAL_KEYS.map(([k, label]) => (
+                <Field key={k} label={label}>
+                  <input type="url" dir="ltr" maxLength={300} placeholder="https://" value={b.social?.[k] ?? ""}
+                    onChange={(e) => update({ social: { ...(b.social ?? {}), [k]: e.target.value.trim() } })} />
+                </Field>
+              ))}
+            </div>
           </section>
           <section className="gx-card">
             <h2 className="gx-card-title"><span className="gx-card-icon"><PaintBrush /></span>{t("Colours")}</h2>

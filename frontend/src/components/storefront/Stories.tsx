@@ -4,9 +4,10 @@ import type { Lang } from "../Money";
 import { ChatCircleDots } from "../Icon";
 import type { StoreCtx } from "./context";
 
-export const STORY_KEYS: StoryKey[] = ["brand", "experiences", "services", "leadership", "community", "mission", "philosophy", "promise", "faq"];
+export const STORY_KEYS: StoryKey[] = ["brand", "experiences", "services", "leadership", "community", "mission", "philosophy", "promise", "faq",
+  "testimonials"];
 /** Sections that need the "More brand sections" feature. */
-export const MORE_STORY_KEYS: StoryKey[] = ["mission", "philosophy", "promise", "faq"];
+export const MORE_STORY_KEYS: StoryKey[] = ["mission", "philosophy", "promise", "faq", "testimonials"];
 
 /** A title where *words between stars* are set in italics. */
 export function Emph({ text }: { text: string }) {

@@ -4,13 +4,17 @@ import "@fontsource/cormorant-garamond/400-italic.css";
 import "@fontsource/cormorant-garamond/500.css";
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";
+import "@fontsource/manrope/400.css";
+import "@fontsource/manrope/700.css";
+import "@fontsource/stix-two-text/400.css";
+import "@fontsource/stix-two-text/400-italic.css";
 import "../../styles/editorial.css";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import type { StorefrontText } from "../../i18n";
-import { ArrowLeft, ArrowRight, Envelope, Phone, WhatsappLogo } from "../Icon";
+import { ArrowLeft, ArrowRight, ArrowUpRight, Envelope, Phone, WhatsappLogo } from "../Icon";
 import { Money } from "../Money";
 import { Modal } from "../ui";
-import type { StoryItem, StoryKey, StorySection, TravelPackage } from "../../types";
+import type { SocialKey, StoryItem, StoryKey, StorySection, TravelPackage } from "../../types";
 import { ChatHeader, ChatView } from "./ChatView";
 import type { Block, StoreCtx } from "./context";
 import { WebPackage } from "./PackageDetails";
@@ -25,9 +29,14 @@ const AR = /[\u0600-\u06FF]/;
 const D = (text: string | null | undefined): "rtl" | "ltr" | "auto" => (!text ? "auto" : AR.test(text) ? "rtl" : "ltr");
 const lines = (text: string) => text.split("\n").map((x) => x.replace(/^[-•·]\s*/, "").trim()).filter(Boolean);
 
-/** The editorial customer page: a magazine-style design for both phones and computers. */
-export function EditorialLayout({ ctx, desktop, pkg, closePackage, chatOpen, closeChat }: {
-  ctx: StoreCtx; desktop: boolean; pkg: TravelPackage | null; closePackage: () => void; chatOpen: boolean; closeChat: () => void;
+const SOCIAL_LABEL: Record<SocialKey, string> = {
+  instagram: "Instagram", youtube: "YouTube", tiktok: "TikTok", x: "X", linkedin: "LinkedIn", facebook: "Facebook", snapchat: "Snapchat",
+};
+
+/** The editorial customer pages, for phones and computers: "editorial" (magazine style, dark bands) and
+ *  "club" (light and refined: centred menu, mixed sans and serif titles, framed photos, testimonials). */
+export function EditorialLayout({ ctx, desktop, club = false, pkg, closePackage, chatOpen, closeChat }: {
+  ctx: StoreCtx; desktop: boolean; club?: boolean; pkg: TravelPackage | null; closePackage: () => void; chatOpen: boolean; closeChat: () => void;
 }) {
   const { t, lang, company, agent, chat, el } = ctx;
   const b = company.branding;
@@ -65,7 +74,7 @@ export function EditorialLayout({ ctx, desktop, pkg, closePackage, chatOpen, clo
     if (x === "about" && (ctx.about || ctx.showContact)) return [{ id: "about", label: t.navAbout }];
     return [];
   });
-  const inline = desktop && el.nav_links && links.length <= 5;
+  const inline = desktop && el.nav_links && links.length <= (club ? 4 : 5);
   const go = (id: string) => {
     setMenu(false);
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -77,10 +86,45 @@ export function EditorialLayout({ ctx, desktop, pkg, closePackage, chatOpen, clo
 
   const heroBg = b.hero_image && b.hero_style !== "solid" ? b.hero_image : null;
   const pillars = el.trust ? t.trust.filter(Boolean) : [];
+  const social = (Object.entries(b.social ?? {}) as [SocialKey, string][]).filter(([k, v]) => SOCIAL_LABEL[k] && v);
+  const navLink = (l: { id: string; label: string }) => (
+    <a key={l.id} href={`#${l.id}`} onClick={(e) => { e.preventDefault(); go(l.id); }} dir={D(l.label)}>{l.label}</a>
+  );
+  const menuButton = (
+    <button type="button" className="ed-menu-btn" aria-expanded={menu} aria-controls="ed-menu" onClick={() => setMenu(!menu)}>
+      {menu ? t.edClose : t.edMenu} <span aria-hidden="true">{menu ? "–" : "+"}</span>
+    </button>
+  );
+  const half = Math.ceil(links.length / 2);
 
   return (
-    <div className={`ed ${desktop ? "ed-web" : "ed-phone"}`}>
+    <div className={`ed ${desktop ? "ed-web" : "ed-phone"} ${club ? "ed-club" : ""}`}>
       <a className="ed-skip" href="#ed-main">{t.edSkip}</a>
+      {club ? (
+        <header className="ed-club-head">
+          <div className="ed-club-bar">
+            {inline ? (
+              <nav className="ed-club-nav" aria-label={company.name}>
+                {links.slice(0, half).map(navLink)}
+                <button type="button" className="ed-pill" onClick={plan}>{t.edCta}</button>
+                {links.slice(half).map(navLink)}
+                <a href={`/c/${ctx.slug}/me`}>{t.myTrips}</a>
+              </nav>
+            ) : (
+              <div className="ed-club-nav">
+                {(el.nav_links || !desktop) && menuButton}
+                {desktop && <button type="button" className="ed-pill" onClick={plan}>{t.edCta}</button>}
+                <a href={`/c/${ctx.slug}/me`}>{t.myTrips}</a>
+              </div>
+            )}
+            {el.lang_switch && <button type="button" className="ed-lang ed-club-lang" onClick={ctx.toggleLang} lang={lang === "ar" ? "en" : "ar"}>{t.switchTo}</button>}
+          </div>
+          <a className="ed-club-logo" href="#top" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
+            {b.logo ? <img src={b.logo} alt={company.name} /> : <span className="ed-club-word" dir={D(company.name)}>{company.name}</span>}
+            {tagline && <span className="ed-club-tag" dir={D(tagline)}>{tagline}</span>}
+          </a>
+        </header>
+      ) : (
       <header className={`ed-head ${scrolled || menu ? "ed-solid" : ""}`}>
         <a className="ed-brand" href="#top" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); }}>{wordmark()}</a>
         {inline && (
@@ -92,22 +136,29 @@ export function EditorialLayout({ ctx, desktop, pkg, closePackage, chatOpen, clo
         <div className="ed-head-end">
           {el.lang_switch && <button type="button" className="ed-lang" onClick={ctx.toggleLang} lang={lang === "ar" ? "en" : "ar"}>{t.switchTo}</button>}
           {desktop && <button type="button" className="ed-btn ed-btn-sm" onClick={plan}>{t.edCta}</button>}
-          {!inline && (el.nav_links || !desktop) && (
-            <button type="button" className="ed-menu-btn" aria-expanded={menu} aria-controls="ed-menu" onClick={() => setMenu(!menu)}>
-              {menu ? t.edClose : t.edMenu} <span aria-hidden="true">{menu ? "–" : "+"}</span>
-            </button>
-          )}
+          {!inline && (el.nav_links || !desktop) && menuButton}
         </div>
       </header>
+      )}
 
       {menu && !inline && (
         <nav id="ed-menu" className="ed-menu" aria-label={company.name}>
-          {links.map((l) => <a key={l.id} href={`#${l.id}`} onClick={(e) => { e.preventDefault(); go(l.id); }} dir={D(l.label)}>{l.label}</a>)}
+          {club && <button type="button" className="ed-menu-btn ed-menu-close" onClick={() => setMenu(false)}>{t.edClose} <span aria-hidden="true">–</span></button>}
+          {links.map(navLink)}
           <a href={`/c/${ctx.slug}/me`}>{t.myTrips}</a>
           <button type="button" className="ed-btn" onClick={plan}>{t.edCta}</button>
         </nav>
       )}
 
+      {club ? (
+        <section id="top" className="ed-club-hero">
+          <h1 className="ed-club-h1" dir={D(ctx.heroTitle ?? company.name)}><Emph text={ctx.heroTitle ?? company.name} /></h1>
+          {ctx.heroText && <p className="ed-club-lead" dir={D(ctx.heroText)}>{ctx.heroText}</p>}
+          <button type="button" className="ed-dash-link" onClick={plan}>{t.edCta}</button>
+          {b.hero_image && <img className="ed-club-hero-photo" src={b.hero_image} alt="" />}
+          {pillars.length > 0 && <ul className="ed-club-pillars">{pillars.map((x, i) => <li key={i} dir={D(x)}>{x}</li>)}</ul>}
+        </section>
+      ) : (
       <section id="top" className={`ed-hero ${heroBg ? "ed-hero-photo" : ""}`} style={heroBg ? { backgroundImage: `url(${JSON.stringify(heroBg)})` } : undefined}>
         <div className="ed-hero-inner">
           {ctx.heroTitle
@@ -119,14 +170,17 @@ export function EditorialLayout({ ctx, desktop, pkg, closePackage, chatOpen, clo
         </div>
         {pillars.length > 0 && <ul className="ed-pillars">{pillars.map((x, i) => <li key={i} dir={D(x)}>{x}</li>)}</ul>}
       </section>
+      )}
 
       <main id="ed-main">
-        {ctx.blocks.map((blk) => <EdBlock key={blk} ctx={ctx} blk={blk} tripsBlock={tripsBlock} story={story} plan={plan} desktop={desktop} />)}
+        {ctx.blocks.map((blk) => <EdBlock key={blk} ctx={ctx} blk={blk} tripsBlock={tripsBlock} story={story} plan={plan} desktop={desktop} club={club} />)}
 
         <section className="ed-closing" aria-labelledby="ed-closing-title">
           <h2 id="ed-closing-title" className="ed-display" dir={D(t.edClosing)}><Emph text={t.edClosing} /></h2>
           <p className="ed-lead" dir={D(t.edClosingText)}>{t.edClosingText}</p>
-          <button type="button" className="ed-btn ed-btn-light" onClick={plan}>{t.edCta}</button>
+          {club
+            ? <button type="button" className="ed-arrow-link" onClick={plan}>{t.edCta} <ArrowUpRight className="flip" aria-hidden="true" /></button>
+            : <button type="button" className="ed-btn ed-btn-light" onClick={plan}>{t.edCta}</button>}
         </section>
       </main>
 
@@ -137,7 +191,9 @@ export function EditorialLayout({ ctx, desktop, pkg, closePackage, chatOpen, clo
           {company.contact_phone && <a href={telLink(company.contact_phone)}><Phone /><bdi dir="ltr">{company.contact_phone}</bdi></a>}
           {ctx.whatsapp && <a href={ctx.whatsapp} target="_blank" rel="noreferrer"><WhatsappLogo />{t.whatsapp}</a>}
           <a href={`/c/${ctx.slug}/me`}>{t.myTrips}</a>
+          {social.map(([k, url]) => <a key={k} href={url} target="_blank" rel="noreferrer noopener">{SOCIAL_LABEL[k]} <ArrowUpRight className="flip" aria-hidden="true" /></a>)}
         </div>
+        {club && <p className="ed-club-giant" aria-hidden="true" dir={D(company.name)}>{company.name}</p>}
         <div className="ed-foot-small">
           <span>© {new Date().getFullYear()} {company.name}. {t.edRights}</span>
           {el.footer_note && <span>{t.footer}</span>}
@@ -164,8 +220,9 @@ export function EditorialLayout({ ctx, desktop, pkg, closePackage, chatOpen, clo
   );
 }
 
-function EdBlock({ ctx, blk, tripsBlock, story, plan, desktop }: {
+function EdBlock({ ctx, blk, tripsBlock, story, plan, desktop, club }: {
   ctx: StoreCtx; blk: Block; tripsBlock: Block | undefined; story: (k: StoryKey) => StorySection | undefined; plan: () => void; desktop: boolean;
+  club: boolean;
 }) {
   const { t, lang, agent } = ctx;
   if (blk === "featured" || blk === "offers") {
@@ -188,6 +245,25 @@ function EdBlock({ ctx, blk, tripsBlock, story, plan, desktop }: {
             </button>
           ))}
         </Strip>
+      </section>
+    );
+  }
+  if (blk === "how" && club) {
+    // Club: the photo beside a short title, a line under it and the numbered steps.
+    const steps = t.how(agent, !!ctx.whatsapp);
+    const bg = ctx.company.branding.how_bg_image;
+    const sub = [t.howTitle(agent), t.howAccent, t.howEnd].filter(Boolean).join(" ");
+    return (
+      <section id="how" className={`ed-sec ed-club-split ${bg ? "" : "ed-club-solo"}`} aria-labelledby="ed-how-title">
+        {bg && <Photo src={bg} alt="" className="ed-club-split-photo" />}
+        <div className="ed-club-split-text">
+          <h2 id="ed-how-title" className="ed-display" dir={D(t.howKicker)}>{t.howKicker}</h2>
+          <p className="ed-club-sub" dir={D(sub)}>{sub}</p>
+          <ol className="ed-club-steps">
+            {steps.map((s, i) => <li key={i}><span className="ed-club-num">{i + 1}</span><div><h3 dir={D(s.title)}>{s.title}</h3><p dir={D(s.text)}>{s.text}</p></div></li>)}
+          </ol>
+          <button type="button" className="ed-arrow-link" onClick={plan}>{t.edCta} <ArrowUpRight className="flip" aria-hidden="true" /></button>
+        </div>
       </section>
     );
   }
@@ -240,9 +316,52 @@ function EdBlock({ ctx, blk, tripsBlock, story, plan, desktop }: {
   });
   const head = <Head kicker={kicker} title={title} intro={intro} id={titleId} />;
 
+  if (k === "promise" && club) {
+    // Club: the text and a list beside a photo ("Who this is for").
+    return (
+      <section id={k} className={`ed-sec ed-club-split ed-club-flip ${sec.image ? "" : "ed-club-solo"}`} aria-labelledby={titleId}>
+        <div className="ed-club-split-text">
+          <h2 id={titleId} className="ed-display" dir={D(title || kicker)}><Emph text={title || kicker} /></h2>
+          {intro && <p className="ed-body" dir={D(intro)}>{intro}</p>}
+          {items.length > 0 && (
+            <ul className="ed-club-list">{items.map((x, i) => {
+              const v = it(x);
+              return <li key={i} dir={D(v.title + v.text)}>{v.title}{v.text && <span> {v.text}</span>}</li>;
+            })}</ul>
+          )}
+        </div>
+        {sec.image && <Photo src={sec.image} alt="" className="ed-club-split-photo" />}
+      </section>
+    );
+  }
+  if (k === "testimonials") {
+    return (
+      <section id={k} className="ed-sec" aria-labelledby={titleId}>
+        <div className="ed-sec-head">
+          <h2 id={titleId} className="ed-display" dir={D(title || kicker)}><Emph text={title || kicker} /></h2>
+          {intro && <p className="ed-club-sub" dir={D(intro)}>{intro}</p>}
+        </div>
+        <div className={`ed-quotes ${sec.image ? "ed-quotes-photo" : ""}`}>
+          {sec.image && <Photo src={sec.image} alt="" className="ed-quotes-side" />}
+          <div className="ed-quotes-list">
+            {items.map((x, i) => {
+              const v = it(x);
+              return (
+                <figure key={i} className="ed-quote">
+                  {x.image && <Photo src={x.image} alt="" className="ed-quote-photo" />}
+                  {v.text && <blockquote dir={D(v.text)}>{v.text}</blockquote>}
+                  <figcaption dir={D(v.title + v.sub)}>{v.title && <strong>{v.title}</strong>}{v.sub && <span>{v.sub}</span>}</figcaption>
+                </figure>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+    );
+  }
   if (k === "mission" || k === "philosophy") {
     return (
-      <section id={k} className={`ed-sec ed-statement ${k === "philosophy" ? "ed-ink" : ""}`} aria-labelledby={title ? titleId : undefined} aria-label={title ? undefined : kicker}>
+      <section id={k} className={`ed-sec ed-statement ${k === "philosophy" && !club ? "ed-ink" : ""}`} aria-labelledby={title ? titleId : undefined} aria-label={title ? undefined : kicker}>
         {sec.image && <div className="ed-band" style={{ backgroundImage: `url(${JSON.stringify(sec.image)})` }} role="presentation" />}
         <div className="ed-wrap ed-narrow">
           <div className="ed-label" dir={D(kicker)}>{kicker}</div>

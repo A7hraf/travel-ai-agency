@@ -52,9 +52,10 @@ FEATURES: dict[str, Feature] = {
     "advisor": Feature("AI advisor: a chat with the AI about the business, with its recommendations", "ai", metered=True),
     "ai_training": Feature("The company edits its AI: knowledge, welcome message and training examples (you can always "
                            "edit them from the company page)", "extra"),
-    "page_editorial": Feature("Editorial customer page: a magazine-style design with full-width photos, large serif titles, "
-                              "a strip of experiences and numbered offerings", "extra"),
-    "page_more_sections": Feature("More brand sections on the customer page: mission, philosophy, our promise and questions (FAQ)", "extra"),
+    "page_editorial": Feature("Editorial designs for the customer page: \"Editorial\" (magazine style) and \"Members club\" "
+                              "(light, refined, with testimonials), ready to choose and change", "extra"),
+    "page_more_sections": Feature("More brand sections on the customer page: mission, philosophy, our promise, testimonials "
+                                  "and questions (FAQ)", "extra"),
     "concierge_services": Feature("Luxury concierge services: private aviation, yacht charters, villas, cruises, dining and nightlife, "
                                   "VIP access and events, chauffeur and car rental", "extra"),
 }
