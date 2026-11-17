@@ -377,3 +377,68 @@
 .ed-club .ed-closing .ed-display em { display: block; }
 .ed-club-giant { padding-bottom: .14em; line-height: 1.05; }
 :lang(ar) .ed-club em, .ed-club [dir="rtl"] em, .ed-club [dir="rtl"] .ed-club-num { font-style: normal; font-weight: 700; }
+
+/* ---- Motion (club) ---- */
+/* The moving strip: one copy of the cards, then the same again, so the loop has no seam. */
+.ed-marquee-wrap { position: relative; margin-inline: calc(-1 * var(--ed-pad)); }
+.ed-marquee { display: flex; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; padding: 30px 0; cursor: grab; overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; }
+.ed-marquee::-webkit-scrollbar { display: none; }
+.ed-marquee.is-dragging { cursor: grabbing; user-select: none; }
+.ed-marquee.is-dragging .ed-card { pointer-events: none; }
+.ed-marquee-group { display: flex; gap: 32px; padding-inline-end: 32px; flex: 0 0 auto; }
+.ed-marquee-card { width: 320px; flex: 0 0 auto; }
+.ed-phone .ed-marquee-card { width: 240px; }
+.ed-marquee .ed-card .ed-photo { aspect-ratio: 4 / 5; border-radius: 4px; transition: transform .2s ease-in; }
+.ed-marquee .ed-card:hover .ed-photo { transform: scale(1.02); }
+.ed-marquee-controls { display: flex; justify-content: center; }
+.ed-motion { display: grid; place-items: center; width: 44px; height: 44px; padding: 12px; border: 0; background: none; color: var(--ed-ink);
+  cursor: pointer; border-radius: 50%; }
+.ed-motion svg { width: 16px; height: 16px; }
+.ed-motion:hover { background: var(--ed-hair); }
+.ed-photo-text { flex-direction: column; justify-content: flex-end; align-items: flex-start; padding: 22px; text-align: start;
+  background: linear-gradient(165deg, color-mix(in srgb, var(--ed-ink) 6%, var(--ed-paper)) 0%, color-mix(in srgb, var(--ed-ink) 14%, var(--ed-paper)) 100%); }
+.ed-photo-text em { font: italic 400 26px/1.15 var(--ed-serif); letter-spacing: -0.01em; color: var(--ed-ink); }
+:lang(ar) .ed-photo-text em, .ed-photo-text em[dir="rtl"] { font-style: normal; font-weight: 700; }
+.ed-club-strip { padding-top: 0 !important; }
+.ed-club .ed-card-meta { font-size: 12px; margin-top: 2px; }
+
+/* Questions: one open at a time, the + turns into × */
+.ed-faq summary::after { content: none; }
+.ed-plus { font: 300 32px/24px var(--ed-sans); transition: transform .2s linear; flex: 0 0 auto; }
+.ed-faq details[open] .ed-plus { transform: rotate(45deg); }
+.ed-club .ed-faq { max-width: 1000px; }
+.ed-club #faq .ed-sec-head { margin-bottom: 50px; }
+.ed-club .ed-faq details { padding: 0; border-bottom: 1px solid var(--ed-hair); }
+.ed-club .ed-faq summary { padding: 26px 0; font: 400 24px/1.2 var(--ed-sans); gap: 24px; }
+.ed-club .ed-faq p { margin: 0; padding: 0 44px 26px 0; font-size: 16px; max-width: 720px; animation: ed-fade .3s ease-out; }
+.ed-phone.ed-club .ed-faq summary { font-size: 19px; padding: 22px 0; }
+.ed-phone.ed-club .ed-faq p { padding-inline-end: 16px; font-size: 15px; }
+@keyframes ed-fade { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+/* Links and buttons */
+.ed-arrow-link { transition: gap .25s ease; }
+.ed-arrow-link:hover { gap: 28px; }
+.ed-club .ed-pill, .ed-club .ed-btn { transition: background-color .2s ease, color .2s ease; }
+.ed-club .ed-pill:hover, .ed-club .ed-btn:hover { background: color-mix(in srgb, var(--ed-ink) 83%, var(--ed-paper)); color: var(--ed-paper);
+  border-color: color-mix(in srgb, var(--ed-ink) 83%, var(--ed-paper)); }
+.ed-club a:hover { text-underline-offset: 5px; }
+.ed-club .ed-club-nav a { padding: 8px 0; }
+.ed-club :focus-visible { outline: 2px solid #936b29; outline-offset: 6px; }
+.ed-club .ed-dash-link { transition: border-color .2s; }
+
+/* Menu: the + turns into × and the list fades in */
+.ed-menu-plus { display: inline-block; font-size: 22px; line-height: 1; font-weight: 300; transition: transform .2s; }
+.ed-menu-btn[aria-expanded="true"] .ed-menu-plus { transform: rotate(45deg); }
+.ed-menu { animation: ed-fade .25s ease-out; }
+.ed-club .ed-menu { inset: 0; padding-top: 84px; background: var(--ed-paper); z-index: 80; }
+.ed-club .ed-menu a { font-family: var(--ed-serif); font-weight: 400; font-size: 32px; text-transform: none; }
+.ed-club .ed-menu .ed-btn { margin-top: 28px; }
+.ed-menu-close { position: absolute; top: 22px; inset-inline-end: var(--ed-pad); }
+.ed-club .ed-menu .ed-menu-close .ed-menu-plus { transform: rotate(45deg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ed-marquee .ed-card .ed-photo, .ed-plus, .ed-menu-plus, .ed-arrow-link, .ed-menu, .ed-club .ed-faq p { transition: none; animation: none; }
+}
+.ed-faq details[open] summary::after, .ed-faq details summary::after { content: none; display: none; }
+.ed-faq summary > span:first-child { flex: 1; }

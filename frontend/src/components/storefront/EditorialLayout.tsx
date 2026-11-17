@@ -18,6 +18,7 @@ import type { SocialKey, StoryItem, StoryKey, StorySection, TravelPackage } from
 import { ChatHeader, ChatView } from "./ChatView";
 import type { Block, StoreCtx } from "./context";
 import { WebPackage } from "./PackageDetails";
+import { Marquee } from "./Marquee";
 import { PoweredBy } from "./Sections";
 import { Emph, STORY_KEYS, plain, storyHasContent, storyNavLabel } from "./Stories";
 import { telLink } from "./shared";
@@ -51,6 +52,13 @@ export function EditorialLayout({ ctx, desktop, club = false, pkg, closePackage,
     return () => window.removeEventListener("scroll", on);
   }, []);
   useEffect(() => { if (chatOpen) chatInput.current?.focus({ preventScroll: true }); }, [chatOpen]);
+  useEffect(() => {
+    const html = document.documentElement;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || document.querySelector(".sf-preview")) return;
+    const before = html.style.scrollBehavior;
+    html.style.scrollBehavior = "smooth";
+    return () => { html.style.scrollBehavior = before; };
+  }, []);
   useEffect(() => {
     if (!menu && !chatOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -92,7 +100,7 @@ export function EditorialLayout({ ctx, desktop, club = false, pkg, closePackage,
   );
   const menuButton = (
     <button type="button" className="ed-menu-btn" aria-expanded={menu} aria-controls="ed-menu" onClick={() => setMenu(!menu)}>
-      {menu ? t.edClose : t.edMenu} <span aria-hidden="true">{menu ? "–" : "+"}</span>
+      {menu ? t.edClose : t.edMenu} <span className="ed-menu-plus" aria-hidden="true">+</span>
     </button>
   );
   const half = Math.ceil(links.length / 2);
@@ -143,7 +151,7 @@ export function EditorialLayout({ ctx, desktop, club = false, pkg, closePackage,
 
       {menu && !inline && (
         <nav id="ed-menu" className="ed-menu" aria-label={company.name}>
-          {club && <button type="button" className="ed-menu-btn ed-menu-close" onClick={() => setMenu(false)}>{t.edClose} <span aria-hidden="true">–</span></button>}
+          {club && <button type="button" className="ed-menu-btn ed-menu-close" onClick={() => setMenu(false)}>{t.edClose} <span className="ed-menu-plus" aria-hidden="true">+</span></button>}
           {links.map(navLink)}
           <a href={`/c/${ctx.slug}/me`}>{t.myTrips}</a>
           <button type="button" className="ed-btn" onClick={plan}>{t.edCta}</button>
@@ -232,10 +240,10 @@ function EdBlock({ ctx, blk, tripsBlock, story, plan, desktop, club }: {
     return (
       <section id="trips" className="ed-sec" aria-labelledby="ed-trips-title">
         <Head kicker={ctx.blocks.includes("offers") ? t.tripsOnSale : t.featuredTitle} id="ed-trips-title" />
-        <Strip desktop={desktop} label={t.navTrips} t={t}>
+        <Row club={club} desktop={desktop} label={t.navTrips} t={t}>
           {list.map((p) => (
             <button key={p.id} type="button" className="ed-card" onClick={() => ctx.openPackage(p)}>
-              <Photo src={p.image_url} alt="" initials={p.destination} />
+              <Photo src={p.image_url} alt="" initials={p.destination} text={club ? p.destination : undefined} />
               <span className="ed-card-title" dir={D(p.title)}>{p.title}</span>
               <span className="ed-card-meta" dir={D(p.destination)}>{p.destination}{p.country ? `, ${p.country}` : ""} · {t.days(p.duration_days)}</span>
               {ctx.cards.show_price && (
@@ -244,7 +252,7 @@ function EdBlock({ ctx, blk, tripsBlock, story, plan, desktop, club }: {
               )}
             </button>
           ))}
-        </Strip>
+        </Row>
       </section>
     );
   }
@@ -401,20 +409,20 @@ function EdBlock({ ctx, blk, tripsBlock, story, plan, desktop, club }: {
   }
   if (k === "experiences") {
     return (
-      <section id={k} className="ed-sec" aria-labelledby={title ? titleId : undefined} aria-label={title ? undefined : kicker}>
-        {head}
-        <Strip desktop={desktop} label={kicker} t={t}>
+      <section id={k} className={`ed-sec ${club ? "ed-club-strip" : ""}`} aria-labelledby={title ? titleId : undefined} aria-label={title ? undefined : kicker}>
+        {(!club || title || intro) && head}
+        <Row club={club} desktop={desktop} label={kicker} t={t}>
           {items.map((x, i) => {
             const v = it(x);
             return (
               <button key={i} type="button" className="ed-card" onClick={() => v.title && ctx.ask(t.storyAskMsg(plain(v.title)))}>
-                <Photo src={x.image} alt="" initials={plain(v.title)} />
-                <span className="ed-card-title" dir={D(plain(v.title))}>{plain(v.title)}</span>
+                <Photo src={x.image} alt="" initials={plain(v.title)} text={club && !x.image ? plain(v.title) : undefined} />
+                {(!club || x.image) && <span className="ed-card-title" dir={D(plain(v.title))}>{plain(v.title)}</span>}
                 {(v.tag || v.sub) && <span className="ed-card-meta" dir={D(v.tag + v.sub)}>{[v.tag, v.sub].filter(Boolean).join(" · ")}</span>}
               </button>
             );
           })}
-        </Strip>
+        </Row>
       </section>
     );
   }
@@ -445,7 +453,15 @@ function EdBlock({ ctx, blk, tripsBlock, story, plan, desktop, club }: {
         <div className="ed-faq">
           {items.map((x, i) => {
             const v = it(x);
-            return <details key={i}><summary dir={D(v.title)}>{v.title}</summary><p dir={D(v.text)}>{v.text}</p></details>;
+            return (
+              <details key={i} onToggle={(e) => {
+                const d = e.currentTarget;
+                if (d.open) d.parentElement?.querySelectorAll("details[open]").forEach((o) => { if (o !== d) (o as HTMLDetailsElement).open = false; });
+              }}>
+                <summary dir={D(v.title)}><span>{v.title}</span><span className="ed-plus" aria-hidden="true">+</span></summary>
+                <p dir={D(v.text)}>{v.text}</p>
+              </details>
+            );
           })}
         </div>
       </section>
@@ -500,10 +516,17 @@ function Head({ kicker, title, intro, id }: { kicker: string; title?: string; in
 }
 
 /** A photo, or a quiet block with initials when there is none. */
-function Photo({ src, alt, className = "", initials }: { src: string | null | undefined; alt: string; className?: string; initials?: string }) {
-  if (src) return <img className={`ed-photo ${className}`} src={src} alt={alt} loading="lazy" />;
+function Photo({ src, alt, className = "", initials, text }: {
+  src: string | null | undefined; alt: string; className?: string; initials?: string; text?: string;
+}) {
+  if (src) return <img className={`ed-photo ${className}`} src={src} alt={alt} loading="lazy" draggable={false} />;
+  if (text) return <span className={`ed-photo ed-photo-empty ed-photo-text ${className}`}><em dir={D(text)}>{text}</em></span>;
   const letters = (initials ?? "").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join("");
   return <span className={`ed-photo ed-photo-empty ${className}`} role={alt ? "img" : undefined} aria-label={alt || undefined} aria-hidden={alt ? undefined : true}>{letters}</span>;
+}
+
+function Row({ club, children, desktop, label, t }: { club: boolean; children: ReactNode; desktop: boolean; label: string; t: StorefrontText }) {
+  return club ? <Marquee label={label} t={t}>{children}</Marquee> : <Strip desktop={desktop} label={label} t={t}>{children}</Strip>;
 }
 
 /** A row of portrait cards that scrolls sideways, with arrows on computers. */

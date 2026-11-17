@@ -169,6 +169,8 @@ export const STOREFRONT_TEXT = {
     edSkip: "Skip to content",
     edPrev: "Previous",
     edNext: "Next",
+    edPause: "Pause the moving cards",
+    edPlay: "Move the cards again",
   },
   ar: {
     switchTo: "English",
@@ -313,6 +315,8 @@ export const STOREFRONT_TEXT = {
     edSkip: "انتقل إلى المحتوى",
     edPrev: "السابق",
     edNext: "التالي",
+    edPause: "إيقاف حركة البطاقات",
+    edPlay: "تشغيل حركة البطاقات",
   },
 };
 
