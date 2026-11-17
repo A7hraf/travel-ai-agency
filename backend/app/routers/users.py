@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..deps import get_company_user, get_current_user, require_permission
 from ..models import User
-from ..permissions import PERMISSIONS, ROLE_DEFAULT_PERMISSIONS
+from ..permissions import PERMISSIONS, ROLE_DEFAULT_PERMISSIONS, effective_permissions
 from ..schemas import PermissionCatalogOut, UserCreate, UserListOut, UserOut, UserUpdate
 from ..serializers import user_out
 from ..services.users import (
@@ -60,9 +60,15 @@ def delete_user(user_id: int, me: User = Depends(manage_users), db: Session = De
 
 @router.get("/team", response_model=list[UserOut])
 def team(me: User = Depends(get_company_user), db: Session = Depends(get_db)):
-    """Active colleagues, for assigning tickets and conversations."""
+    """Active colleagues, for assigning tickets and conversations. Only those who manage accounts see the
+    contact details, permissions and last login; the others get names and roles."""
     users = db.scalars(
         select(User).where(User.company_id == me.company_id, User.is_active.is_(True), User.partner_id.is_(None))
         .order_by(User.full_name)
     ).all()
-    return [user_out(u) for u in users]
+    full = "users.manage" in effective_permissions(me)
+    out = [user_out(u) for u in users]
+    if not full:
+        out = [o.model_copy(update={"email": "", "permissions": [], "last_login_at": None, "whatsapp_number": None,
+                                    "ai_features": []}) for o in out]
+    return out

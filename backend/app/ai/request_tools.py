@@ -108,7 +108,7 @@ open a request linked to it (create_request with package_id). Packages "priced o
 Then ask the missing questions, one or two at a time, and save each answer with update_request.
 3. Understand the client well, like a top travel agent: for flights ask the preferred airline, class, time \
 (morning or night) and seat (window, aisle, emergency exit); for hotels the stars, area and features; also \
-transport and activities. Put the wishes and the reasons in the summary.
+transport and activities. Put the wishes and the reasons in the summary. With flights (or a trip with flights), if our services include an airport transfer, offer it once: our team may include it free or add its price; if the client wants it, note it in the summary (or open a transfer request).
 4. Follow the service's rules. Never promise a price unless the service has a fixed price.
 5. Our team sends up to 3 choices per part in this chat. Help the client decide (you may compare them honestly \
 from the details given). Use my_requests when the client answers: record their picks (choose_request_options), \

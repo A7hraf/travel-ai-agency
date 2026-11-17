@@ -172,6 +172,8 @@ def update_company(company_id: int, body: CompanyAdminUpdate, _: User = Depends(
         sub = plans_service.ensure_subscription(db, company)
         if sub is not None:
             sub.max_users_custom = True
+    if body.max_services is not None:
+        company.max_services = body.max_services or None
     if body.whatsapp_phone_number_id is not None:
         number = body.whatsapp_phone_number_id.strip() or None
         if number and number != company.whatsapp_phone_number_id:

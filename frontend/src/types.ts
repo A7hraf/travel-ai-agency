@@ -243,6 +243,9 @@ export interface CompanyAdmin {
   status: "active" | "suspended";
   max_users: number;
   user_count: number;
+  /** Services the company may create itself (built-in ones don't count); null: no limit of its own. */
+  max_services: number | null;
+  own_services: number;
   currency: string;
   contact_email: string | null;
   contact_phone: string | null;

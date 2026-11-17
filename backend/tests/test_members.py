@@ -20,15 +20,15 @@ def test_off_until_the_owner_switches_it_on(client, owner, company_a):
     company, admin = company_a
     assert client.get("/api/members", headers=admin).status_code == 403
     me = client.get("/api/auth/me", headers=admin).json()["company"]
-    assert me["addons"] == [] and me["member_levels"] is None
+    assert "members" not in me["addons"] and me["member_levels"] is None
     assert client.get(f"/api/public/companies/{company['slug']}").json()["members"] is None
     # Only the owner switches it.
     assert client.put(f"/api/system/companies/{company['id']}/features", headers=admin, json={"members": {"on": True}}).status_code == 403
     switch_members(client, owner, company["id"])
     me = client.get("/api/auth/me", headers=admin).json()["company"]
-    assert me["addons"] == ["members"] and me["member_levels"]["vip"]["priority"] is True
+    assert "members" in me["addons"] and me["member_levels"]["vip"]["priority"] is True
     got = client.get(f"/api/system/companies/{company['id']}/features", headers=owner).json()
-    assert got["grants"]["members"]["on"] is True and not any(v["on"] for k, v in got["grants"].items() if k != "members")
+    assert got["grants"]["members"]["on"] is True and not any(v["on"] for k, v in got["grants"].items() if k not in ("members", "ai_training"))
     assert {"key": "library_analytics", "parent": "library"}.items() <= next(c for c in got["catalog"] if c["key"] == "library_analytics").items()
     # A part works only while its feature is on.
     base = f"/api/system/companies/{company['id']}/features"

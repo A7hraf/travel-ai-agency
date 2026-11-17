@@ -491,6 +491,7 @@ def create_demo_company(db: Session, name: str, slug: str, admin_email: str | No
         ai_instructions=content.instructions,
         knowledge_base=content.knowledge,
         branding=content.branding(name),
+        addons={"ai_training": {"on": True}},  # the demo shows its AI training
     )
     db.add(company)
     db.flush()

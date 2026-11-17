@@ -21,7 +21,7 @@ def test_limits_seats_prices_and_levels(client, wa, scripted, owner):
     r = client.post(f"{base}/ai-draft", headers=admin)
     assert r.status_code == 429 and "1 uses" in r.json()["detail"]
     mine = client.get("/api/features", headers=admin).json()
-    assert mine["usage"]["trip_planner"] == 1 and set(mine["grants"]) == {"trip_planner", "insights"}
+    assert mine["usage"]["trip_planner"] == 1 and set(mine["grants"]) - {"ai_training"} == {"trip_planner", "insights"}
     assert client.get(f"/api/system/companies/{cid}/features", headers=owner).json()["usage"]["trip_planner"] == 1
     assert client.put(f"/api/system/companies/{cid}/features", headers=owner, json={"nope": {"on": True}}).status_code == 422
     assert client.put(f"/api/system/companies/{cid}/features", headers=admin, json={"advisor": {"on": True}}).status_code == 403

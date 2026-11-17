@@ -127,6 +127,8 @@ class Company(Base):
     status: Mapped[str] = mapped_column(String(20), default=CompanyStatus.ACTIVE)
     # Set by the system admin: how many employee accounts this company may have.
     max_users: Mapped[int] = mapped_column(Integer, default=5)
+    # Services the company may create itself (built-in ones don't count); None: no limit of its own.
+    max_services: Mapped[int | None] = mapped_column(Integer)
     currency: Mapped[str] = mapped_column(String(3), default="OMR")
     contact_email: Mapped[str | None] = mapped_column(String(200))
     contact_phone: Mapped[str | None] = mapped_column(String(50))

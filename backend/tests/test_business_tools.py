@@ -403,7 +403,8 @@ def test_key_actions_are_logged_per_company(client, owner, two):
     assert status.detail == "pending_payment → in_progress" and status.actor == "Alpha Travel Admin"
     stored = " ".join(f"{e.target} {e.detail}" for e in events)
     assert "EAAG-very-secret-token-123" not in stored and "RCPT-778899" not in stored and "Password123" not in stored
-    assert {e.action for e in _audit(b["id"])} <= {"auth.login", "user.created"}  # its own first admin
+    # Its own first admin, and the features the platform owner gave it.
+    assert {e.action for e in _audit(b["id"])} <= {"auth.login", "user.created", "features.saved"}
 
     # The company admin's Activity page, with filters; another company sees nothing of it.
     page = client.get("/api/activity", headers=admin_a).json()

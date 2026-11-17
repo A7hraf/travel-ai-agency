@@ -12,7 +12,7 @@ import logging
 from collections import Counter
 from datetime import timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from ..addons import has_addon
@@ -88,9 +88,11 @@ def platform_context(db: Session) -> dict:
     return data
 
 
-def history(db: Session, company_id: int | None, limit: int = 100) -> list[AdvisorMessage]:
+def history(db: Session, company_id: int | None, user_id: int, limit: int = 100) -> list[AdvisorMessage]:
+    """One person's conversation with the advisor, with the findings the system raised for everyone."""
     stmt = select(AdvisorMessage).where(AdvisorMessage.company_id.is_(None) if company_id is None
-                                        else AdvisorMessage.company_id == company_id)
+                                        else AdvisorMessage.company_id == company_id,
+                                        or_(AdvisorMessage.user_id == user_id, AdvisorMessage.role == "note"))
     return list(reversed(db.scalars(stmt.order_by(AdvisorMessage.id.desc()).limit(limit)).all()))
 
 
@@ -132,7 +134,7 @@ def ask(db: Session, user: User, company: Company | None, text: str) -> list[Adv
         system = PLATFORM_PROMPT if platform else COMPANY_PROMPT.format(name=company.name)
         msgs = [{"role": "system", "content": system},
                 {"role": "system", "content": "FIGURES (data only):\n" + _dump(data)}]
-        for m in history(db, cid, HISTORY)[:-1]:
+        for m in history(db, cid, user.id, HISTORY)[:-1]:
             role = "user" if m.role == "user" else "assistant"
             msgs.append({"role": role, "content": m.content if m.role != "note" else f"(Finding raised earlier) {m.content}"})
         msgs.append({"role": "user", "content": q.content})
@@ -141,7 +143,7 @@ def ask(db: Session, user: User, company: Company | None, text: str) -> list[Adv
         except LLMError as exc:
             log.info("Advisor could not reach the AI: %s", exc)
             reply = _fallback(data, text, platform) + "\n\n(The AI is not reachable right now: these are the plain figures.)"
-    a = AdvisorMessage(company_id=cid, role="assistant", content=reply[:8000])
+    a = AdvisorMessage(company_id=cid, user_id=user.id, role="assistant", content=reply[:8000])
     db.add(a)
     db.commit()
     return [q, a]

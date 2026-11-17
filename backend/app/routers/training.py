@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from ..ai import training as service
 from ..audit import audit
 from ..database import get_db
+from ..addons import require_addon
 from ..deps import require_permission
 from ..models import User
 from ..schemas import (
@@ -23,7 +24,13 @@ from ..schemas import (
 
 router = APIRouter(prefix="/api/training", tags=["ai training"])
 
-can_train = require_permission("settings.manage")
+_settings = require_permission("settings.manage")
+
+
+def can_train(me: User = Depends(_settings)) -> User:
+    """The company admin edits the AI only when the platform owner gives the "ai_training" feature."""
+    require_addon(me.company, "ai_training")
+    return me
 MAX_EXAMPLES_PER_COMPANY = service.MAX_EXAMPLES_PER_COMPANY
 
 

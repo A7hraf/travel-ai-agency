@@ -108,7 +108,10 @@ def owner(client):
     return login(client, "owner@example.com", "OwnerPass123!")
 
 
-def make_company(client, owner, name="Blue Sky Travel", admin_email="admin@bluesky.com", max_users=5, **extra):
+def make_company(client, owner, name="Blue Sky Travel", admin_email="admin@bluesky.com", max_users=5, ai_training=True,
+                 **extra):
+    """A company with its admin's login. Like the companies that existed before it became a feature, it may
+    edit its AI (ai_training=False: a new company that may not)."""
     r = client.post(
         "/api/system/companies",
         headers=owner,
@@ -122,6 +125,9 @@ def make_company(client, owner, name="Blue Sky Travel", admin_email="admin@blues
         },
     )
     assert r.status_code == 201, r.text
+    if ai_training:
+        g = client.put(f"/api/system/companies/{r.json()['id']}/features", headers=owner, json={"ai_training": {"on": True}})
+        assert g.status_code == 200, g.text
     return r.json(), login(client, admin_email, "AdminPass123!")
 
 

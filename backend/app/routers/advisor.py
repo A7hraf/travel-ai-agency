@@ -42,7 +42,7 @@ def company_user(me: User = Depends(require_permission("reports.view"))) -> User
 
 @router.get("/api/advisor", response_model=list[MessageOut])
 def company_chat(me: User = Depends(company_user), db: Session = Depends(get_db)):
-    return _out(svc.history(db, me.company_id))
+    return _out(svc.history(db, me.company_id, me.id))
 
 
 @router.post("/api/advisor", response_model=list[MessageOut])
@@ -54,13 +54,13 @@ def company_ask(body: AskIn, me: User = Depends(company_user), db: Session = Dep
 
 @router.delete("/api/advisor", status_code=204)
 def company_clear(me: User = Depends(company_user), db: Session = Depends(get_db)):
-    db.execute(delete(AdvisorMessage).where(AdvisorMessage.company_id == me.company_id))
+    db.execute(delete(AdvisorMessage).where(AdvisorMessage.company_id == me.company_id, AdvisorMessage.user_id == me.id))
     db.commit()
 
 
 @router.get("/api/system/advisor", response_model=list[MessageOut])
-def platform_chat(_: User = Depends(require_system_admin), db: Session = Depends(get_db)):
-    return _out(svc.history(db, None))
+def platform_chat(me: User = Depends(require_system_admin), db: Session = Depends(get_db)):
+    return _out(svc.history(db, None, me.id))
 
 
 @router.post("/api/system/advisor", response_model=list[MessageOut])
@@ -70,14 +70,14 @@ def platform_ask(body: AskIn, me: User = Depends(require_system_admin), db: Sess
 
 
 @router.post("/api/system/advisor/check", response_model=list[MessageOut])
-def platform_check(_: User = Depends(require_system_admin), db: Session = Depends(get_db)):
+def platform_check(me: User = Depends(require_system_admin), db: Session = Depends(get_db)):
     """Looks for findings now (they are also looked for once a day)."""
     svc.platform_findings(db)
     db.commit()
-    return _out(svc.history(db, None))
+    return _out(svc.history(db, None, me.id))
 
 
 @router.delete("/api/system/advisor", status_code=204)
-def platform_clear(_: User = Depends(require_system_admin), db: Session = Depends(get_db)):
-    db.execute(delete(AdvisorMessage).where(AdvisorMessage.company_id.is_(None)))
+def platform_clear(me: User = Depends(require_system_admin), db: Session = Depends(get_db)):
+    db.execute(delete(AdvisorMessage).where(AdvisorMessage.company_id.is_(None), AdvisorMessage.user_id == me.id))
     db.commit()

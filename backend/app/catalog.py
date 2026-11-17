@@ -181,6 +181,7 @@ def _d(key, en, ar, required=True, per_traveller=False) -> dict:
 
 
 PASSPORT = _d("passport", "Passport copy", "صورة جواز السفر", True, True)
+CIVIL_ID = _d("civil_id", "Civil ID copy (residents)", "صورة البطاقة المدنية (للمقيمين)", False, True)
 
 
 TRAVELLERS = [_f("adults", "Adults", "البالغون", "number"), _f("children", "Children (ages)", "الأطفال (أعمارهم)", required=False)]
@@ -222,7 +223,7 @@ BUILT_IN: list[dict] = [
      "rules": "Passports must be valid for at least 6 months after the travel date.",
      "steps": [_s("docs", "Collect the documents", "جمع المستندات"), _s("submit", "Submit the application", "تقديم الطلب"),
                _s("deliver", "Send the visa to the client", "إرسال التأشيرة للعميل")],
-     "documents": [PASSPORT, _d("photo", "Personal photo (white background)", "صورة شخصية (خلفية بيضاء)", True, True),
+     "documents": [PASSPORT, CIVIL_ID, _d("photo", "Personal photo (white background)", "صورة شخصية (خلفية بيضاء)", True, True),
                    _d("bank_statement", "Bank statement (last 3 months)", "كشف حساب بنكي (آخر 3 أشهر)"),
                    _d("booking", "Flight and hotel bookings", "حجوزات الطيران والفندق", False)]},
     {"key": "embassy", "name_en": "Embassy appointment", "name_ar": "موعد السفارة", "pricing": "dynamic", "parts": ["other"],
@@ -233,7 +234,7 @@ BUILT_IN: list[dict] = [
                 _f("preferred_times", "Days and times that suit you", "الأيام والأوقات المناسبة لك", "long_text"),
                 _f("impossible_times", "Times that are not possible", "الأوقات غير الممكنة", "long_text", False),
                 *TRAVELLERS, *CONTACT],
-     "steps": [], "documents": [PASSPORT]},
+     "steps": [], "documents": [PASSPORT, CIVIL_ID]},
     {"key": "airport_assist", "name_en": "Airport assistance", "name_ar": "خدمة المساعدة في المطار", "pricing": "dynamic",
      "parts": ["other"],
      "description_en": "Meet and assist at the airport: check-in, passport control, lounge and luggage.",

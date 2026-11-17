@@ -96,7 +96,7 @@ def test_client_documents_sorted(client, wa, scripted):
     t = client.get("/api/tickets", headers=admin).json()[0]
     base = f"/api/tickets/{t['id']}"
     docs = client.get(base, headers=admin).json()["client_documents"]
-    assert [i["key"] for i in docs["items"]] == ["passport", "photo", "bank_statement", "booking"]
+    assert [i["key"] for i in docs["items"]] == ["passport", "civil_id", "photo", "bank_statement", "booking"]
     assert docs["items"][0]["need"] == 2 and docs["missing"] == 3
     # A photo captioned "passport" is filed as a passport; one without a caption waits to be sorted.
     fake.media["P1"] = (JPEG, "image/jpeg")

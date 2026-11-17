@@ -4,6 +4,7 @@ Runs at every start after create_all (which only creates missing tables). Each s
 checks first, so running it twice changes nothing.
 """
 
+import json
 import logging
 
 from sqlalchemy import Engine, inspect, or_, select, text
@@ -15,6 +16,7 @@ from .security import random_token
 log = logging.getLogger(__name__)
 
 NEW_COLUMNS = [
+    ("companies", "max_services", "INTEGER"),
     ("companies", "ai_welcome_message_ar", "TEXT"),
     ("companies", "whatsapp_app_secret", "TEXT"),
     ("companies", "whatsapp_webhook_key", "VARCHAR(64)"),
@@ -175,6 +177,7 @@ def upgrade(engine: Engine) -> None:
     from .models import Company  # noqa: PLC0415 (models import the database module)
 
     grant_customers_manage = _customers_permission_is_new(engine)  # business tools
+    grant_ai_training = _ai_training_is_new(engine)
     with engine.begin() as conn:
         if engine.dialect.name == "postgresql":
             # Several app instances may start together: only one upgrades at a time.
@@ -262,6 +265,8 @@ def upgrade(engine: Engine) -> None:
         db.commit()
     if grant_customers_manage:
         _grant_customers_manage(engine)
+    if grant_ai_training:
+        _grant_ai_training(engine)
     _upgrade_plans(engine)
 
 
@@ -273,6 +278,27 @@ def _customers_permission_is_new(engine: Engine) -> bool:
     if not {"customers", "users"} <= set(insp.get_table_names()):
         return False
     return "notes" not in {c["name"] for c in insp.get_columns("customers")}
+
+
+def _ai_training_is_new(engine: Engine) -> bool:
+    """True on the first start where editing the AI's training is a feature (companies has no max_services yet)."""
+    insp = inspect(engine)
+    if "companies" not in insp.get_table_names():
+        return False
+    return "max_services" not in {c["name"] for c in insp.get_columns("companies")}
+
+
+def _grant_ai_training(engine: Engine) -> None:
+    """Editing the AI's training became a feature the platform owner gives: the companies that could already
+    do it keep it (once; the owner can take it back), new companies start without it."""
+    with engine.begin() as conn:
+        for cid, raw in conn.execute(text("SELECT id, addons FROM companies")).all():
+            addons = json.loads(raw) if isinstance(raw, str) else (raw or {})
+            if not isinstance(addons, dict) or "ai_training" in addons:
+                continue
+            addons["ai_training"] = {"on": True}
+            value = "CAST(:a AS JSON)" if engine.dialect.name == "postgresql" else ":a"
+            conn.execute(text(f"UPDATE companies SET addons = {value} WHERE id = :id"), {"a": json.dumps(addons), "id": cid})
 
 
 def _grant_customers_manage(engine: Engine) -> None:

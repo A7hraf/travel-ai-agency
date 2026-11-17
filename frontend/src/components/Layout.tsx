@@ -52,7 +52,7 @@ const COMPANY_NAV: NavItem[] = [
   { to: "/app/partners", label: "Business accounts", icon: Handshake, permission: "partners.manage", b2b: true },
   { to: "/app/services", label: "Services", icon: ListChecks, permission: "settings.manage" },
   { to: "/app/branding", label: "Customer page design", icon: PaintBrush, permission: "settings.manage" },
-  { to: "/app/training", label: "AI training", icon: GraduationCap, permission: "settings.manage" },
+  { to: "/app/training", label: "AI training", icon: GraduationCap, permission: "settings.manage", addon: "ai_training" },
   { to: "/app/settings", label: "AI & channels", icon: WhatsappLogo, permission: "settings.manage" },
   { to: "/app/activity", label: "Activity", icon: ClockCounterClockwise, role: "company_admin" },
   { to: "/app/plan", label: "My plan", icon: Crown, role: "company_admin" },

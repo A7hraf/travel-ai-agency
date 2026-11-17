@@ -32,6 +32,18 @@ def _get(db: Session, me: User, service_id: int) -> Service:
     return service
 
 
+def _check_own_limit(db: Session, me: User) -> None:
+    """The platform owner may limit the services a company creates itself (built-in ones don't count)."""
+    limit = me.company.max_services
+    if limit is None:
+        return
+    own = len(db.scalars(select(Service.id).where(Service.company_id == me.company_id, Service.key.is_(None),
+                                                  Service.is_active.is_(True))).all())
+    if own >= limit:
+        raise HTTPException(409, f"Your plan allows {limit} services of your own. Switch one off, or ask the "
+                                 "platform to raise the limit.")
+
+
 @router.get("", response_model=list[ServiceOut])
 def list_services(me: User = Depends(get_company_user), db: Session = Depends(get_db)):
     ensure_built_in(db, me.company)
@@ -47,6 +59,8 @@ def create_service(body: ServiceIn, me: User = Depends(manager), db: Session = D
     count = len(db.scalars(select(Service.id).where(Service.company_id == me.company_id)).all())
     if count >= 50:
         raise HTTPException(409, "A company can have at most 50 services")
+    if body.is_active:
+        _check_own_limit(db, me)
     service = Service(company_id=me.company_id, position=count)
     apply(service, body)
     db.add(service)
@@ -59,6 +73,8 @@ def create_service(body: ServiceIn, me: User = Depends(manager), db: Session = D
 @router.put("/{service_id}", response_model=ServiceOut)
 def update_service(service_id: int, body: ServiceIn, me: User = Depends(manager), db: Session = Depends(get_db)):
     service = _get(db, me, service_id)
+    if service.key is None and body.is_active and not service.is_active:
+        _check_own_limit(db, me)
     if (service.pricing == "packages") != (body.pricing == "packages"):
         raise HTTPException(422, "Only the built-in packages service works with ready-made packages")
     apply(service, body)

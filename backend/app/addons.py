@@ -50,6 +50,8 @@ FEATURES: dict[str, Feature] = {
     "insights": Feature("AI insights: business analysis, customer needs and growth plan", "ai", metered=True,
                         levels=("basic", "marketing", "deep", "finance")),
     "advisor": Feature("AI advisor: a chat with the AI about the business, with its recommendations", "ai", metered=True),
+    "ai_training": Feature("The company edits its AI: knowledge, welcome message and training examples (you can always "
+                           "edit them from the company page)", "extra"),
     "page_editorial": Feature("Editorial customer page: a magazine-style design with full-width photos, large serif titles, "
                               "a strip of experiences and numbered offerings", "extra"),
     "page_more_sections": Feature("More brand sections on the customer page: mission, philosophy, our promise and questions (FAQ)", "extra"),

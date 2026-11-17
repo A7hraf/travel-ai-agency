@@ -419,9 +419,13 @@ export const AR_V2: Record<string, string> = {
   "How you see travel, in a sentence or two. The intro is shown large, with a photo band if you add one.": "نظرتكم للسفر في جملة أو جملتين. تظهر المقدمة بخط كبير، مع شريط صورة إن أضفتم صورة.",
   "What clients can count on (for example \"Attention to detail\"): one card each.": "ما يمكن للعملاء الاعتماد عليه (مثل \"الاهتمام بالتفاصيل\"): بطاقة لكل وعد.",
   "Questions clients often ask: the card title is the question, the text is the answer.": "أسئلة يطرحها العملاء كثيرًا: عنوان البطاقة هو السؤال، والنص هو الجواب.",
+  "Own services (maximum)": "خدمات الشركة الخاصة (الحد الأقصى)",
+  "{n} in use. Empty: no limit. Built-in services and the service packs you give don't count.": "{n} مستخدمة. فارغ: بلا حد. لا تُحتسب الخدمات المدمجة وحزم الخدمات التي تمنحها.",
+  "The company edits its AI: knowledge, welcome message and training examples (you can always edit them from the company page)": "تعدّل الشركة ذكاءها الاصطناعي: المعرفة ورسالة الترحيب وأمثلة التدريب (يمكنك دائمًا تعديلها من صفحة الشركة)",
 };
 
 export const AR_V2_PATTERNS: [RegExp, string][] = [
+  [/^Your plan allows (\d+) services of your own\. Switch one off, or ask the platform to raise the limit\.$/, "تسمح خطتك بـ {1} خدمات خاصة بك. أوقف إحداها، أو اطلب من المنصة رفع الحد."],
   [/^Your company used all (\d+) uses of this feature this month$/, "استخدمت شركتك كل الاستخدامات ({1}) لهذه الميزة هذا الشهر"],
   [/^Your company used all (\d+) uses of this feature in total$/, "استخدمت شركتك كل الاستخدامات ({1}) لهذه الميزة"],
   [/^All (\d+) places for this feature are taken$/, "كل الأماكن ({1}) لهذه الميزة مشغولة"],

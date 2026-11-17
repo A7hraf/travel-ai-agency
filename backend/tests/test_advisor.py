@@ -9,7 +9,7 @@ from app.ai.llm import LLMResponse, MockTravelLLM, set_llm_client
 from app.database import SessionLocal
 from app.models import Company, Ticket, utcnow
 from app.services.advisor import company_findings
-from tests.conftest import make_company
+from tests.conftest import login, make_company
 from tests.test_library import dubai_request, switch
 from tests.test_requests_flow import wa  # noqa: F401 (fixture)
 from tests.test_whatsapp import meta_stub  # noqa: F401 (fixture)
@@ -51,8 +51,21 @@ def test_company_advisor_and_findings(client, wa, scripted, owner):
     notes = [m for m in client.get("/api/advisor", headers=admin).json() if m["role"] == "note"]
     assert len(notes) == 1 and "waited more than a day" in notes[0]["content"]
     assert client.get("/api/advisor", headers=other_admin).json() == []
+
+    # Each person's chat is their own: a colleague sees the shared findings, not the admin's questions.
+    r = client.post("/api/users", headers=admin, json={"email": "analyst@bluesky.com", "full_name": "Analyst",
+                                                       "password": "Analyst-Pass-2026", "role": "ticket_agent",
+                                                       "permissions": ["reports.view", "tickets.view"]})
+    assert r.status_code == 201, r.text
+    analyst = login(client, "analyst@bluesky.com", "Analyst-Pass-2026")
+    seen = client.get("/api/advisor", headers=analyst).json()
+    assert [m["role"] for m in seen] == ["note"]
+    client.post("/api/advisor", headers=analyst, json={"text": "How many requests this week?"})
+    assert not any("How many requests" in m["content"] for m in client.get("/api/advisor", headers=admin).json())
+    # Clearing clears only your own chat; the findings stay for everyone.
     assert client.delete("/api/advisor", headers=admin).status_code == 204
-    assert client.get("/api/advisor", headers=admin).json() == []
+    assert [m["role"] for m in client.get("/api/advisor", headers=admin).json()] == ["note"]
+    assert any("How many requests" in m["content"] for m in client.get("/api/advisor", headers=analyst).json())
 
 
 def test_platform_advisor(client, owner, company_a):

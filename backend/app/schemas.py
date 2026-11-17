@@ -177,6 +177,7 @@ class CompanyCreate(BaseModel):
 class CompanyAdminUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=200)
     max_users: int | None = Field(default=None, ge=1, le=10000)
+    max_services: int | None = Field(default=None, ge=0, le=50)  # 0: no limit of its own
     status: CompanyStatus | None = None
     # The platform owner connects a number of the platform's own Meta app ("" disconnects it).
     whatsapp_phone_number_id: str | None = Field(default=None, max_length=64, pattern=r"^\d*$")
@@ -194,6 +195,8 @@ class CompanyAdminOut(ORM):
     status: str
     max_users: int
     user_count: int
+    max_services: int | None = None
+    own_services: int = 0
     currency: str
     contact_email: str | None
     contact_phone: str | None

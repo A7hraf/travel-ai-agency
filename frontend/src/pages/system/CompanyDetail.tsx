@@ -25,6 +25,7 @@ export default function CompanyDetail() {
   const [aiTab, setAiTab] = useState<TrainingTab>("answers");
   const [c, setC] = useState<CompanyAdmin | null>(null);
   const [name, setName] = useState("");
+  const [maxServices, setMaxServices] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -33,7 +34,7 @@ export default function CompanyDetail() {
   const [sheet, setSheet] = useState<"suspend" | "delete" | null>(null);
   const [typed, setTyped] = useState("");
 
-  const apply = (x: CompanyAdmin) => { setC(x); setName(x.name); };
+  const apply = (x: CompanyAdmin) => { setC(x); setName(x.name); setMaxServices(x.max_services == null ? "" : String(x.max_services)); };
   const [loadError, setLoadError] = useState<string | null>(null);
   const load = () => { setLoadError(null); get<CompanyAdmin>(`/api/system/companies/${id}`).then(apply).catch((e) => setLoadError(e.message)); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -134,11 +135,16 @@ export default function CompanyDetail() {
         <BrandingEditor owner loadPath={`/api/system/companies/${c.id}/branding`} name={c.name}
           uploadPath={`/api/system/companies/${c.id}/media`} slug={c.slug} />
       ) : (<>
-        <form className="gx-card" onSubmit={(e: FormEvent) => { e.preventDefault(); update("plan", { name }); }}>
+        <form className="gx-card" onSubmit={(e: FormEvent) => { e.preventDefault(); update("plan", { name, max_services: Number(maxServices) || 0 }); }}>
           <h2 className="gx-card-title">{t("Company")}</h2>
           <p className="gx-card-note">{t("{a} of {b} accounts used", { a: c.user_count, b: c.max_users })}</p>
           <div className="pl-name-row">
             <Field label={t("Company name")}><input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={200} dir="auto" /></Field>
+            <Field label={t("Own services (maximum)")}
+              hint={t("{n} in use. Empty: no limit. Built-in services and the service packs you give don't count.", { n: c.own_services })}>
+              <input type="number" min={0} max={50} value={maxServices} placeholder={t("No limit")} dir="ltr"
+                onChange={(e) => setMaxServices(e.target.value.replace(/\D/g, "").slice(0, 2))} />
+            </Field>
             <button className="btn btn-primary" disabled={!!busy}>{busy === "plan" ? t("Saving…") : t("Save")}</button>
           </div>
           <ErrorBox error={error} />
