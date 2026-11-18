@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from ..ai.llm import LLMError, MockTravelLLM, get_llm_client
 from ..branding import clean_text, public_branding
 from ..models import Company, Supplier, Ticket, TicketStatus as T
+from .requests import plain_text
 from ..timeutil import local_today
 from .request_desk import apply_dates_hint
 from ..trip_schemas import CATEGORIES
@@ -78,8 +79,8 @@ def quotation(db: Session, company: Company, ticket: Ticket, kind: str) -> dict:
     for o in sorted(options, key=lambda o: (order.get(o.category, 99), o.position, o.id)):
         s = suppliers.get(o.supplier_id) if o.supplier_id else None
         photos = [u for u in [o.image_url or (s.image_url if s else None), *(o.photos or [])] if u]
-        items.append({"part": o.category, "title": o.title, "provider": o.provider, "link": o.link,
-                      "details": o.details or (s.description if s else None) or None,
+        items.append({"part": o.category, "title": o.title, "provider": o.provider,
+                      "details": plain_text(o.details or (s.description if s else None), 600) or None,
                       "image_url": photos[0] if photos else None, "photos": list(dict.fromkeys(photos))[:7],
                       "stars": s.stars if s and s.category == "hotel" else None,
                       "price": float(o.price) if o.price is not None else None, "chosen": o.chosen})

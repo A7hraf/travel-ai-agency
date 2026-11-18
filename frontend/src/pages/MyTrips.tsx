@@ -3,7 +3,7 @@ import { Link, useLocation, useParams } from "react-router-dom";
 import { ApiError, download, get, post, readFileBase64 } from "../api";
 import { PART_LABELS } from "../components/requests/QuotePanel";
 import {
-  ArrowSquareOut, ChatCircleDots, Check, Crown, DownloadSimple, FilePdf, LockSimple, Paperclip, SignOut, Star, SuitcaseRolling, Translate, WhatsappLogo,
+  ChatCircleDots, Check, Crown, DownloadSimple, FilePdf, LockSimple, Paperclip, SignOut, Star, SuitcaseRolling, Translate, WhatsappLogo,
 } from "../components/Icon";
 import { moneyText } from "../components/Money";
 import { pageVars } from "../components/storefront/style";
@@ -20,7 +20,7 @@ interface Trip {
   total_price: number; currency: string; status: string; phase: "quotation" | "booking" | "upcoming" | "travelling" | "finished" | "cancelled";
   steps: { action: string; at: string }[]; rating: number | null; comment: string | null; can_rate: boolean;
   service_en: string | null; service_ar: string | null;
-  choices: { number: number; part: ServicePart; title: string; provider: string | null; link: string | null; details: string | null; price: number | null; chosen: boolean }[];
+  choices: { number: number; part: ServicePart; title: string; provider: string | null; details: string | null; price: number | null; chosen: boolean }[];
   payment_info: { en: string; ar: string } | null;
   checklist: { label_en: string; label_ar: string; done: boolean }[];
   files: { key: string; name: string; kind: string; size: number; content_type: string; at: string }[];
@@ -174,7 +174,6 @@ function TripCard({ trip, onRate, slug, token, onTrips }: {
                     <span className="mt-choice-n">{c.number}</span>
                     <span className="mt-choice-main">
                       <strong dir="auto">{c.title}</strong>{c.provider && <span className="mt-muted"> · {c.provider}</span>}
-                      {c.link && <a href={c.link} target="_blank" rel="noreferrer noopener" aria-label={t("Open link")}> <ArrowSquareOut /></a>}
                       {c.details && <span className="mt-muted mt-small" dir="auto">{c.details}</span>}
                     </span>
                     {c.price !== null && <strong className="mt-choice-price">{moneyText(c.price, trip.currency, lang)}</strong>}

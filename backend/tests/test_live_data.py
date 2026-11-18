@@ -306,3 +306,17 @@ def test_the_choices_message_is_written_for_the_client_without_links(client, own
     assert "Your honeymoon in Zanzibar" in sent and "_One short stop, you land by mid-afternoon_" in sent
     assert "💰 *980 OMR* · round trip" in sent and "💰 *2,500.500 OMR*" in sent and "★" in sent
     assert "http" not in sent and "Huda" not in writer.calls[-1][1]["content"]  # no links; the AI never gets her name
+    # Nothing the client (or the AI talking to them) sees carries a booking link: the team books.
+    from app.ai.request_tools import my_requests
+    from app.services.quotes import quotation
+    from app.ai.tools import ToolContext
+    from app.models import Company, Conversation
+    from app.timeutil import local_today
+    with SessionLocal() as db:
+        tk = db.get(Ticket, t["id"])
+        ctx = ToolContext(db=db, company=db.get(Company, company["id"]), conversation=db.get(Conversation, tk.conversation_id),
+                          customer=tk.customer, today=local_today())
+        seen = json.dumps(my_requests(ctx), ensure_ascii=False, default=str)
+        sheet = quotation(db, ctx.company, tk, "draft")["items"]
+    assert sheet and "http" not in json.dumps([{k: v for k, v in i.items() if k not in ("image_url", "photos")} for i in sheet])
+    assert "choices_waiting" in seen and "http" not in seen and "round_trip" in seen

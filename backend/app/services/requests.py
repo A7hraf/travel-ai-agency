@@ -378,6 +378,25 @@ def _nice_money(v, cur: str) -> str:
     return f"{d:,.0f} {cur}" if d == d.to_integral_value() else f"{d:,.3f} {cur}"
 
 
+def plain_text(text: str | None, limit: int = 400) -> str:
+    """Client-facing text: no links (the team books for the client), no line breaks, cut at a word."""
+    t = " ".join(_URL.sub("", text or "").split()).strip(" ·-–,;")
+    return t if len(t) <= limit else t[:limit].rsplit(" ", 1)[0] + "…"
+
+
+def client_facts(o: TripOption) -> dict:
+    """The facts of a choice the AI may mention to the client (never links, costs or notes)."""
+    f = o.facts if isinstance(o.facts, dict) else {}
+    out = {k: f[k] for k in ("stars", "rating", "reviews", "stops", "duration_min", "depart", "arrive", "airlines",
+                             "nights", "round_trip") if f.get(k) not in (None, "", [])}
+    if f.get("features"):
+        out["features"] = list(f["features"])[:3]
+    details = plain_text(o.details, 200)
+    if details:
+        out["details"] = details
+    return out
+
+
 def _plain(text: str | None, limit: int = 130) -> str:
     """One short line for the client: no links, no line breaks."""
     t = " ".join(_URL.sub("", text or "").split()).strip(" ·-–,;")

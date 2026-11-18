@@ -10,7 +10,7 @@ export interface QuotationData {
   kind: "draft" | "final"; reference: string; title: string; status: string;
   service_en: string | null; service_ar: string | null; client: string;
   destination: string | null; origin: string | null; depart: string | null; return: string | null; adults: number; children: number;
-  items: { part: ServicePart; title: string; provider: string | null; link: string | null; details: string | null;
+  items: { part: ServicePart; title: string; provider: string | null; details: string | null;
     image_url: string | null; photos?: string[]; stars: number | null; price: number | null; chosen: boolean }[];
   note_en?: string; note_ar?: string;
   currency: string; total: number | null; issued_at: string; valid_until: string;
@@ -77,7 +77,6 @@ export default function QuotationSheet({ q }: { q: QuotationData }) {
                 </div>
                 {i.provider && i.provider !== i.title && <div className="qt-muted" dir="auto">{i.provider}</div>}
                 {i.details && <p className="qt-details" dir="auto">{i.details}</p>}
-                {i.link && <div className="qt-link" dir="ltr">{i.link.replace(/^https?:\/\//, "").slice(0, 70)}</div>}
                 {show("show_photos") && (i.photos ?? []).length > 1 && (
                   <div className="qt-gallery">{(i.photos ?? []).slice(1, 7).map((u) => <img key={u} src={u} alt="" loading="lazy" />)}</div>
                 )}

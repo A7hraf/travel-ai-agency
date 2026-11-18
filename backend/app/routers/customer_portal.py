@@ -226,8 +226,8 @@ def _trip(t: Ticket, company: Company, out: TripOut) -> TripOut:
     if t.service is not None:
         out.service_en, out.service_ar = t.service.name_en, t.service.name_ar
     if t.status in SHOW_CHOICES:
-        out.choices = [{"number": n, "part": o.category, "title": o.title, "provider": o.provider, "link": o.link,
-                        "details": o.details, "price": float(o.price) if o.price is not None else None, "chosen": o.chosen}
+        out.choices = [{"number": n, "part": o.category, "title": o.title, "provider": o.provider,
+                        "details": flow.plain_text(o.details, 400) or None, "price": float(o.price) if o.price is not None else None, "chosen": o.chosen}
                        for n, o in flow.numbered(t)]
     if t.status in (TicketStatus.PENDING_PAYMENT, TicketStatus.IN_PROGRESS) and isinstance(company.payment_info, dict):
         out.payment_info = {"en": company.payment_info.get("en") or "", "ar": company.payment_info.get("ar") or ""}

@@ -416,7 +416,8 @@ def my_requests(ctx, **_) -> dict:
                 "currency": t.currency}
         if t.status == T.QUOTED:
             item["choices_waiting"] = [{"number": n, "part": o.category, "title": o.title, "provider": o.provider,
-                                        "price": float(o.price) if o.price is not None else None, "link": o.link}
+                                        "price": float(o.price) if o.price is not None else None,
+                                        "facts": flow.client_facts(o)}
                                        for n, o in flow.numbered(t)]
         if t.status == T.FINAL:
             item["final_quotation"] = {"items": [o.title for o in t.options if o.chosen], "total": float(t.total_price)}
