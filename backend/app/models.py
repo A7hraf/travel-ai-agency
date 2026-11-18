@@ -1032,7 +1032,7 @@ class RecommendationSignal(Base):
     provider: Mapped[str] = mapped_column(String(120))
     title: Mapped[str] = mapped_column(String(200))
     destination: Mapped[str | None] = mapped_column(String(120))
-    event: Mapped[str] = mapped_column(String(10))  # suggested, sent, removed, chosen
+    event: Mapped[str] = mapped_column(String(10))  # suggested, added (by staff), sent, removed, chosen
     from_ai: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
 

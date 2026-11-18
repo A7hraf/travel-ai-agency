@@ -139,7 +139,9 @@ def add_option(db: Session, ticket: Ticket, data: dict, user: User) -> None:
     _require(ticket, *EDITABLE)
     if len(ticket.options) >= MAX_OPTIONS:
         raise HTTPException(409, f"A request can have at most {MAX_OPTIONS} options")
-    ticket.options.append(TripOption(company_id=ticket.company_id, added_by="staff", **data))
+    option = TripOption(company_id=ticket.company_id, added_by="staff", **data)
+    ticket.options.append(option)
+    shared.signal(db, ticket, option, "added")  # the team's own pick: the AI learns from it too
     event(db, ticket, user.full_name, "option_added", None, f"{data['category']}: {data['title']}", user)
 
 
@@ -172,7 +174,7 @@ def ai_draft(db: Session, ticket: Ticket, company: Company, user: User) -> None:
     case = {"from": ticket.origin or "Muscat", "to": ticket.destination or answers.get("details", ""),
             "depart": ticket.departure_date, "return": ticket.return_date, "travellers": ticket.adults + ticket.children,
             "parts": parts, "budget": answers.get("budget"), "preferences": answers.get("preferences") or answers.get("details"),
-            "notes": ticket.client_note}
+            "notes": ticket.client_note, "client": planner.client_note(db, ticket)}
     # The company's own saved suppliers for this place come first.
     saved = 0
     if has_addon(company, "library"):

@@ -115,6 +115,17 @@ def guess_requirement(ticket: Ticket, hint: str | None) -> str | None:
     return found[0] if len(found) == 1 else None
 
 
+def only_missing(ticket: Ticket) -> str | None:
+    """Before the quotation is approved, a file with no clear caption is the one document still missing, when
+    exactly one is (after approval an unclear file is taken as the payment receipt)."""
+    from .request_desk import documents_view  # noqa: PLC0415
+
+    if ticket.status in PROOF_STATUSES:
+        return None
+    missing = [i["key"] for i in documents_view(ticket)["items"] if not i["done"]]
+    return missing[0] if len(missing) == 1 else None
+
+
 def client_upload(db: Session, ticket: Ticket, name: str | None, content_type: str, data: bytes,
                   actor: str = "Client", purpose: str = "auto", requirement: str | None = None,
                   hint: str | None = None) -> RequestFile:
@@ -128,7 +139,7 @@ def client_upload(db: Session, ticket: Ticket, name: str | None, content_type: s
     if requirement and requirement not in {i["key"] for i in documents_view(ticket)["items"]}:
         raise HTTPException(422, "This service has no such document")
     if purpose == "auto" and not requirement:
-        requirement = guess_requirement(ticket, hint) or guess_requirement(ticket, name)
+        requirement = guess_requirement(ticket, hint) or guess_requirement(ticket, name) or only_missing(ticket)
     if purpose == "proof" or (purpose == "auto" and not requirement and ticket.status in PROOF_STATUSES):
         if ticket.status not in PROOF_STATUSES:
             raise HTTPException(409, "Send the payment receipt after approving the quotation")
@@ -144,7 +155,9 @@ def client_upload(db: Session, ticket: Ticket, name: str | None, content_type: s
     workflow.refresh(db, ticket, actor)
     from .notifications import notify  # noqa: PLC0415
 
-    notify(db, ticket, "receipt" if kind == "payment_proof" else "client_file", text=f.name)
+    label = next((i["label_en"] for i in documents_view(ticket)["items"] if i["key"] == f.requirement), None)
+    notify(db, ticket, "receipt" if kind == "payment_proof" else "client_file",
+           text=f.name + (f" · {label}" if label else " · to sort" if kind == "client_file" else ""))
     return f
 
 
@@ -194,8 +207,10 @@ def receive_whatsapp_file(db: Session, company: Company, conversation: Conversat
     docs = documents_view(ticket)
     label = next((i["label_en"] for i in docs["items"] if i["key"] == f.requirement), None)
     missing = [i["label_en"] for i in docs["items"] if i["required"] and not i["done"]]
+    keys = ", ".join(f"{i['key']} ({i['label_en']})" for i in docs["items"])
     return (f"[The customer sent a {what}: it was kept with request {ticket.reference}"
-            + (f" as: {label}" if label else " for the team to sort") + "."
+            + (f" as: {label}" if label else
+               f". It is not clear which document it is: ask the client, then call file_document with one of: {keys}") + "."
             + (f" Still missing: {', '.join(missing)}." if missing else " All the documents needed are in.") + f"]{tail}")
 
 

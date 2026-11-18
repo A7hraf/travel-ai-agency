@@ -2,9 +2,10 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { get, post, put, del } from "../api";
 import { PageTitle } from "../components/admin/AdminUI";
-import { ArrowLeft, ChartLineUp, Check, Plus, Sparkle, Trash, WhatsappLogo } from "../components/Icon";
+import { ArrowLeft, ArrowSquareOut, ChartLineUp, Check, Plus, Sparkle, Trash, WhatsappLogo } from "../components/Icon";
 import { moneyText } from "../components/Money";
 import PaymentPlan from "../components/b2b/PaymentPlan";
+import { checkLinks } from "../components/requests/checkLinks";
 import { useAuth } from "../auth";
 import { money, PART_LABEL, PARTS, PartChip, STATUS, StatusBadge, STEP_LABEL, Thread, TripFacts } from "../components/b2b/TripParts";
 import { Empty, ErrorBox, Field, Loading } from "../components/ui";
@@ -230,6 +231,13 @@ function RequestDetail({ id }: { id: number }) {
                       <strong dir="auto">{o.title}</strong>{o.provider && <span className="muted"> · {o.provider}</span>}
                       {o.details && <div className="muted small gx-pre" dir="auto">{o.details}</div>}
                       {o.ai_reason && <div className="muted small gx-ai-why" dir="auto"><Sparkle weight="fill" /> {o.ai_reason}</div>}
+                      <div className="gx-rq-check small">
+                        <span className="muted">{t("Check:")}</span>
+                        {checkLinks(o.category, o.title, o.provider, { from: trip.origin, to: trip.destination, depart: trip.depart_date,
+                          back: trip.return_date, people: trip.travellers }).map((l) => (
+                          <a key={l.label} href={l.url} target="_blank" rel="noreferrer noopener">{l.label} <ArrowSquareOut /></a>
+                        ))}
+                      </div>
                       <div className="muted small">{o.added_by === "ai" ? <span className="gx-ai-tag">{t("AI suggestion")}</span> : o.added_by === "vendor" ? t("From the vendor") : t("Added by your team")}{o.sent_to_client && ` · ${t("sent to the client")}`}{o.chosen && ` · ${t("chosen")}`}</div>
                     </div>
                     <div className="gx-opt-prices">

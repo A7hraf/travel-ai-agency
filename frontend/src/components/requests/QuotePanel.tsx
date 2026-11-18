@@ -1,3 +1,4 @@
+import { checkLinks } from "./checkLinks";
 import { FormEvent, useEffect, useState } from "react";
 import { api, get, post, put } from "../../api";
 import ImageUpload from "../ImageUpload";
@@ -109,6 +110,8 @@ export default function QuotePanel({ ticket, onChange }: { ticket: Ticket; onCha
   const cur = ticket.currency;
   const m = (v: number | null) => (v == null ? "—" : moneyText(Number(v), cur, lang));
   const chosen = ticket.options.filter((o) => o.chosen);
+  const tripCase = { from: ticket.origin, to: ticket.destination, depart: ticket.departure_date, back: ticket.return_date,
+    people: (ticket.adults ?? 1) + (ticket.children ?? 0) };
   const chosenTotal = chosen.reduce((s, o) => s + Number(o.price ?? 0), 0);
   const picking = manage && ticket.status === "quoted" && answer === "choose";
   const tooMany = PARTS.some((p) => ticket.options.filter((o) => o.category === p && picked.includes(o.id)).length > 3);
@@ -164,6 +167,14 @@ export default function QuotePanel({ ticket, onChange }: { ticket: Ticket; onCha
                   {o.link && <a href={o.link} target="_blank" rel="noreferrer noopener" className="gx-rq-link" aria-label={t("Open link")}><ArrowSquareOut /></a>}</div>
                 {o.details && <div className="muted small" dir="auto">{o.details}</div>}
                 {o.ai_reason && <div className="muted small gx-rq-why" dir="auto"><Sparkle weight="fill" /> {o.ai_reason}</div>}
+                {editable && (
+                  <div className="gx-rq-check small">
+                    <span className="muted">{t("Check:")}</span>
+                    {checkLinks(o.category, o.title, o.provider, tripCase).map((l) => (
+                      <a key={l.label} href={l.url} target="_blank" rel="noreferrer noopener">{l.label} <ArrowSquareOut /></a>
+                    ))}
+                  </div>
+                )}
                 <div className="small">
                   {[o.added_by === "ai" && <span key="ai" className="gx-ai-tag">{t("AI suggestion")}</span>,
                     o.sent_to_client && <span key="sent" className="muted">{t("sent")}</span>,

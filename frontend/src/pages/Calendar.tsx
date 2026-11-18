@@ -4,7 +4,8 @@ import { api, get, post, put } from "../api";
 import { useAuth } from "../auth";
 import { PageTitle, Switch } from "../components/admin/AdminUI";
 import { AirplaneLanding, AirplaneTakeoff, Bell, CaretLeft, CaretRight, Plus, Trash, WarningCircle } from "../components/Icon";
-import { ErrorBox, Field, Loading } from "../components/ui";
+import { ErrorBox, Field, Loading, Modal } from "../components/ui";
+import CalendarGrid, { range, View } from "../components/calendar/CalendarGrid";
 import { useI18n } from "../lang";
 import type { User } from "../types";
 
@@ -19,20 +20,20 @@ interface Trip { kind: "departure" | "return"; date: string; ticket_id: number; 
 type Kind = "meeting" | "airport" | "call" | "visit" | "other";
 const KINDS: Record<Kind, string> = { meeting: "Meeting", airport: "Airport", call: "Call", visit: "Visit", other: "Other" };
 const REMIND = [0, 15, 30, 60, 120, 240, 1440, 2880];
+const LENGTHS = [15, 30, 45, 60, 90, 120, 180, 240, 480];
 interface ReminderSettings { staff_minutes: number; client_minutes: number; remind_client: boolean; remind_owner: boolean }
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const dayKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 /** A "datetime-local" value for the browser's time, and back to an ISO time with its zone. */
 const toLocalInput = (iso: string) => { const d = new Date(iso); return `${dayKey(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
-const fromLocalInput = (v: string) => new Date(v).toISOString();
 
-type Draft = { kind: Kind; title: string; starts: string; location: string; notes: string; ticket_id: number | null;
+type Draft = { kind: Kind; title: string; starts: string; minutes: number; location: string; notes: string; ticket_id: number | null;
   assigned_to_id: number | null; remind_minutes: number; remind_client: boolean; client_remind_minutes: number | null;
   remind_owner: boolean; status: Appt["status"] };
 
 function whenText(m: number, t: (k: string, v?: Record<string, string | number>) => string): string {
-  return m === 0 ? t("At the time") : m < 60 ? t("{n} minutes before", { n: m }) : m < 1440 ? t("{n} hours before", { n: m / 60 })
+  return m === 0 ? t("At the time") : m < 60 ? t("{n} minutes before", { n: m }) : m === 60 ? t("1 hour before") : m < 1440 ? t("{n} hours before", { n: m / 60 })
     : m === 1440 ? t("1 day before") : t("{n} days before", { n: m / 1440 });
 }
 
@@ -46,7 +47,8 @@ function Editor({ initial, id, team, onDone, onCancel }: { initial: Draft; id: n
   const save = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true); setError(null);
-    const body = { kind: d.kind, title: d.title, starts_at: fromLocalInput(d.starts), location: d.location, notes: d.notes,
+    const starts = new Date(d.starts);
+    const body = { kind: d.kind, title: d.title, starts_at: starts.toISOString(), ends_at: new Date(starts.getTime() + d.minutes * 60000).toISOString(), location: d.location, notes: d.notes,
       ticket_id: d.ticket_id, assigned_to_id: d.assigned_to_id, remind_minutes: d.remind_minutes, remind_client: d.remind_client,
       client_remind_minutes: d.client_remind_minutes, remind_owner: d.remind_owner, status: d.status };
     try { if (id) await put(`/api/calendar/${id}`, body); else await post("/api/calendar", body); onDone(); }
@@ -57,7 +59,7 @@ function Editor({ initial, id, team, onDone, onCancel }: { initial: Draft; id: n
     try { await api("DELETE", `/api/calendar/${id}`); onDone(); } catch (err) { setError((err as Error).message); }
   };
   return (
-    <form className="gx-card gx-svc-editor" onSubmit={save}>
+    <form className="gx-svc-editor" onSubmit={save}>
       <div className="gx-grid-2">
         <Field label={t("Title")}><input value={d.title} onChange={(e) => setD({ ...d, title: e.target.value })} required minLength={2} maxLength={200} dir="auto"
           placeholder={t("e.g. Meet the client at Muscat airport")} /></Field>
@@ -67,6 +69,11 @@ function Editor({ initial, id, team, onDone, onCancel }: { initial: Draft; id: n
           </select>
         </Field>
         <Field label={t("Date and time")}><input type="datetime-local" value={d.starts} onChange={(e) => setD({ ...d, starts: e.target.value })} required dir="ltr" /></Field>
+        <Field label={t("Duration")}>
+          <select value={d.minutes} onChange={(e) => setD({ ...d, minutes: Number(e.target.value) })}>
+            {[...new Set([...LENGTHS, d.minutes])].sort((a, b) => a - b).map((m) => <option key={m} value={m}>{m < 60 ? t("{n} minutes", { n: m }) : m === 60 ? t("1 hour") : t("{n} hours", { n: m / 60 })}</option>)}
+          </select>
+        </Field>
         <Field label={t("Place")}><input value={d.location} onChange={(e) => setD({ ...d, location: e.target.value })} maxLength={200} dir="auto" /></Field>
         <Field label={t("Person in charge")}>
           <select value={d.assigned_to_id ?? ""} onChange={(e) => setD({ ...d, assigned_to_id: e.target.value ? Number(e.target.value) : null })}>
@@ -167,11 +174,19 @@ function TemplateCard() {
   );
 }
 
+const VIEWS: { key: View | "list"; label: string }[] = [
+  { key: "day", label: "Day" }, { key: "week", label: "Week" }, { key: "month", label: "Month" }, { key: "list", label: "Schedule" }];
+const lengthOf = (a: Appt) => a.ends_at ? Math.max(15, Math.round((new Date(a.ends_at).getTime() - new Date(a.starts_at).getTime()) / 60000)) : 60;
+
 export default function Calendar() {
   const { t, lang } = useI18n();
   const { can, user } = useAuth();
   const [params, setParams] = useSearchParams();
-  const [month, setMonth] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
+  const [view, setViewState] = useState<View | "list">(() => {
+    try { return (localStorage.getItem("gx-cal-view") as View | "list") || "month"; } catch { return "month"; }
+  });
+  const setView = (v: View | "list") => { setViewState(v); try { localStorage.setItem("gx-cal-view", v); } catch { /* private mode */ } };
+  const [anchor, setAnchor] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); });
   const [mine, setMine] = useState(false);
   const [data, setData] = useState<{ appointments: Appt[]; trips: Trip[] } | null>(null);
   const [team, setTeam] = useState<User[]>([]);
@@ -179,13 +194,16 @@ export default function Calendar() {
   useEffect(() => { get<ReminderSettings>("/api/calendar/settings/reminders").then(setReminders).catch(() => {}); }, []);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<number | "new" | null>(params.get("new") ? "new" : null);
+  const [slot, setSlot] = useState<string | null>(null);
   const manage = can("tickets.manage");
-  const end = new Date(month.getFullYear(), month.getMonth() + 1, 0);
-  const load = () => get<{ appointments: Appt[]; trips: Trip[] }>(`/api/calendar?start=${dayKey(month)}&end=${dayKey(end)}${mine ? "&mine=true" : ""}`)
+  const [from, to] = view === "list" ? [new Date(anchor.getFullYear(), anchor.getMonth(), 1), new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0)]
+    : range(view, anchor, lang);
+  const load = () => get<{ appointments: Appt[]; trips: Trip[] }>(`/api/calendar?start=${dayKey(from)}&end=${dayKey(to)}${mine ? "&mine=true" : ""}`)
     .then((x) => { setData(x); setError(null); }).catch((e) => setError((e as Error).message));
-  useEffect(() => { load(); }, [month, mine]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [dayKey(from), dayKey(to), mine]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { get<User[]>("/api/team").then(setTeam).catch(() => {}); }, []);
-  const done = () => { setOpen(null); setParams({}); load(); };
+  const close = () => { setOpen(null); setSlot(null); setParams({}); };
+  const done = () => { close(); load(); };
 
   const days = useMemo(() => {
     const map = new Map<string, { appts: Appt[]; trips: Trip[] }>();
@@ -194,34 +212,78 @@ export default function Calendar() {
     data?.trips.forEach((tr) => at(tr.date).trips.push(tr));
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [data]);
-  const monthName = month.toLocaleDateString(lang === "ar" ? "ar-OM" : "en-GB", { month: "long", year: "numeric" });
-  const dayName = (k: string) => new Date(`${k}T12:00:00`).toLocaleDateString(lang === "ar" ? "ar-OM" : "en-GB", { weekday: "long", day: "numeric", month: "long" });
-  const time = (iso: string) => new Date(iso).toLocaleTimeString(lang === "ar" ? "ar-OM" : "en-GB", { hour: "2-digit", minute: "2-digit" });
+  const loc = lang === "ar" ? "ar-OM" : "en-GB";
+  const title = view === "day" ? anchor.toLocaleDateString(loc, { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+    : view === "week" ? (from.getMonth() === to.getMonth()
+      ? `${from.toLocaleDateString(loc, { day: "numeric" })} – ${to.toLocaleDateString(loc, { day: "numeric", month: "long", year: "numeric" })}`
+      : `${from.toLocaleDateString(loc, { day: "numeric", month: "short" })} – ${to.toLocaleDateString(loc, { day: "numeric", month: "short", year: "numeric" })}`)
+    : anchor.toLocaleDateString(loc, { month: "long", year: "numeric" });
+  const step = (n: number) => setAnchor(view === "day" ? new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() + n)
+    : view === "week" ? new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() + 7 * n)
+      : new Date(anchor.getFullYear(), anchor.getMonth() + n, 1));
+  const dayName = (k: string) => new Date(`${k}T12:00:00`).toLocaleDateString(loc, { weekday: "long", day: "numeric", month: "long" });
+  const time = (iso: string) => new Date(iso).toLocaleTimeString(loc, { hour: "2-digit", minute: "2-digit" });
   const today = dayKey(new Date());
   const ticketParam = params.get("ticket");
-  const newDraft: Draft = { kind: "meeting", title: params.get("title") ?? "", starts: `${today}T10:00`, location: "", notes: "",
+  const newDraft: Draft = { kind: "meeting", title: params.get("title") ?? "", starts: slot ?? `${today}T10:00`, minutes: 60, location: "", notes: "",
     ticket_id: ticketParam ? Number(ticketParam) : null, assigned_to_id: null, remind_minutes: reminders?.staff_minutes ?? 60,
     remind_client: reminders?.remind_client ?? false, client_remind_minutes: reminders?.client_minutes ?? null,
     remind_owner: reminders?.remind_owner ?? false, status: "planned" };
+  const editing = typeof open === "number" ? data?.appointments.find((a) => a.id === open) : undefined;
+  const draftOf = (a: Appt): Draft => ({ kind: a.kind, title: a.title, starts: toLocalInput(a.starts_at), minutes: lengthOf(a), location: a.location,
+    notes: a.notes, ticket_id: a.ticket_id, assigned_to_id: a.assigned_to_id, remind_minutes: a.remind_minutes, remind_client: a.remind_client,
+    client_remind_minutes: a.client_remind_minutes, remind_owner: a.remind_owner, status: a.status });
+  /** Dragged to another day or time: the same appointment, moved (its reminders are sent again for the new time). */
+  const move = async (id: number, starts: Date) => {
+    const a = data?.appointments.find((x) => x.id === id);
+    if (!a || starts.getTime() === new Date(a.starts_at).getTime()) return;
+    const ends = new Date(starts.getTime() + lengthOf(a) * 60000);
+    setData((d) => d && { ...d, appointments: d.appointments.map((x) => x.id === id ? { ...x, starts_at: starts.toISOString(), ends_at: ends.toISOString() } : x) });
+    try {
+      await put(`/api/calendar/${id}`, { kind: a.kind, title: a.title, starts_at: starts.toISOString(), ends_at: ends.toISOString(), location: a.location,
+        notes: a.notes, ticket_id: a.ticket_id, assigned_to_id: a.assigned_to_id, remind_minutes: a.remind_minutes, remind_client: a.remind_client,
+        client_remind_minutes: a.client_remind_minutes, remind_owner: a.remind_owner, status: a.status });
+    } catch (e) { setError((e as Error).message); }
+    load();
+  };
 
   return (
-    <div className="narrow gx-narrow">
+    <div className={view === "list" ? "narrow gx-narrow" : "gx-cal-wide"}>
       <PageTitle kicker={t("Agency workspace")} title={t("Calendar")}
         subtitle={t("Meetings, airport pick-ups and calls, with reminders on WhatsApp, and the trips leaving or coming back.")}
-        actions={manage ? <button type="button" className="btn btn-primary" onClick={() => setOpen("new")}><Plus />{t("New appointment")}</button> : undefined} />
+        actions={manage ? <button type="button" className="btn btn-primary" onClick={() => { setSlot(null); setOpen("new"); }}><Plus />{t("New appointment")}</button> : undefined} />
       {!user?.whatsapp_number && (
         <p className="gx-rq-hint" role="note"><Bell weight="fill" /> <span>{t("Add your WhatsApp number in My account to get your reminders.")} <Link to="/app/account">{t("My account")}</Link></span></p>
       )}
       <div className="gx-cal-bar">
-        <button type="button" className="icon-btn" aria-label={t("Previous month")} onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}><CaretLeft className="flip" /></button>
-        <strong className="gx-cal-month">{monthName}</strong>
-        <button type="button" className="icon-btn" aria-label={t("Next month")} onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}><CaretRight className="flip" /></button>
+        <button type="button" className="btn btn-soft btn-sm" onClick={() => { const d = new Date(); setAnchor(new Date(d.getFullYear(), d.getMonth(), d.getDate())); }}>{t("Today")}</button>
+        <button type="button" className="icon-btn" aria-label={t("Previous")} onClick={() => step(-1)}><CaretLeft className="flip" /></button>
+        <button type="button" className="icon-btn" aria-label={t("Next")} onClick={() => step(1)}><CaretRight className="flip" /></button>
+        <strong className="gx-cal-month" aria-live="polite">{title}</strong>
         <span className="spacer" />
         <button type="button" className={`gx-chip ${mine ? "on" : ""}`} aria-pressed={mine} onClick={() => setMine(!mine)}>{t("Only mine")}</button>
+        <div className="gx-seg" role="group" aria-label={t("View")}>
+          {VIEWS.map((v) => <button key={v.key} type="button" className={view === v.key ? "on" : ""} aria-pressed={view === v.key} onClick={() => setView(v.key)}>{t(v.label)}</button>)}
+        </div>
       </div>
-      {open === "new" && <Editor initial={newDraft} id={null} team={team} onDone={done} onCancel={() => { setOpen(null); setParams({}); }} />}
+      {view !== "list" && (
+        <div className="gx-cal-legend small muted" aria-hidden="true">
+          {(Object.keys(KINDS) as Kind[]).map((k) => <span key={k}><i className={`k-${k}`} />{t(KINDS[k])}</span>)}
+          <span><i className="k-trip" />{t("Trips")}</span>
+        </div>
+      )}
+      {open !== null && (open === "new" || editing) && (
+        <Modal title={open === "new" ? t("New appointment") : t("Appointment")} onClose={close}>
+          <Editor key={String(open) + (slot ?? "")} initial={editing ? draftOf(editing) : newDraft} id={editing ? editing.id : null} team={team} onDone={done} onCancel={close} />
+        </Modal>
+      )}
       <ErrorBox error={error} onRetry={load} />
-      {!data ? (!error && <Loading height={200} />) : days.length === 0 ? (
+      {!data ? (!error && <Loading height={200} />) : view !== "list" ? (
+        <CalendarGrid view={view} anchor={anchor} appts={data.appointments} trips={data.trips} canEdit={manage}
+          onOpen={(id) => manage && setOpen(id)} onMove={move}
+          onNew={(k, m) => { setSlot(`${k}T${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`); setOpen("new"); }}
+          onDay={(k) => { const [y, mo, d] = k.split("-").map(Number); setAnchor(new Date(y, mo - 1, d)); setView("day"); }} />
+      ) : days.length === 0 ? (
         <p className="muted">{t("Nothing this month.")}</p>
       ) : (
         <ol className="gx-cal-days">
@@ -237,12 +299,7 @@ export default function Calendar() {
                     </Link>
                   </li>
                 ))}
-                {v.appts.map((a) => open === a.id ? (
-                  <li key={a.id}><Editor id={a.id} team={team} onDone={done} onCancel={() => setOpen(null)} initial={{
-                    kind: a.kind, title: a.title, starts: toLocalInput(a.starts_at), location: a.location, notes: a.notes, ticket_id: a.ticket_id,
-                    assigned_to_id: a.assigned_to_id, remind_minutes: a.remind_minutes, remind_client: a.remind_client,
-                    client_remind_minutes: a.client_remind_minutes, remind_owner: a.remind_owner, status: a.status }} /></li>
-                ) : (
+                {v.appts.map((a) => (
                   <li key={a.id} className={`gx-cal-item ${a.status}`}>
                     <span className="gx-cal-time tnum">{time(a.starts_at)}</span>
                     <button type="button" className="gx-cal-open" disabled={!manage} onClick={() => setOpen(a.id)}>

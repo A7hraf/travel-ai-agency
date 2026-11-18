@@ -435,6 +435,18 @@ export const AR_V2: Record<string, string> = {
   "Words from your clients: the text is the quote, the title their name, the short line their trip or city. Add a photo if they agree.": "كلمات عملائك: النص هو الاقتباس، والعنوان اسم العميل، والسطر القصير رحلته أو مدينته. أضف صورة إن وافق.",
   "Editorial designs for the customer page: \"Editorial\" (magazine style) and \"Members club\" (light, refined, with testimonials), ready to choose and change": "تصاميم تحريرية لصفحة العملاء: \"تحريري\" (بأسلوب المجلات) و\"نادي الأعضاء\" (فاتح وراقٍ مع آراء العملاء)، جاهزة للاختيار والتعديل",
   "More brand sections on the customer page: mission, philosophy, our promise, testimonials and questions (FAQ)": "أقسام إضافية للعلامة في صفحة العملاء: الرسالة والفلسفة ووعدنا وآراء العملاء والأسئلة الشائعة",
+  "Duration": "المدة",
+  "{n} minutes": "{n} دقيقة",
+  "1 hour": "ساعة واحدة",
+  "Previous": "السابق",
+  "View": "العرض",
+  "Appointment": "الموعد",
+  "Month": "شهر",
+  "{n} more": "{n} أخرى",
+  "Check:": "تحقق في:",
+  "Week": "أسبوع",
+  "Schedule": "جدول المواعيد",
+  "1 hour before": "قبل ساعة",
 };
 
 export const AR_V2_PATTERNS: [RegExp, string][] = [

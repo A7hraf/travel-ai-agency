@@ -752,3 +752,5 @@ svg.warn { color: var(--st-waiting); }
 .gx-stars button { border: 0; background: none; font-size: 28px; line-height: 1; color: var(--line-strong, #c9c9c9); cursor: pointer; padding: 2px; }
 .gx-stars button.on { color: #e0a526; }
 .gx-stars button:disabled { cursor: default; }
+.gx-rq-check { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 4px 0 2px; align-items: center; }
+.gx-rq-check a { display: inline-flex; align-items: center; gap: 4px; }
