@@ -15,13 +15,13 @@ from datetime import timedelta
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from ..addons import has_addon
+from ..addons import grant, has_addon
 from ..ai.llm import LLMError, MockTravelLLM, clean_content, get_llm_client
 from ..models import (
     AdvisorMessage, Company, CompanyStatus, ErrorEvent, Service, Ticket, TicketStatus as T, User, utcnow,
 )
 from ..timeutil import local_today
-from .insights import company_metrics, platform_overview
+from .insights import LEVEL_KEYS, company_metrics, for_levels, platform_overview
 from .requests import WAITING_FOR_STAFF
 
 log = logging.getLogger(__name__)
@@ -50,7 +50,10 @@ def _dump(data: dict) -> str:
 
 
 def company_context(db: Session, company: Company) -> dict:
-    m = company_metrics(db, company, days=90, private=True)  # the owner's own data
+    """The figures the advisor may use: only the levels the platform owner opened to this company for the
+    advisor (none ticked: all), so nobody can ask the AI for what their company was not given."""
+    levels = list(grant(company, "advisor").levels) or list(LEVEL_KEYS)
+    m = for_levels(company_metrics(db, company, days=90, private=True), levels)
     since = utcnow() - timedelta(hours=24)
     waiting = db.scalars(select(Ticket).where(Ticket.company_id == company.id, Ticket.status.in_(WAITING_FOR_STAFF))).all()
     m["now"] = {
@@ -63,15 +66,20 @@ def company_context(db: Session, company: Company) -> dict:
         "services": [s.name_en for s in db.scalars(select(Service).where(Service.company_id == company.id,
                                                                          Service.is_active.is_(True))).all()],
     }
-    if has_addon(company, "library_analytics"):
+    if has_addon(company, "library_analytics") and {"marketing", "deep"} & set(levels):
         from .library import stats  # noqa: PLC0415
 
         st = stats(db, company.id, 365)
         m["suppliers"] = {"top": st["suppliers"][:10], "by_part": st["by_part"], "hotel_stars": st["hotel_stars"]}
-    if has_addon(company, "library_margins"):
+    if has_addon(company, "library_margins") and "finance" in levels:
         from .library import margins  # noqa: PLC0415
 
         m["usual_margins"] = margins(db, company.id)
+    if has_addon(company, "client_segments"):
+        from .segments import client_segments  # noqa: PLC0415
+
+        seg = client_segments(db, company, local_today(), grant(company, "client_segments").levels)
+        m["client_groups"] = {s["key"]: s["count"] for s in seg["segments"]}  # counts only
     return m
 
 
@@ -85,6 +93,13 @@ def platform_context(db: Session) -> dict:
     data["errors_last_7_days"] = [{"source": s, "where": p, "type": e, "count": int(n or 0)} for s, p, e, n in errors]
     for row in data["companies"]:  # the owner's view: no customer data, keep it short
         row.pop("slug", None)
+    from .segments import market  # noqa: PLC0415
+
+    mk = market(db, local_today(), 365)  # the platform owner's AI alone sees the market across every company
+    data["market"] = {k: mk[k] for k in ("funnel", "destinations", "season", "partners", "lost_reasons",
+                                         "booking_window_days", "ai_learning")}
+    data["market"]["destinations"] = mk["destinations"][:12]
+    data["market"]["partners"] = mk["partners"][:15]
     return data
 
 
@@ -108,8 +123,9 @@ def _fallback(data: dict, question: str, platform: bool) -> str:
         if data.get("errors_last_7_days"):
             lines.append(f"Errors this week: {sum(e['count'] for e in data['errors_last_7_days'])}. Check System health.")
         return "\n".join(lines)
-    b, now = data["bookings"], data["now"]
-    lines = [f"Last {data['days']} days: {b['total']} requests, {b['paid_or_confirmed']} paid, revenue {b['revenue']} {data['currency']}."]
+    b, now = data.get("bookings") or {}, data["now"]
+    lines = [f"Last {data.get('days', 90)} days: {b.get('total', 0)} requests, {b.get('paid_or_confirmed', 0)} paid"
+             + (f", revenue {b['revenue']} {data.get('currency', '')}." if "revenue" in b else ".")]
     if now["requests_waiting_for_team"]:
         lines.append(f"{now['requests_waiting_for_team']} requests are waiting for your team "
                      f"({now['waiting_more_than_a_day']} for more than a day): answer those first.")

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..addons import require_addon, use
+from ..addons import require_addon, use, user_may
 from ..audit import audit
 from ..database import get_db
 from ..deps import get_company_user
@@ -31,8 +31,22 @@ def history(me: User = Depends(manager), db: Session = Depends(get_db)):
              "skipped": b.skipped, "created_by": b.created_by, "created_at": b.created_at} for b in rows]
 
 
+def _check_segment(me: User, audience: svc.Audience) -> None:
+    """A group from Client segments needs that feature with its targeting level."""
+    if audience.segment is None:
+        return
+    from .segments import levels  # noqa: PLC0415
+    from ..services.segments import SEGMENTS  # noqa: PLC0415
+
+    if audience.segment not in SEGMENTS:
+        raise HTTPException(422, "Unknown client group")
+    if not user_may(me, "client_segments") or "targeting" not in levels(me):
+        raise HTTPException(403, "Messages to a client group are not switched on for your company. Ask the platform admin.")
+
+
 @router.post("/preview")
 def preview(body: svc.Audience, me: User = Depends(manager), db: Session = Depends(get_db)):
+    _check_segment(me, body)
     people = svc.recipients(db, me.company, body, local_today())
     return {"count": len(people), "sample": [c.name or f"+{c.whatsapp_id}" for c in people[:5]], "limit": svc.MAX_RECIPIENTS}
 
@@ -40,6 +54,7 @@ def preview(body: svc.Audience, me: User = Depends(manager), db: Session = Depen
 @router.post("", status_code=201)
 def send(body: svc.BroadcastIn, me: User = Depends(manager), db: Session = Depends(get_db)):
     limiter.check(f"broadcast:{me.company_id}", 5, "Wait a little before sending another message to many clients", window=3600)
+    _check_segment(me, body.audience)
     use(db, me, "broadcasts")
     b = svc.send(db, me.company, body, me, local_today())
     audit(db, me, "broadcast.sent", detail=f"{b.kind}: {b.sent} sent, {b.skipped} not reached", commit=True)

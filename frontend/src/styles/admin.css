@@ -1073,3 +1073,31 @@ a.now-waiting:hover { background: color-mix(in srgb, var(--st-waiting-tint) 18%,
   .gx-cg-head, .gx-cg-allday, .gx-cg-body { grid-template-columns: 40px repeat(var(--cols), minmax(0, 1fr)); }
 }
 @media (prefers-reduced-motion: reduce) { .gx-cg-ev { transition: none; } }
+
+/* Client segments */
+.gx-seg-list { display: flex; flex-direction: column; gap: 12px; }
+.gx-seg-card { padding: 0; overflow: hidden; }
+.gx-seg-card > .gx-form-actions { padding: 0 18px 16px; }
+.gx-seg-head { all: unset; box-sizing: border-box; cursor: pointer; width: 100%; text-align: start; display: flex; align-items: center; gap: 16px; padding: 16px 18px; }
+.gx-seg-head:disabled { cursor: default; }
+.gx-seg-head:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.gx-seg-count { flex: none; min-width: 48px; height: 48px; padding: 0 8px; box-sizing: border-box; border-radius: 14px; display: grid; place-items: center;
+  font-size: 20px; font-weight: 700; background: var(--brand-soft); color: var(--text); }
+.gx-seg-card.empty .gx-seg-count { background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text-faint); }
+.gx-seg-text { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.gx-seg-head svg { transition: transform .2s; }
+.gx-seg-head .gx-rot { transform: rotate(180deg); }
+.gx-seg-table { overflow-x: auto; padding: 0 6px 6px; }
+.gx-seg-table table { width: 100%; }
+
+/* Owner: market */
+.gx-mk-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.gx-mk-card { display: flex; flex-direction: column; gap: 6px; margin: 0; }
+.gx-mk-card strong { font-size: 22px; }
+.gx-mk-bars { display: flex; align-items: flex-end; gap: 6px; height: 180px; padding-top: 8px; overflow-x: auto; }
+.gx-mk-bar { flex: 1 0 34px; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; }
+.gx-mk-bar i { width: 100%; max-width: 34px; min-height: 0; border-radius: 6px 6px 2px 2px; background: var(--brand); }
+.gx-mk-hot td:first-child { font-weight: 700; }
+.gx-mk-hot td:first-child::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--st-confirmed); margin-inline-end: 8px; }
+.gx-mk-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.gx-mk-list li { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line, rgba(127,127,127,.18)); }

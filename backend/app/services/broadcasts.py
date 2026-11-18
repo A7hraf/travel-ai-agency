@@ -29,6 +29,7 @@ class Audience(BaseModel):
     service_id: int | None = None  # clients who asked for this service
     travelled_within_days: int | None = Field(default=None, ge=1, le=730)  # a trip ended in the last N days
     booked: bool | None = None  # True: booked at least once; False: never booked
+    segment: str | None = Field(default=None, max_length=20)  # a client group (Client segments, targeting level)
 
 
 class BroadcastIn(BaseModel):
@@ -76,6 +77,11 @@ def recipients(db: Session, company: Company, audience: Audience, today: date) -
             return True
 
         rows = [c for c in rows if keep(c)]
+    if audience.segment:
+        from .segments import segment_ids  # noqa: PLC0415
+
+        ids = segment_ids(db, company, audience.segment, today)
+        rows = [c for c in rows if c.id in ids]
     return rows[:MAX_RECIPIENTS]
 
 

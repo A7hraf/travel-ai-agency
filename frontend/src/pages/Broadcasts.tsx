@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { get, post } from "../api";
 import { useAuth } from "../auth";
 import { PageTitle } from "../components/admin/AdminUI";
@@ -10,7 +11,8 @@ import { useI18n } from "../lang";
 import type { MemberLevel, Service } from "../types";
 import { dateTime } from "../util";
 
-interface Audience { member_levels: string[]; tag: string | null; service_id: number | null; travelled_within_days: number | null; booked: boolean | null }
+interface Audience { member_levels: string[]; tag: string | null; service_id: number | null; travelled_within_days: number | null; booked: boolean | null; segment: string | null }
+interface Group { key: string; label_en: string; label_ar: string; count: number }
 interface Sent { id: number; kind: string; text_en: string; text_ar: string; sent: number; skipped: number; created_by: string; created_at: string }
 
 /** One message to a group of clients on WhatsApp (an offer, news), or a feedback request about their last trip. */
@@ -22,7 +24,14 @@ export default function Broadcasts() {
   const [kind, setKind] = useState<"message" | "feedback">("message");
   const [textEn, setTextEn] = useState("");
   const [textAr, setTextAr] = useState("");
-  const [aud, setAud] = useState<Audience>({ member_levels: [], tag: null, service_id: null, travelled_within_days: null, booked: null });
+  const [params] = useSearchParams();
+  const [aud, setAud] = useState<Audience>({ member_levels: [], tag: null, service_id: null, travelled_within_days: null, booked: null,
+    segment: params.get("segment") });
+  const [groups, setGroups] = useState<Group[]>([]);
+  useEffect(() => {
+    if (!user?.company?.addons?.includes("client_segments")) return;
+    get<{ segments: Group[]; can_target: boolean }>("/api/segments").then((d) => setGroups(d.can_target ? d.segments : [])).catch(() => {});
+  }, [user?.company?.addons]);
   const [preview, setPreview] = useState<{ count: number; sample: string[] } | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [history, setHistory] = useState<Sent[]>([]);
@@ -71,6 +80,14 @@ export default function Broadcasts() {
           ))}
         </div>
         <div className="gx-grid-2">
+          {groups.length > 0 && (
+            <Field label={t("Client group")}>
+              <select value={aud.segment ?? ""} onChange={(e) => set({ segment: e.target.value || null })}>
+                <option value="">{t("Any group")}</option>
+                {groups.map((g) => <option key={g.key} value={g.key}>{lang === "ar" ? g.label_ar : g.label_en} ({g.count})</option>)}
+              </select>
+            </Field>
+          )}
           <Field label={t("Label")}><input value={aud.tag ?? ""} maxLength={40} dir="auto" onChange={(e) => set({ tag: e.target.value || null })} placeholder={t("For example VIP, family")} /></Field>
           <Field label={t("Asked for this service")}>
             <select value={aud.service_id ?? ""} onChange={(e) => set({ service_id: e.target.value ? Number(e.target.value) : null })}>

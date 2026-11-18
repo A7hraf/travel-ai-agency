@@ -41,6 +41,9 @@ FEATURES: dict[str, Feature] = {
     "calendar": Feature("Calendar and reminders: appointments, airport meetings and reminders on WhatsApp", "tab"),
     "calendar_client_reminders": Feature("Reminders to clients on WhatsApp", "part", "calendar"),
     "broadcasts": Feature("Broadcasts and custom feedback to groups of clients", "tab"),
+    "client_segments": Feature("Client segments: VIP, frequent, travelling soon, lost after a quotation, quiet for a year; "
+                               "who usually travels next; targeted messages to a group", "tab",
+                               levels=("segments", "predictions", "targeting")),
     "trip_planner": Feature("AI trip planner: drafts up to 3 choices per part (with web search) and learns from your team", "ai", metered=True),
     "plan_writer": Feature("AI day-by-day trip plans", "ai", metered=True),
     "quote_writer": Feature("AI writes the messages and quotation details the team sends to clients", "ai", metered=True),
@@ -49,7 +52,8 @@ FEATURES: dict[str, Feature] = {
     "daily_brief": Feature("AI work plan for each employee: today, this week, this month", "ai", metered=True),
     "insights": Feature("AI insights: business analysis, customer needs and growth plan", "ai", metered=True,
                         levels=("basic", "marketing", "deep", "finance")),
-    "advisor": Feature("AI advisor: a chat with the AI about the business, with its recommendations", "ai", metered=True),
+    "advisor": Feature("AI advisor: a chat with the AI about the business, with its recommendations (it sees only the "
+                       "figures of the levels you tick)", "ai", metered=True, levels=("basic", "marketing", "deep", "finance")),
     "ai_training": Feature("The company edits its AI: knowledge, welcome message and training examples (you can always "
                            "edit them from the company page)", "extra"),
     "page_editorial": Feature("Editorial designs for the customer page: \"Editorial\" (magazine style) and \"Members club\" "
@@ -72,7 +76,8 @@ class Grant(BaseModel):
     period: Literal["month", "total"] = "month"
     seats: int | None = Field(default=None, ge=1, le=10_000)  # employees allowed (None: every staff member)
     price: Decimal | None = Field(default=None, ge=0, le=Decimal("1000000"), decimal_places=3)  # per month
-    levels: list[Literal["basic", "marketing", "deep", "finance"]] = Field(default_factory=list)
+    levels: list[Literal["basic", "marketing", "deep", "finance", "segments", "predictions", "targeting"]] = Field(
+        default_factory=list)  # what the feature shows or allows; each feature has its own (none ticked: all)
 
 
 def grants(company: Company) -> dict[str, Grant]:

@@ -3,4 +3,5 @@ export interface Grant { on: boolean; limit: number | null; period: "month" | "t
 export interface FeatureState { catalog: FeatureInfo[]; grants: Record<string, Grant>; usage: Record<string, number>; seats?: Record<string, number[]> }
 export const LEVEL_LABELS: Record<string, string> = {
   basic: "Basic figures", marketing: "Marketing data", deep: "Deep analysis", finance: "Finance",
+  segments: "Client groups", predictions: "Who travels next", targeting: "Messages to a group",
 };

@@ -56,6 +56,10 @@ def save_features(company_id: int, body: dict[str, Grant], me: User = Depends(re
     unknown = set(body) - set(FEATURES)
     if unknown:
         raise HTTPException(422, f"Unknown feature: {', '.join(sorted(unknown))}")
+    for key, g in body.items():
+        wrong = set(g.levels) - set(FEATURES[key].levels)
+        if wrong:
+            raise HTTPException(422, f"{key} has no level {', '.join(sorted(wrong))}")
     current = grants(company)
     pack_was = current["concierge_services"].on
     current.update(body)
