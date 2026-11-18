@@ -398,6 +398,7 @@ export interface TicketOption {
   cost_price: number | null; price: number | null; estimate_price: number | null; ai_reason: string | null;
   added_by: "staff" | "ai" | "vendor"; sent_to_client: boolean; chosen: boolean;
   supplier_id: number | null; image_url: string | null; photos?: string[] | null;
+  source?: string | null; facts?: import("./components/requests/LiveCard").LiveFacts | null;
 }
 
 export interface Supplier {
@@ -823,6 +824,9 @@ export interface StaffTripOption {
   cost_price: Amount; price: Amount; added_by: "vendor" | "staff" | "ai"; sent_to_client: boolean; chosen: boolean;
   /** The AI planner's estimate and reason (staff only). */
   estimate_price?: Amount; ai_reason?: string | null;
+  /** Live data for the card: booking link, photos, where it came from and its facts. */
+  link?: string | null; image_url?: string | null; photos?: string[] | null; source?: string | null;
+  facts?: import("./components/requests/LiveCard").LiveFacts | null;
 }
 
 export interface StaffTrip extends TripCommon {

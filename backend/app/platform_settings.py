@@ -46,6 +46,8 @@ DEFINITIONS: dict[str, SettingDef] = {d.key: d for d in [
     SettingDef("whatsapp_verify_token", "whatsapp"),
     SettingDef("whatsapp_api_version", "whatsapp"),
     SettingDef("whatsapp_share_default_token", "whatsapp", kind="bool"),
+    SettingDef("serpapi_api_key", "travel", secret=True),
+    SettingDef("viator_api_key", "travel", secret=True),
 ]}
 
 _lock = threading.Lock()

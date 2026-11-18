@@ -194,14 +194,15 @@ def ai_draft(db: Session, ticket: Ticket, company: Company, user: User) -> None:
     if room <= 0:
         event(db, ticket, user.full_name, "ai_drafted", None, f"{saved} options from the library", user)
         return
-    cleaned, searched = planner.suggest(db, company, case, room)
+    from .live_data import LiveSession  # noqa: PLC0415
+
+    live = LiveSession.start(db, user, company)
+    cleaned, searched = planner.suggest(db, company, case, room, live)
     for opt in cleaned:
-        option = TripOption(company_id=ticket.company_id, category=opt["category"], title=opt["title"],
-                            provider=opt["provider"], details=opt["details"], estimate_price=opt["estimate_price"],
-                            ai_reason=opt["reason"], added_by="ai")
+        option = TripOption(company_id=ticket.company_id, added_by="ai", **planner.option_fields(opt))
         ticket.options.append(option)
         shared.signal(db, ticket, option, "suggested")
-    event(db, ticket, user.full_name, "ai_drafted", None, f"{len(cleaned) + saved} options" + (" · web search" if searched else "")
+    event(db, ticket, user.full_name, "ai_drafted", None, f"{len(cleaned) + saved} options" + planner.draft_note(searched, live)
           + (f" · {saved} from the library" if saved else ""), user)
 
 

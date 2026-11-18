@@ -1,4 +1,5 @@
 import { checkLinks } from "./checkLinks";
+import { isLive, LiveDetails, LivePhotos, LiveUsage, liveMoney } from "./LiveCard";
 import { FormEvent, useEffect, useState } from "react";
 import { api, get, post, put } from "../../api";
 import ImageUpload from "../ImageUpload";
@@ -141,6 +142,7 @@ export default function QuotePanel({ ticket, onChange }: { ticket: Ticket; onCha
             <Sparkle weight="fill" />{busy ? t("The AI is searching…") : t("Draft choices with AI")}
           </button>
         )}
+        {editable && planner && <LiveUsage />}
       </div>
       {addons.includes("quotes") && ticket.options.some((o) => o.price != null) && <QuoteTools ticket={ticket} onChange={onChange} />}
       {editable && <p className="muted small">{t("Tick up to 3 choices per part. Every choice sent needs its client price; AI estimates are for you only.")}</p>}
@@ -160,13 +162,16 @@ export default function QuotePanel({ ticket, onChange }: { ticket: Ticket; onCha
                 onChange={() => setPicked(picked.includes(o.id) ? picked.filter((x) => x !== o.id) : [...picked, o.id])} />}
               {picking && o.sent_to_client && <input type="radio" name={`pick-${ticket.id}-${o.category}`} checked={clientPick[o.category] === o.id}
                 aria-label={t("The client picked {name}", { name: o.title })} onChange={() => setClientPick({ ...clientPick, [o.category]: o.id })} />}
-              {o.image_url && <img src={o.image_url} alt="" className="gx-rq-opt-img" />}
-              {!!o.photos?.length && <span className="gx-qx-count muted small">+{o.photos.length}</span>}
+              {o.source ? <LivePhotos option={o} /> : <>
+                {o.image_url && <img src={o.image_url} alt="" className="gx-rq-opt-img" />}
+                {!!o.photos?.length && <span className="gx-qx-count muted small">+{o.photos.length}</span>}
+              </>}
               <div className="gx-rq-opt-main">
-                <div><strong dir="auto">{o.title}</strong>{o.provider && <span className="muted"> · {o.provider}</span>}
-                  {o.link && <a href={o.link} target="_blank" rel="noreferrer noopener" className="gx-rq-link" aria-label={t("Open link")}><ArrowSquareOut /></a>}</div>
-                {o.details && <div className="muted small" dir="auto">{o.details}</div>}
+                <div><strong dir="auto">{o.title}</strong>{o.provider && o.provider !== o.title && <span className="muted"> · {o.provider}</span>}
+                  {o.link && !o.source && <a href={o.link} target="_blank" rel="noreferrer noopener" className="gx-rq-link" aria-label={t("Open link")}><ArrowSquareOut /></a>}</div>
+                {o.details && !isLive(o) && <div className="muted small" dir="auto">{o.details}</div>}
                 {o.ai_reason && <div className="muted small gx-rq-why" dir="auto"><Sparkle weight="fill" /> {o.ai_reason}</div>}
+                {o.source && <LiveDetails option={o} />}
                 {editable && (
                   <div className="gx-rq-check small">
                     <span className="muted">{t("Check:")}</span>
@@ -184,6 +189,8 @@ export default function QuotePanel({ ticket, onChange }: { ticket: Ticket; onCha
               </div>
               <div className="gx-rq-opt-prices">
                 {o.price != null ? <strong>{m(o.price)}</strong>
+                  : o.estimate_price != null && isLive(o) ? <span className="gx-live-price" title={t("Today's price found online: set your client price before sending")}>
+                      <span className="small">{t("Live price")}</span><strong>{liveMoney(o, o.estimate_price, m)}</strong></span>
                   : o.estimate_price != null ? <span className="muted" title={t("AI estimate: set the real price before sending")}>{t("AI est.")} ≈ {m(o.estimate_price)}</span>
                     : <span className="muted">{t("No price")}</span>}
                 {o.cost_price != null && <span className="muted small">{t("Cost")} {m(o.cost_price)}</span>}

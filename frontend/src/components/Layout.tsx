@@ -10,7 +10,7 @@ import { ThemeSwitch } from "./ThemeSwitch";
 import type { ConversationSummary, Ticket as TicketT } from "../types";
 import { customerLabel, ROLE_LABELS, usePolling } from "../util";
 import { GhanjahMark, usePlatformName } from "./Brand";
-import { AddressBook, ArrowSquareOut, Buildings, Crown, ClockCounterClockwise, Heartbeat, ChartLineUp, ChatsCircle, GearSix, GraduationCap, IconProps, List, PaintBrush, SignOut, Briefcase, BookBookmark, CalendarDots, FileText, Lightbulb, ListChecks, Handshake, Star, SquaresFour, SuitcaseRolling, Ticket, Translate, UserCircle, UsersThree, WhatsappLogo, Megaphone, UsersFour, GlobeHemisphereEast } from "./Icon";
+import { AddressBook, ArrowSquareOut, Buildings, Crown, ClockCounterClockwise, Heartbeat, ChartLineUp, ChatsCircle, GearSix, GraduationCap, IconProps, List, PaintBrush, SignOut, Briefcase, BookBookmark, CalendarDots, FileText, Lightbulb, ListChecks, Handshake, Star, SquaresFour, SuitcaseRolling, Ticket, Translate, UserCircle, UsersThree, WhatsappLogo, Megaphone, UsersFour, GlobeHemisphereEast, Lightning } from "./Icon";
 import { moneyText } from "./Money";
 import NotificationBell from "./staff/Notifications";
 import { Sheet } from "./staff/Sheet";
@@ -64,6 +64,7 @@ const SYSTEM_NAV: NavItem[] = [
   { to: "/system", label: "Companies", icon: Buildings },
   { to: "/system/insights", label: "Insights", icon: ChartLineUp },
   { to: "/system/market", label: "Market", icon: GlobeHemisphereEast },
+  { to: "/system/live-data", label: "Live travel data", icon: Lightning },
   { to: "/system/advisor", label: "AI advisor", icon: Lightbulb },
   { to: "/system/plans", label: "Plans", icon: Crown },
   { to: "/system/settings", label: "Platform settings", icon: GearSix },

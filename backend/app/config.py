@@ -57,6 +57,12 @@ class Settings(BaseSettings):
     llm_max_history_messages: int = 24
     llm_max_tool_rounds: int = 6
 
+    # --- Live travel data (the platform's central keys; a company may get its own) ----
+    # SerpApi: Google Hotels and Google Flights results (prices, photos, booking links).
+    serpapi_api_key: str = ""
+    # Viator Partner API (affiliate): tours and activities with photos, prices and booking links.
+    viator_api_key: str = ""
+
     # --- WhatsApp Cloud API (Meta) --------------------------------------------
     whatsapp_verify_token: str = "travel-ai-verify"
     # App secret used to verify the X-Hub-Signature-256 header of the platform's webhook.

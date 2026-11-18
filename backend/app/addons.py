@@ -28,6 +28,8 @@ class Feature:
     parent: str | None = None
     metered: bool = False  # each use counts against the limit
     levels: tuple[str, ...] = ()
+    default_on: bool = False  # on for every company until the platform owner changes it
+    default_limit: int | None = None  # uses per month while on by default
 
 
 FEATURES: dict[str, Feature] = {
@@ -44,6 +46,9 @@ FEATURES: dict[str, Feature] = {
     "client_segments": Feature("Client segments: VIP, frequent, travelling soon, lost after a quotation, quiet for a year; "
                                "who usually travels next; targeted messages to a group", "tab",
                                levels=("segments", "predictions", "targeting")),
+    "live_search": Feature("Live prices and photos in the AI's recommendations: hotels and flights from Google, activities "
+                           "from Viator, with booking links (the platform's key, or the company's own)", "ai",
+                           metered=True, default_on=True, default_limit=20),
     "trip_planner": Feature("AI trip planner: drafts up to 3 choices per part (with web search) and learns from your team", "ai", metered=True),
     "plan_writer": Feature("AI day-by-day trip plans", "ai", metered=True),
     "quote_writer": Feature("AI writes the messages and quotation details the team sends to clients", "ai", metered=True),
@@ -86,6 +91,8 @@ def grants(company: Company) -> dict[str, Grant]:
     out = {}
     for key in FEATURES:
         value = raw.get(key)
+        if value is None and FEATURES[key].default_on:
+            value = {"on": True, "limit": FEATURES[key].default_limit}
         try:
             out[key] = Grant(on=value) if isinstance(value, bool) else Grant.model_validate(value or {})
         except ValueError:

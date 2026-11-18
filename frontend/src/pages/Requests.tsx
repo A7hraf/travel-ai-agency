@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowSquareOut, ChartLineUp, Check, Plus, Sparkle, Trash, Wh
 import { moneyText } from "../components/Money";
 import PaymentPlan from "../components/b2b/PaymentPlan";
 import { checkLinks } from "../components/requests/checkLinks";
+import { isLive, LiveDetails, LivePhotos, LiveUsage, liveMoney } from "../components/requests/LiveCard";
 import { useAuth } from "../auth";
 import { money, PART_LABEL, PARTS, PartChip, STATUS, StatusBadge, STEP_LABEL, Thread, TripFacts } from "../components/b2b/TripParts";
 import { Empty, ErrorBox, Field, Loading } from "../components/ui";
@@ -214,6 +215,7 @@ function RequestDetail({ id }: { id: number }) {
               <div className="gx-ai-bar">
                 <button type="button" className="btn btn-soft" disabled={drafting} onClick={draft}><Sparkle weight="fill" />{drafting ? t("The AI is searching…") : t("Draft options with AI")}</button>
                 <span className="muted small">{t("The AI suggests up to 3 airlines, hotels and more per part, with estimates for you only. Set the real price before sending; it learns from what you keep and what clients choose.")}</span>
+                <LiveUsage />
               </div>
             )}
             {trip.options.length === 0 && <p className="muted">{t("No options yet. Wait for the vendor, or add them yourself.")}</p>}
@@ -227,10 +229,12 @@ function RequestDetail({ id }: { id: number }) {
                   <div key={o.id} className={`gx-opt ${o.chosen ? "chosen" : ""}`}>
                     {editable && <input type="checkbox" checked={picked.includes(o.id)} aria-label={t("Send {name}", { name: o.title })}
                       onChange={() => setPicked(picked.includes(o.id) ? picked.filter((x) => x !== o.id) : [...picked, o.id])} />}
+                    {o.source && <LivePhotos option={{ ...o, link: o.link ?? null, image_url: o.image_url ?? null }} />}
                     <div className="gx-opt-main">
-                      <strong dir="auto">{o.title}</strong>{o.provider && <span className="muted"> · {o.provider}</span>}
-                      {o.details && <div className="muted small gx-pre" dir="auto">{o.details}</div>}
+                      <strong dir="auto">{o.title}</strong>{o.provider && o.provider !== o.title && <span className="muted"> · {o.provider}</span>}
+                      {o.details && !isLive(o) && <div className="muted small gx-pre" dir="auto">{o.details}</div>}
                       {o.ai_reason && <div className="muted small gx-ai-why" dir="auto"><Sparkle weight="fill" /> {o.ai_reason}</div>}
+                      {o.source && <LiveDetails option={{ ...o, link: o.link ?? null, image_url: o.image_url ?? null }} />}
                       <div className="gx-rq-check small">
                         <span className="muted">{t("Check:")}</span>
                         {checkLinks(o.category, o.title, o.provider, { from: trip.origin, to: trip.destination, depart: trip.depart_date,
@@ -242,7 +246,10 @@ function RequestDetail({ id }: { id: number }) {
                     </div>
                     <div className="gx-opt-prices">
                       <span className="muted small">{t("Cost")} {money(o.cost_price, cur, lang)}</span>
-                      {o.price === null && o.cost_price === null && o.estimate_price != null
+                      {o.price === null && o.cost_price === null && o.estimate_price != null && isLive(o)
+                        ? <span className="gx-live-price" title={t("Today's price found online: set your client price before sending")}>
+                            <span className="small">{t("Live price")}</span><strong>{liveMoney(o, Number(o.estimate_price), (n) => money(n, cur, lang))}</strong></span>
+                        : o.price === null && o.cost_price === null && o.estimate_price != null
                         ? <span className="muted" title={t("AI estimate: set the real price before sending")}>{t("AI est.")} ≈ {money(o.estimate_price, cur, lang)}</span>
                         : o.price !== null || o.cost_price === null
                         ? <strong>{money(o.price, cur, lang)}</strong>

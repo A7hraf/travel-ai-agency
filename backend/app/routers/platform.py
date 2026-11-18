@@ -214,7 +214,7 @@ def _key_follows_server(changes: dict) -> None:
 def _settings_out(request: Request, db: Session) -> PlatformSettingsOut:
     rows = {r.key: r for r in db.scalars(select(PlatformSetting)).all()}
     s = get_settings()
-    groups: dict[str, dict[str, SettingOut]] = {"ai": {}, "whatsapp": {}}
+    groups: dict[str, dict[str, SettingOut]] = {"ai": {}, "whatsapp": {}, "travel": {}}  # travel: Live travel data page
     for d in ps.DEFINITIONS.values():
         groups[d.group][d.key] = _setting_out(d, rows)
     commit = os.environ.get("RENDER_GIT_COMMIT") or os.environ.get("GIT_COMMIT") or os.environ.get("SOURCE_COMMIT")

@@ -166,6 +166,7 @@ from .routers import advisor as _advisor, calendar as _calendar, features as _fe
 from .routers import notifications as _notifications  # noqa: E402
 from .routers import broadcasts as _broadcasts  # noqa: E402
 from .routers import segments as _segments  # noqa: E402
+from .routers import live_data as _live_data  # noqa: E402
 from .routers import quotes as _quotes  # noqa: E402
 from .routers import members as _members, partners as _partners, trip_requests as _trip_requests  # noqa: E402
 
@@ -183,6 +184,7 @@ app.include_router(_features.router)
 app.include_router(_notifications.router)
 app.include_router(_broadcasts.router)
 app.include_router(_segments.router)
+app.include_router(_live_data.router)
 app.include_router(_trip_requests.router)
 
 

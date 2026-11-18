@@ -1,0 +1,175 @@
+"""Live travel data in the AI's recommendations: real hotels, flights and activities with prices, photos,
+features and booking links. Central keys set by the platform owner; a company may get its own key, which it
+then uses. Companies see their searches left, never a key. No real network: the providers are stubbed."""
+
+import httpx
+import pytest
+
+from app.ai.llm import LLMResponse
+from app.services import live_data
+from tests.conftest import make_company
+from tests.test_ai_brain import custom_request, draft_reply, opt, switch
+
+HOTELS = {"search_metadata": {"google_hotels_url": "https://www.google.com/travel/hotels/zanzibar"}, "properties": [
+    {"name": "Zuri Zanzibar", "link": "https://www.zurizanzibar.com/", "overall_rating": 4.7, "reviews": 1234,
+     "extracted_hotel_class": 5, "amenities": ["Pool", "Spa", "Beach access", "Free Wi-Fi"],
+     "rate_per_night": {"extracted_lowest": 310}, "total_rate": {"extracted_lowest": 2170},
+     "images": [{"original_image": "https://img.example/zuri1.jpg"}, {"thumbnail": "https://img.example/zuri2.jpg"}],
+     "prices": [{"source": "Booking.com"}, {"source": "Expedia"}]},
+    {"name": "Baraza Resort", "overall_rating": 4.5, "reviews": 800, "extracted_hotel_class": 5,
+     "total_rate": {"extracted_lowest": 3100}, "images": [{"original_image": "https://img.example/baraza.jpg"}]},
+    {"name": "No price hotel"},
+]}
+FLIGHTS = {"search_metadata": {"google_flights_url": "https://www.google.com/travel/flights?q=MCT-ZNZ"}, "best_flights": [
+    {"price": 410, "total_duration": 545, "airline_logo": "https://img.example/wy.png", "layovers": [{"name": "Dar es Salaam", "duration": 90}],
+     "flights": [{"airline": "Oman Air", "flight_number": "WY 721", "departure_airport": {"id": "MCT", "time": "2030-02-10 08:10"},
+                  "arrival_airport": {"id": "DAR", "time": "2030-02-10 12:30"}, "travel_class": "Economy"},
+                 {"airline": "Precision Air", "flight_number": "PW 450", "departure_airport": {"id": "DAR", "time": "2030-02-10 14:00"},
+                  "arrival_airport": {"id": "ZNZ", "time": "2030-02-10 14:25"}}]}]}
+VIATOR = {"products": {"totalCount": 1, "results": [
+    {"productCode": "123P1", "title": "Stone Town walking tour", "productUrl": "https://www.viator.com/tours/123P1",
+     "images": [{"variants": [{"url": "https://img.example/st-small.jpg", "width": 200}, {"url": "https://img.example/st.jpg", "width": 720}]}],
+     "reviews": {"totalReviews": 950, "combinedAverageRating": 4.83}, "pricing": {"summary": {"fromPrice": 35}, "currency": "USD"},
+     "duration": {"fixedDurationInMinutes": 180}, "description": "Old town, spice market"}]}}
+
+
+class Providers:
+    """Stands in for SerpApi and Viator; remembers which key each search used."""
+
+    def __init__(self):
+        self.calls = []
+
+    def __call__(self, method, url, **kw):
+        key = (kw.get("params") or {}).get("api_key") or (kw.get("headers") or {}).get("exp-api-key")
+        if "account" in url:
+            return httpx.Response(200, json={"total_searches_left": 241, "searches_per_month": 250, "this_month_usage": 9})
+        engine = (kw.get("params") or {}).get("engine") or "viator"
+        self.calls.append((engine, key))
+        return httpx.Response(200, json={"google_hotels": HOTELS, "google_flights": FLIGHTS, "viator": VIATOR}[engine])
+
+
+@pytest.fixture
+def providers(monkeypatch):
+    p = Providers()
+    monkeypatch.setattr(live_data, "http", p)
+    monkeypatch.setattr(live_data, "FETCH", lambda url: (_ for _ in ()).throw(AssertionError("no page fetch expected")))
+    live_data._account_cache.clear()
+    return p
+
+
+def central_keys(client, owner, serpapi="central-serp-key-123", viator="central-viator-key-123"):
+    r = client.put("/api/system/live-data", headers=owner, json={"serpapi_key": serpapi, "viator_key": viator})
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def test_live_choices_have_price_photos_features_and_link(client, owner, company_a, scripted, providers):
+    company, admin = company_a
+    switch(client, owner, company["id"], trip_planner=True)
+    central_keys(client, owner)
+    t, _ = custom_request(client, company, admin, scripted)
+    # The AI picks among the real offers by their ref; it keeps writing free options for other parts.
+    llm = scripted([draft_reply({"category": "hotel", "ref": "h2", "reason": "Quiet, for a honeymoon"},
+                                {"category": "flight", "ref": "f1", "reason": "One stop, morning"},
+                                {"category": "activity", "ref": "a1", "reason": "Top rated"})])
+    trip = client.post(f"/api/tickets/{t['id']}/ai-draft", headers=admin).json()
+    by = {o["title"]: o for o in trip["options"]}
+    baraza = by["Baraza Resort"]
+    assert baraza["source"] == "google_hotels" and baraza["estimate_price"] == 3100 and baraza["ai_reason"] == "Quiet, for a honeymoon"
+    assert baraza["image_url"] == "https://img.example/baraza.jpg" and baraza["link"].startswith("https://www.google.com/travel/hotels")
+    flight = next(o for o in trip["options"] if o["source"] == "google_flights")
+    assert flight["estimate_price"] == 410 and flight["facts"]["stops"] == 1 and "WY 721" in flight["facts"]["flight_numbers"]
+    tour = next(o for o in trip["options"] if o["source"] == "viator")
+    assert tour["facts"]["rating"] == 4.8 and tour["image_url"] == "https://img.example/st.jpg" and tour["estimate_price"] == 70
+    zuri = by.get("Zuri Zanzibar")  # not picked by the AI, but the part still gets the agency's best offers
+    assert zuri is None or zuri["facts"]["features"][:2] == ["Pool", "Spa"]
+    # The AI was given the real offers (and still never the client's name).
+    system = llm.calls[-1][0]["content"]
+    assert "LIVE CHOICES" in system and "Baraza Resort" in system and "Huda" not in llm.calls[-1][1]["content"]
+    assert {e for e, _ in providers.calls} == {"google_hotels", "google_flights", "viator"}
+    # Three searches counted against the company's free 20 this month.
+    usage = client.get("/api/live-data", headers=admin).json()
+    assert usage["used"] == 3 and usage["left"] == 17 and usage["providers"] == {"serpapi": "platform", "viator": "platform"}
+    assert "central-serp-key" not in str(usage)
+
+
+def test_a_company_key_is_used_instead_of_the_central_one(client, owner, company_a, scripted, providers):
+    company, admin = company_a
+    b, admin_b = make_company(client, owner, "Beta Travel", "b@beta.example")
+    switch(client, owner, company["id"], trip_planner=True)
+    central_keys(client, owner)
+    r = client.put(f"/api/system/companies/{company['id']}/live-data", headers=owner,
+                   json={"serpapi_key": "alpha-own-serp-key-999", "unlimited": True})
+    assert r.status_code == 200, r.text
+    assert r.json()["own_serpapi"] is True and r.json()["limit"] is None and r.json()["own_account"]["left"] == 241
+    t, _ = custom_request(client, company, admin, scripted)
+    scripted([draft_reply()])
+    client.post(f"/api/tickets/{t['id']}/ai-draft", headers=admin)
+    keys = {engine: key for engine, key in providers.calls}
+    assert keys["google_hotels"] == "alpha-own-serp-key-999" and keys["viator"] == "central-viator-key-123"
+    mine = client.get("/api/live-data", headers=admin).json()
+    assert mine["providers"]["serpapi"] == "company" and mine["key_left"] == 241 and mine["left"] is None
+    # Another company keeps the central key; nobody but the owner reaches the key screens.
+    assert client.get("/api/live-data", headers=admin_b).json()["providers"]["serpapi"] == "platform"
+    for path in ("/api/system/live-data", f"/api/system/companies/{company['id']}/live-data"):
+        assert client.get(path, headers=admin).status_code == 403
+    assert client.put(f"/api/system/companies/{b['id']}/live-data", headers=admin, json={"serpapi_key": "x" * 20}).status_code == 403
+    assert client.put("/api/system/live-data", headers=owner, json={"serpapi_key": "bad key!"}).status_code == 422
+
+
+def test_the_monthly_limit_and_no_keys(client, owner, company_a, scripted, providers):
+    company, admin = company_a
+    switch(client, owner, company["id"], trip_planner=True)
+    t, _ = custom_request(client, company, admin, scripted)
+    # No keys anywhere: the AI plans as before, nothing is searched or counted.
+    scripted([draft_reply(opt("hotel", "Zuri Zanzibar", "Zuri", 1200))])
+    trip = client.post(f"/api/tickets/{t['id']}/ai-draft", headers=admin).json()
+    assert providers.calls == [] and trip["options"][0]["source"] is None
+    assert client.get("/api/live-data", headers=admin).json()["used"] == 0
+    # With a limit of 1 a month: one search, then the planner goes on without live data.
+    central_keys(client, owner)
+    client.put(f"/api/system/companies/{company['id']}/features", headers=owner, json={"live_search": {"on": True, "limit": 1}})
+    scripted([draft_reply()])
+    client.post(f"/api/tickets/{t['id']}/ai-draft", headers=admin)
+    assert len(providers.calls) == 1
+    usage = client.get("/api/live-data", headers=admin).json()
+    assert usage["used"] == 1 and usage["left"] == 0
+    # Switched off by the owner: no searches at all.
+    client.put(f"/api/system/companies/{company['id']}/features", headers=owner, json={"live_search": {"on": False}})
+    before = len(providers.calls)
+    scripted([draft_reply(opt("hotel", "Another", "X", 100))])
+    client.post(f"/api/tickets/{t['id']}/ai-draft", headers=admin)
+    assert len(providers.calls) == before
+
+
+def test_free_link_check_takes_the_photo_and_drops_broken_links(client, owner, company_a, scripted, monkeypatch):
+    company, admin = company_a
+    switch(client, owner, company["id"], trip_planner=True)
+    pages = {"https://zuri.example/": (200, "https://zuri.example/", '<meta property="og:image" content="/photo.jpg">'),
+             "https://gone.example/": (404, "https://gone.example/", ""),
+             "https://booking.example/h": (403, "https://booking.example/h", "")}
+    monkeypatch.setattr(live_data, "FETCH", lambda url: pages[url])
+    t, _ = custom_request(client, company, admin, scripted)
+    scripted([draft_reply({**opt("hotel", "Zuri", "Zuri", 900), "link": "https://zuri.example/"},
+                          {**opt("hotel", "Gone Hotel", "Gone", 500), "link": "https://gone.example/"},
+                          {**opt("hotel", "Big Site Hotel", "Big", 700), "link": "https://booking.example/h"},
+                          {**opt("activity", "Bad link", "X", 10), "link": "javascript:alert(1)"})])
+    trip = client.post(f"/api/tickets/{t['id']}/ai-draft", headers=admin).json()
+    by = {o["title"]: o for o in trip["options"]}
+    assert by["Zuri"]["image_url"] == "https://zuri.example/photo.jpg" and by["Zuri"]["facts"]["link_checked"] is True
+    assert by["Gone Hotel"]["link"] is None and by["Gone Hotel"]["facts"]["link_checked"] is False
+    assert by["Big Site Hotel"]["link"] == "https://booking.example/h" and by["Big Site Hotel"]["facts"]["link_checked"] is None
+    assert by["Bad link"]["link"] is None
+
+
+def test_the_server_never_opens_private_addresses():
+    for url in ("http://127.0.0.1/", "http://localhost:8000/", "http://169.254.169.254/latest/meta-data/",
+                "http://10.0.0.5/", "file:///etc/passwd", "https://user:pw@example.com/"):
+        with pytest.raises(live_data.LiveError):
+            live_data.safe_get(url)
+    assert live_data.check_link("http://127.0.0.1/admin")["ok"] is False
+
+
+def test_airport_codes():
+    from app.ai.planner import _airport
+    assert _airport("Muscat") == "MCT" and _airport("تبليسي") == "TBS" and _airport("LHR") == "LHR" and _airport("Nowhere") is None

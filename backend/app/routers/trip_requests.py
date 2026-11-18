@@ -117,7 +117,7 @@ def staff_ai_draft(request_id: int, me: User = Depends(staff), db: Session = Dep
     use(db, me, "trip_planner")
     limiter.check(f"ai-draft:{me.company_id}", 30, "The AI planner is busy: please try again in a few minutes", window=3600)
     req = svc.get_for_company(db, me.company_id, request_id, lock=True)
-    return _staff_out(db, me, planner.draft_options(db, req, me.company, Actor.of(me, "staff")))
+    return _staff_out(db, me, planner.draft_options(db, req, me.company, Actor.of(me, "staff"), me))
 
 
 @router.post("/api/b2b/requests/{request_id}/send", response_model=StaffTripOut)

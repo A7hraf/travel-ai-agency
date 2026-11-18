@@ -71,6 +71,16 @@ Docker Compose.
 | `TRUSTED_PROXY_HOPS` | Number of reverse proxies in front of the application |
 | `BCRYPT_ROUNDS` | Password hashing cost |
 
+### Live travel data (optional)
+
+Both keys can also be set (and replaced) on the owner's **Live travel data** page; a company can get its own
+key on its page. Without keys, recommendations still work and the links found on the web are checked.
+
+| Variable | Purpose |
+|---|---|
+| `SERPAPI_API_KEY` | Google Hotels and Google Flights results (prices, photos, booking links) |
+| `VIATOR_API_KEY` | Viator partner key: tours and activities |
+
 ### AI provider
 
 | Variable | Purpose |

@@ -144,6 +144,9 @@ class Company(Base):
     whatsapp_phone_number_id: Mapped[str | None] = mapped_column(String(64), unique=True)
     whatsapp_access_token: Mapped[str | None] = mapped_column(EncryptedText())
     whatsapp_app_secret: Mapped[str | None] = mapped_column(EncryptedText())
+    # Live travel data: a company's own keys (set by the platform owner); empty: the platform's central keys.
+    serpapi_key: Mapped[str | None] = mapped_column(EncryptedText())
+    viator_key: Mapped[str | None] = mapped_column(EncryptedText())
     whatsapp_display_number: Mapped[str | None] = mapped_column(String(50))
     # The company's own webhook address (/api/webhooks/whatsapp/c/<key>) and verify token.
     whatsapp_webhook_key: Mapped[str | None] = mapped_column(
@@ -945,6 +948,8 @@ class TripOption(Base):
     estimate_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
     ai_reason: Mapped[str | None] = mapped_column(Text)
     position: Mapped[int] = mapped_column(Integer, default=0)
+    source: Mapped[str | None] = mapped_column(String(30))  # where live data came from: google_hotels, google_flights, viator, web
+    facts: Mapped[dict | None] = mapped_column(JSON)  # rating, reviews, stars, features, times… for the option card
     sent_to_client: Mapped[bool] = mapped_column(Boolean, default=False)
     chosen: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)

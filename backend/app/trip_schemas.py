@@ -193,6 +193,11 @@ class StaffOptionOut(BaseModel):
     estimate_price: Decimal | None = None
     ai_reason: str | None = None
     added_by: str
+    link: str | None = None
+    image_url: str | None = None
+    photos: list[str] | None = None
+    source: str | None = None  # live data: google_hotels, google_flights, viator, web
+    facts: dict | None = None  # rating, reviews, stars, features, flight times… (staff card)
     sent_to_client: bool
     chosen: bool
 

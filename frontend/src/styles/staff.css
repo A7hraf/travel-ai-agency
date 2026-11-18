@@ -754,3 +754,35 @@ svg.warn { color: var(--st-waiting); }
 .gx-stars button:disabled { cursor: default; }
 .gx-rq-check { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 4px 0 2px; align-items: center; }
 .gx-rq-check a { display: inline-flex; align-items: center; gap: 4px; }
+
+/* Live recommendation cards: photos, live price, rating, features, booking button */
+.gx-live-photos { flex: none; width: 168px; display: flex; flex-direction: column; gap: 4px; }
+.gx-live-photos > img { width: 168px; height: 116px; object-fit: cover; border-radius: 10px; background: rgba(var(--fg-rgb), .06); }
+.gx-live-photos.logo { width: 48px; }
+.gx-live-photos.logo > img { width: 48px; height: 48px; object-fit: contain; background: #fff; padding: 6px; box-sizing: border-box; }
+.gx-live-thumbs { display: flex; gap: 4px; }
+.gx-live-thumbs button { all: unset; cursor: pointer; flex: 1; min-width: 0; border-radius: 6px; overflow: hidden; opacity: .7; outline: 2px solid transparent; }
+.gx-live-thumbs button.on, .gx-live-thumbs button:hover { opacity: 1; outline-color: var(--brand); }
+.gx-live-thumbs button:focus-visible { outline-color: var(--brand); opacity: 1; }
+.gx-live-thumbs img { display: block; width: 100%; height: 30px; object-fit: cover; }
+.gx-live { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.gx-live-badges { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.gx-live-badges svg { vertical-align: -2px; }
+.gx-live-src { color: var(--st-confirmed); font-weight: 700; }
+.gx-live-ok { color: var(--st-confirmed); }
+.gx-live-bad { color: var(--st-waiting); }
+.gx-live-rating { font-weight: 700; }
+.gx-live-rating svg { color: #f2b33d; }
+.gx-live-flight { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
+.gx-live-features { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+.gx-live-features li { padding: 2px 8px; border-radius: 999px; background: rgba(var(--fg-rgb), .06); }
+.gx-live-summary { margin: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.gx-live-book { align-self: flex-start; }
+.gx-live-price { display: flex; flex-direction: column; align-items: flex-end; color: var(--st-confirmed); }
+.gx-live-price strong { color: var(--text); font-size: 15px; }
+.gx-live-usage { display: inline-flex; align-items: center; gap: 4px; color: var(--st-confirmed); }
+.gx-live-usage.out { color: var(--st-waiting); }
+@media (max-width: 720px) {
+  .gx-live-photos, .gx-live-photos > img { width: 100%; }
+  .gx-live-photos > img { height: 160px; }
+}

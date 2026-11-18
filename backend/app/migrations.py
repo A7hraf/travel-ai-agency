@@ -106,6 +106,10 @@ NEW_COLUMNS = [
     ("tickets", "documents_sent_at", "TIMESTAMP WITH TIME ZONE"),
     ("trip_options", "ticket_id", "INTEGER REFERENCES tickets(id) ON DELETE CASCADE"),
     ("trip_options", "link", "VARCHAR(500)"),
+    ("companies", "serpapi_key", "TEXT"),
+    ("companies", "viator_key", "TEXT"),
+    ("trip_options", "source", "VARCHAR(30)"),
+    ("trip_options", "facts", "JSON"),
 ]
 
 # Unique indexes of the Instagram columns (same names create_all gives them on a new database).
