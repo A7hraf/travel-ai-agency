@@ -26,6 +26,7 @@ from ..models import (
     Ticket,
     TicketEvent,
     TicketStatus,
+    TripOption,
     User,
     utcnow,
 )
@@ -477,14 +478,20 @@ def _done(db: Session, ticket: Ticket, me: User) -> TicketOut:
     return ticket_out(ticket, me, detail=True)
 
 
-def _option_data(db: Session, me: User, body: OptionIn) -> dict:
-    """The option's fields, with its supplier and photo checked to be the company's own."""
+def _option_data(db: Session, me: User, body: OptionIn, current: TripOption | None = None) -> dict:
+    """The option's fields, with its supplier and photo checked to be the company's own. When editing, the photos
+    the option already has (for example from live search) stay, and are not sent again by the form."""
     data = body.model_dump()
+    if current is not None:
+        if "photos" not in body.model_fields_set:
+            data.pop("photos")
+        if data["image_url"] and data["image_url"] == current.image_url:
+            data.pop("image_url")
     if data["supplier_id"] is not None:
         s = db.get(Supplier, data["supplier_id"])
         if s is None or s.company_id != me.company_id:
             raise HTTPException(404, "Supplier not found")
-    if data["image_url"] and not (data["image_url"].startswith("/api/media/")
+    if data.get("image_url") and not (data["image_url"].startswith("/api/media/")
                                   and media_belongs_to(db, data["image_url"], me.company_id)):
         raise HTTPException(422, "Upload the photo (photos from other websites can't be used)")
     if any(not media_belongs_to(db, u, me.company_id) for u in data.get("photos") or []):
@@ -621,7 +628,8 @@ def save_to_library(ticket_id: int, option_id: int, me: User = Depends(manage), 
 def update_option(ticket_id: int, option_id: int, body: OptionIn, me: User = Depends(manage),
                   db: Session = Depends(get_db)):
     ticket = _get(db, me, ticket_id, lock=True)
-    flow.update_option(db, ticket, option_id, _option_data(db, me, body), me)
+    current = next((o for o in ticket.options if o.id == option_id), None)
+    flow.update_option(db, ticket, option_id, _option_data(db, me, body, current), me)
     return _done(db, ticket, me)
 
 

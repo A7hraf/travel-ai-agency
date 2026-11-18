@@ -249,3 +249,30 @@ def test_viator_errors_say_why_and_keys_can_be_tested(client, owner, company_a, 
     assert "refused the key (401: Invalid API Key)" in r["viator"]["detail"]
     assert client.post("/api/system/live-data/test", headers=admin).status_code == 403
     assert client.post(f"/api/system/companies/{company['id']}/live-data/test", headers=owner).json()["viator"]["ok"] is None
+
+
+def test_a_live_option_can_be_priced_and_keeps_its_photos(client, owner, company_a, scripted, providers):
+    company, admin = company_a
+    switch(client, owner, company["id"], trip_planner=True)
+    central_keys(client, owner)
+    t, _ = custom_request(client, company, admin, scripted)
+    scripted([draft_reply()])
+    trip = client.post(f"/api/tickets/{t['id']}/ai-draft", headers=admin).json()
+    hotel = next(o for o in trip["options"] if o["source"] == "google_hotels" and o["photos"])
+    flight = next(o for o in trip["options"] if o["source"] == "google_flights")
+    base = f"/api/tickets/{t['id']}/options"
+    # The form sends back what it has (including the live photo), plus the client price.
+    for o, price in ((hotel, "2500"), (flight, "980")):
+        body = {k: o[k] for k in ("category", "title", "provider", "link", "details", "image_url", "supplier_id")}
+        r = client.put(f"{base}/{o['id']}", headers=admin, json={**body, "cost_price": None, "price": price})
+        assert r.status_code == 200, r.text
+    after = {o["id"]: o for o in r.json()["options"]}
+    assert after[hotel["id"]]["price"] == 2500 and after[hotel["id"]]["photos"] == hotel["photos"]
+    assert after[hotel["id"]]["image_url"] == hotel["image_url"] and after[flight["id"]]["price"] == 980
+    # A photo from another website typed in by hand is still refused.
+    body = {k: hotel[k] for k in ("category", "title", "provider", "link", "details", "supplier_id")}
+    r = client.put(f"{base}/{hotel['id']}", headers=admin, json={**body, "image_url": "https://evil.example/x.jpg", "price": "1"})
+    assert r.status_code == 422
+    # Priced: it can be sent to the client.
+    r = client.post(f"/api/tickets/{t['id']}/send-choices", headers=admin, json={"option_ids": [flight["id"], hotel["id"]]})
+    assert r.status_code == 200 and r.json()["status"] == "quoted", r.text
