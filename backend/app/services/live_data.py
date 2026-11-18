@@ -140,11 +140,16 @@ def forget_account(key: str) -> None:
 
 # --- Searches -------------------------------------------------------------------------------------------
 
-def google_hotels(key: str, place: str, check_in: date, check_out: date, adults: int, currency: str) -> list[dict]:
+def google_hotels(key: str, place: str, check_in: date, check_out: date, adults: int, currency: str,
+                  stars: int | None = None, rentals: bool = False) -> list[dict]:
+    """Hotels in `place`. Holiday rentals only when the client asked for a villa or apartment (or too few hotels);
+    well-reviewed places first. `stars`: the client's minimum class."""
     nights = max(1, (check_out - check_in).days)
-    params = {"engine": "google_hotels", "q": f"hotels in {place}", "check_in_date": check_in.isoformat(),
-              "check_out_date": check_out.isoformat(), "adults": max(1, min(adults, 10)), "currency": currency,
-              "hl": "en", "api_key": key}
+    params = {"engine": "google_hotels", "q": f"{'places to stay' if rentals else 'hotels'} in {place}",
+              "check_in_date": check_in.isoformat(), "check_out_date": check_out.isoformat(),
+              "adults": max(1, min(adults, 10)), "currency": currency, "hl": "en", "api_key": key}
+    if stars:
+        params["hotel_class"] = ",".join(str(n) for n in range(stars, 6))
     data = _json(http("GET", SERPAPI_URL, params=params), "Google Hotels")
     page = (data.get("search_metadata") or {}).get("google_hotels_url")
     out = []
@@ -157,19 +162,23 @@ def google_hotels(key: str, place: str, check_in: date, check_out: date, adults:
         photos = [u for u in (_https(i.get("original_image") or i.get("thumbnail")) for i in p.get("images") or []) if u][:6]
         features = [str(a)[:60] for a in (p.get("amenities") or [])][:10]
         facts = {"rating": p.get("overall_rating"), "reviews": p.get("reviews"), "stars": p.get("extracted_hotel_class"),
+                 "type": "vacation rental" if "rental" in str(p.get("type") or "").lower() else "hotel",
                  "features": features, "per_night": float(night) if night else None, "nights": nights,
                  "check_in": p.get("check_in_time"), "check_out": p.get("check_out_time"), "currency": currency,
                  "sold_by": [str(x.get("source"))[:60] for x in (p.get("prices") or []) if x.get("source")][:4],
                  "dates": f"{check_in.isoformat()} → {check_out.isoformat()}"}
-        bits = [f"{facts['stars']}-star" if facts["stars"] else None,
+        bits = [f"{facts['stars']}-star" if facts["stars"] else ("holiday rental" if facts["type"] != "hotel" else None),
                 f"★ {facts['rating']} ({facts['reviews']} reviews)" if facts["rating"] else None,
                 f"{nights} nights" + (f" · {night} {currency} a night" if night else ""), ", ".join(features[:5]) or None]
         out.append({"category": "hotel", "title": name, "provider": name, "price": total or night * nights,
                     "link": _https(p.get("link")) or _https(page), "photos": photos, "source": "google_hotels",
                     "facts": facts, "details": " · ".join(b for b in bits if b)})
-        if len(out) >= MAX_CANDIDATES:
-            break
-    return out
+    hotels = [c for c in out if c["facts"]["type"] == "hotel"]
+    if not rentals and len(hotels) >= 3:
+        out = hotels
+    # Places with enough reviews first (a 5.0 from 4 reviews says little), keeping Google's order otherwise.
+    out.sort(key=lambda c: (int(c["facts"].get("reviews") or 0) < 20, c["facts"]["type"] != "hotel"))
+    return out[:MAX_CANDIDATES]
 
 
 CABIN = {"economy": 1, "premium": 2, "business": 3, "first": 4}

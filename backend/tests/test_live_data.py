@@ -173,3 +173,41 @@ def test_the_server_never_opens_private_addresses():
 def test_airport_codes():
     from app.ai.planner import _airport
     assert _airport("Muscat") == "MCT" and _airport("تبليسي") == "TBS" and _airport("LHR") == "LHR" and _airport("Nowhere") is None
+
+
+def test_a_country_destination_searches_the_right_area_and_prefers_real_hotels(client, owner, company_a, scripted, monkeypatch):
+    company, admin = company_a
+    switch(client, owner, company["id"], trip_planner=True)
+    central_keys(client, owner, viator="")
+    seen = []
+
+    def providers(method, url, **kw):
+        params = kw.get("params") or {}
+        seen.append(params)
+        if params.get("engine") == "google_hotels":
+            return httpx.Response(200, json={"properties": [
+                {"name": "Pool villa far away", "type": "vacation rental", "overall_rating": 5, "reviews": 4,
+                 "total_rate": {"extracted_lowest": 200}},
+                *[{"name": f"Hotel {n}", "type": "hotel", "overall_rating": 4.5, "reviews": 300 + n, "extracted_hotel_class": 4,
+                   "total_rate": {"extracted_lowest": 500 + n}} for n in range(3)]]})
+        return httpx.Response(200, json={"error": "Google Flights hasn't returned any results for this query."})
+
+    monkeypatch.setattr(live_data, "http", providers)
+    t, _ = custom_request(client, company, admin, scripted, destination="Thailand")
+    llm = scripted([LLMResponse('{"from": "MCT", "to": "HKT", "hotel_area": "Phuket"}'),
+                    draft_reply({"category": "hotel", "ref": "h1", "reason": "Quiet beach hotel"},
+                                {"category": "transport", "title": "Airport transfer to the hotel", "provider": None, "reason": "r"})])
+    trip = client.post(f"/api/tickets/{t['id']}/ai-draft", headers=admin).json()
+    hotels = next(p for p in seen if p.get("engine") == "google_hotels")
+    flights = next(p for p in seen if p.get("engine") == "google_flights")
+    assert hotels["q"] == "hotels in Phuket" and flights["arrival_id"] == "HKT"
+    titles = [o["title"] for o in trip["options"] if o["category"] == "hotel"]
+    assert "Pool villa far away" not in titles and len(titles) == 3  # the AI's pick, then the best reviewed
+    # The AI is told the official class and the guest rating apart, and that transport is local.
+    system = llm.calls[-1][0]["content"]
+    assert '"hotel_stars": 4' in system and "guest_rating" in system and "never \\\ntravel between countries" not in system
+    assert "never travel between countries" in system.replace("\n", " ").replace("\\ ", "")
+    # A provider with no results is noted in the request's history for the team.
+    history = client.get(f"/api/tickets/{t['id']}/events", headers=admin).json()
+    drafted = next(e for e in history if e["action"] == "ai_drafted")
+    assert "live prices: Google Hotels" in drafted["new_value"] and "Google Flights:" in drafted["new_value"]

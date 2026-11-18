@@ -231,7 +231,7 @@ function RequestDetail({ id }: { id: number }) {
                       onChange={() => setPicked(picked.includes(o.id) ? picked.filter((x) => x !== o.id) : [...picked, o.id])} />}
                     {o.source && <LivePhotos option={{ ...o, link: o.link ?? null, image_url: o.image_url ?? null }} />}
                     <div className="gx-opt-main">
-                      <strong dir="auto">{o.title}</strong>{o.provider && o.provider !== o.title && <span className="muted"> · {o.provider}</span>}
+                      <strong dir="auto">{o.title}</strong>{o.provider && !o.title.startsWith(o.provider) && <span className="muted"> · {o.provider}</span>}
                       {o.details && !isLive(o) && <div className="muted small gx-pre" dir="auto">{o.details}</div>}
                       {o.ai_reason && <div className="muted small gx-ai-why" dir="auto"><Sparkle weight="fill" /> {o.ai_reason}</div>}
                       {o.source && <LiveDetails option={{ ...o, link: o.link ?? null, image_url: o.image_url ?? null }} />}

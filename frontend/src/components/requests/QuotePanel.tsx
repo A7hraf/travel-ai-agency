@@ -167,7 +167,7 @@ export default function QuotePanel({ ticket, onChange }: { ticket: Ticket; onCha
                 {!!o.photos?.length && <span className="gx-qx-count muted small">+{o.photos.length}</span>}
               </>}
               <div className="gx-rq-opt-main">
-                <div><strong dir="auto">{o.title}</strong>{o.provider && o.provider !== o.title && <span className="muted"> · {o.provider}</span>}
+                <div><strong dir="auto">{o.title}</strong>{o.provider && !o.title.startsWith(o.provider) && <span className="muted"> · {o.provider}</span>}
                   {o.link && !o.source && <a href={o.link} target="_blank" rel="noreferrer noopener" className="gx-rq-link" aria-label={t("Open link")}><ArrowSquareOut /></a>}</div>
                 {o.details && !isLive(o) && <div className="muted small" dir="auto">{o.details}</div>}
                 {o.ai_reason && <div className="muted small gx-rq-why" dir="auto"><Sparkle weight="fill" /> {o.ai_reason}</div>}
