@@ -547,6 +547,14 @@ export const AR_V2: Record<string, string> = {
   "Test keys": "اختبار المفاتيح",
   "No key": "لا يوجد مفتاح",
   "Found by the AI on {site}": "وجده الذكاء الاصطناعي في {site}",
+  "Who may use it": "من يستخدمها",
+  "Company admins only": "مديرو الشركة فقط",
+  "A number of employees": "عدد محدد من الموظفين",
+  "Your central keys": "مفاتيحك المركزية",
+  "Its own keys": "مفاتيحها الخاصة",
+  "Keys it may use": "المفاتيح التي يمكنها استخدامها",
+  "Internet searches left: {n} of {m} this month": "البحث في الإنترنت المتبقي: {n} من {m} هذا الشهر",
+  "AI internet search: while drafting, the AI searches the web (hotels on Booking.com and Agoda, activities, routes); each draft that searches counts one use": "بحث الذكاء الاصطناعي في الإنترنت: أثناء اقتراح الخيارات يبحث في الإنترنت (الفنادق في Booking.com وAgoda، والأنشطة، والرحلات)؛ كل اقتراح يبحث يُحسب استخدامًا واحدًا",
 };
 
 export const AR_V2_PATTERNS: [RegExp, string][] = [

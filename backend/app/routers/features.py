@@ -103,7 +103,7 @@ def give_features(user_id: int, body: SeatsIn, me: User = Depends(require_permis
     g = grants(me.company)
     wanted = set(body.features)
     for key in wanted:
-        if key not in g or not g[key].on or g[key].seats is None:
+        if key not in g or not g[key].on or g[key].seats is None or g[key].admins_only:
             raise HTTPException(422, "This feature is not given per employee")
         holders = db.scalars(select(User).where(User.company_id == me.company_id, User.id != person.id)).all()
         if key not in (person.ai_features or []) and sum(key in (u.ai_features or []) for u in holders) >= g[key].seats:

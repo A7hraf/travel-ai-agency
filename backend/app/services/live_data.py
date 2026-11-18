@@ -53,11 +53,13 @@ class LiveError(Exception):
 # --- Keys ---------------------------------------------------------------------------------------------
 
 def keys(company: Company) -> dict[str, tuple[str, str]]:
-    """provider -> (key, "company" or "platform"). A company's own key wins over the central one."""
+    """provider -> (key, "company" or "platform"). A company's own key wins over the central one. The owner may
+    allow only the company's own keys, or only the central ones (live_search levels; none ticked: both)."""
+    levels = set(grant(company, "live_search").levels) or {"platform_keys", "own_keys"}
     out = {}
     for provider, (column, setting) in PROVIDERS.items():
-        own = (getattr(company, column, None) or "").strip()
-        central = (ps.get_effective(setting) or "").strip()
+        own = (getattr(company, column, None) or "").strip() if "own_keys" in levels else ""
+        central = (ps.get_effective(setting) or "").strip() if "platform_keys" in levels else ""
         if own:
             out[provider] = (own, "company")
         elif central:
@@ -417,6 +419,17 @@ class LiveSession:
     def ready(self, provider: str) -> bool:
         return provider in self.keys
 
+    def web(self) -> bool:
+        """May the AI search the internet for this draft? Counts one use of "AI internet search"."""
+        if not has_addon(self.company, "web_search") or not user_may(self.user, "web_search"):
+            return False
+        try:
+            use(self.db, self.user, "web_search")
+        except HTTPException as exc:
+            self.notes.append("web limit" if exc.status_code == 429 else "not allowed")
+            return False
+        return True
+
     def charge(self, source: str) -> bool:
         """Counts one search; False when the company's searches for this month are used up."""
         try:
@@ -438,6 +451,10 @@ def status(db: Session, company: Company) -> dict:
            "period": g.period, "providers": {p: owner for p, (_, owner) in k.items()}, "key_left": None}
     if k.get("serpapi", (None, None))[1] == "company":
         out["key_left"] = serpapi_account(k["serpapi"][0]).get("left")
+    w = grant(company, "web_search")
+    w_used = usage(db, company.id, "web_search", w) if w.on else 0
+    out["web"] = {"on": w.on, "used": w_used, "limit": w.limit,
+                  "left": max(0, w.limit - w_used) if w.on and w.limit is not None else None}
     return out
 
 

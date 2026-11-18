@@ -106,17 +106,26 @@ export function LiveDetails({ option }: { option: LiveOption }) {
 /** "12 of 20 live searches left this month" next to the AI button. */
 export function LiveUsage() {
   const { t } = useI18n();
-  const [s, setS] = useState<{ on: boolean; used: number; limit: number | null; left: number | null; providers: Record<string, string>; key_left: number | null } | null>(null);
+  const [s, setS] = useState<{ on: boolean; used: number; limit: number | null; left: number | null; providers: Record<string, string>;
+    key_left: number | null; web?: { on: boolean; left: number | null; limit: number | null } } | null>(null);
   useEffect(() => { get<typeof s>("/api/live-data").then(setS).catch(() => {}); }, []);
-  if (!s || !s.on || !Object.keys(s.providers).length) return null;
+  if (!s) return null;
   const own = s.providers.serpapi === "company";
-  return (
-    <span className={`gx-live-usage small ${s.left === 0 ? "out" : ""}`} title={t("Real prices, photos and booking links from Google Hotels, Google Flights and Viator")}>
-      <Lightning weight="fill" />
-      {s.left === null ? t("Live searches: {n} used this month", { n: s.used }) : t("Live searches left: {n} of {m} this month", { n: s.left, m: s.limit ?? 0 })}
-      {own && s.key_left != null && <> · {t("your key: {n} left", { n: s.key_left })}</>}
-    </span>
-  );
+  const live = s.on && Object.keys(s.providers).length > 0;
+  return (<>
+    {live && (
+      <span className={`gx-live-usage small ${s.left === 0 ? "out" : ""}`} title={t("Real prices, photos and booking links from Google Hotels, Google Flights and Viator")}>
+        <Lightning weight="fill" />
+        {s.left === null ? t("Live searches: {n} used this month", { n: s.used }) : t("Live searches left: {n} of {m} this month", { n: s.left, m: s.limit ?? 0 })}
+        {own && s.key_left != null && <> · {t("your key: {n} left", { n: s.key_left })}</>}
+      </span>
+    )}
+    {s.web?.on && s.web.left != null && (
+      <span className={`gx-live-usage small ${s.web.left === 0 ? "out" : ""}`}>
+        <Globe /> {t("Internet searches left: {n} of {m} this month", { n: s.web.left, m: s.web.limit ?? 0 })}
+      </span>
+    )}
+  </>);
 }
 
 export function liveMoney(o: { source?: string | null; facts?: LiveFacts | null }, value: number, fallback: (n: number) => string) {

@@ -28,7 +28,7 @@ def test_off_until_the_owner_switches_it_on(client, owner, company_a):
     me = client.get("/api/auth/me", headers=admin).json()["company"]
     assert "members" in me["addons"] and me["member_levels"]["vip"]["priority"] is True
     got = client.get(f"/api/system/companies/{company['id']}/features", headers=owner).json()
-    assert got["grants"]["members"]["on"] is True and not any(v["on"] for k, v in got["grants"].items() if k not in ("members", "ai_training", "live_search"))  # live search is on by default
+    assert got["grants"]["members"]["on"] is True and not any(v["on"] for k, v in got["grants"].items() if k not in ("members", "ai_training", "live_search", "web_search"))  # on by default
     assert {"key": "library_analytics", "parent": "library"}.items() <= next(c for c in got["catalog"] if c["key"] == "library_analytics").items()
     # A part works only while its feature is on.
     base = f"/api/system/companies/{company['id']}/features"

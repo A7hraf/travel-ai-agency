@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .models import Company, FeatureUsage, User
+from .models import Company, FeatureUsage, Role, User
 from .timeutil import local_today
 
 
@@ -48,7 +48,9 @@ FEATURES: dict[str, Feature] = {
                                levels=("segments", "predictions", "targeting")),
     "live_search": Feature("Live prices and photos in the AI's recommendations: hotels and flights from Google, activities "
                            "from Viator, with booking links (the platform's key, or the company's own)", "ai",
-                           metered=True, default_on=True, default_limit=20),
+                           metered=True, default_on=True, default_limit=20, levels=("platform_keys", "own_keys")),
+    "web_search": Feature("AI internet search: while drafting, the AI searches the web (hotels on Booking.com and Agoda, "
+                          "activities, routes); each draft that searches counts one use", "ai", metered=True, default_on=True),
     "trip_planner": Feature("AI trip planner: drafts up to 3 choices per part (with web search) and learns from your team", "ai", metered=True),
     "plan_writer": Feature("AI day-by-day trip plans", "ai", metered=True),
     "quote_writer": Feature("AI writes the messages and quotation details the team sends to clients", "ai", metered=True),
@@ -80,8 +82,10 @@ class Grant(BaseModel):
     limit: int | None = Field(default=None, ge=1, le=1_000_000)  # uses per period (metered features)
     period: Literal["month", "total"] = "month"
     seats: int | None = Field(default=None, ge=1, le=10_000)  # employees allowed (None: every staff member)
+    admins_only: bool = False  # only the company's admins may use it
     price: Decimal | None = Field(default=None, ge=0, le=Decimal("1000000"), decimal_places=3)  # per month
-    levels: list[Literal["basic", "marketing", "deep", "finance", "segments", "predictions", "targeting"]] = Field(
+    levels: list[Literal["basic", "marketing", "deep", "finance", "segments", "predictions", "targeting",
+                         "platform_keys", "own_keys"]] = Field(
         default_factory=list)  # what the feature shows or allows; each feature has its own (none ticked: all)
 
 
@@ -120,7 +124,10 @@ def user_may(user: User, key: str) -> bool:
     if user.company is None or not has_addon(user.company, key):
         return False
     top = FEATURES[key].parent or key
-    if grant(user.company, top).seats is None:
+    g = grant(user.company, top)
+    if g.admins_only:
+        return user.role == Role.COMPANY_ADMIN
+    if g.seats is None:
         return True
     return top in (user.ai_features or [])
 

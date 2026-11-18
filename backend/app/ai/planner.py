@@ -376,6 +376,8 @@ def suggest(db: Session, company: Company, case: dict, room: int, live=None) -> 
         options = _mock_options({**case, "parts": web_parts}, db, company.id)
     else:
         tools = _web_search_tools()
+        if tools and live is not None and not live.web():  # the owner limits or switches off internet search
+            tools = []
         messages = [
             {"role": "system", "content": SYSTEM.format(
                 company=company.name, country="Oman", parts=", ".join(PART_NAMES.get(p, p) for p in needs),
@@ -460,8 +462,10 @@ def draft_note(searched: bool, live) -> str:
         bits.append("web search")
     if live is not None and "limit" in live.notes:
         bits.append("live searches used up this month")
+    if live is not None and "web limit" in live.notes:
+        bits.append("internet searches used up this month")
     if live is not None:
-        bits.extend(n for n in live.notes if n not in ("limit", "not allowed"))
+        bits.extend(n for n in live.notes if n not in ("limit", "web limit", "not allowed"))
     return "".join(f" · {b}" for b in bits)
 
 

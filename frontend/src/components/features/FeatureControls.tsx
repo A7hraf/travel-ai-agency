@@ -51,15 +51,27 @@ export default function FeatureControls({ companyId }: { companyId: number }) {
               </label>
             )}
             {f.kind !== "extra" && (
-              <label>{t("Employees")}
-                <input type="number" min={1} value={g.seats ?? ""} placeholder={t("All staff")} onChange={(e) => set(key, { seats: num(e.target.value) })} dir="ltr" />
+              <label>{t("Who may use it")}
+                <span className="gx-feat-inline">
+                  <select value={g.admins_only ? "admins" : g.seats != null ? "seats" : "all"} onChange={(e) => {
+                    const v = e.target.value;
+                    set(key, v === "admins" ? { admins_only: true, seats: null } : v === "seats" ? { admins_only: false, seats: g.seats ?? 1 } : { admins_only: false, seats: null });
+                  }}>
+                    <option value="all">{t("All staff")}</option>
+                    <option value="admins">{t("Company admins only")}</option>
+                    <option value="seats">{t("A number of employees")}</option>
+                  </select>
+                  {g.seats != null && !g.admins_only && (
+                    <input type="number" min={1} value={g.seats} aria-label={t("Employees")} onChange={(e) => set(key, { seats: num(e.target.value) ?? 1 })} dir="ltr" />
+                  )}
+                </span>
               </label>
             )}
             <label>{t("Price per month")}
               <input inputMode="decimal" value={g.price ?? ""} placeholder={t("Included")} onChange={(e) => set(key, { price: e.target.value.trim() || null })} dir="ltr" />
             </label>
             {f.levels.length > 0 && (
-              <fieldset className="gx-feat-levels"><legend>{key === "insights" || key === "advisor" ? t("Analytics shown") : t("Capabilities given")} <small className="muted">· {t("none ticked: all")}</small></legend>
+              <fieldset className="gx-feat-levels"><legend>{key === "insights" || key === "advisor" ? t("Analytics shown") : key === "live_search" ? t("Keys it may use") : t("Capabilities given")} <small className="muted">· {t("none ticked: all")}</small></legend>
                 {f.levels.map((lv) => (
                   <label key={lv} className="gx-feat-check"><input type="checkbox" checked={g.levels.includes(lv)}
                     onChange={(e) => set(key, { levels: e.target.checked ? [...g.levels, lv] : g.levels.filter((x) => x !== lv) })} />{t(LEVEL_LABELS[lv] ?? lv)}</label>

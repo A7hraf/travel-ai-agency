@@ -42,7 +42,7 @@ export default function MyFeatures() {
           {keys.map((f) => {
             const g = data.grants[f.key];
             const used = data.usage[f.key];
-            const seated = admin && g.seats != null;
+            const seated = admin && g.seats != null && !g.admins_only;
             return (
               <li key={f.key} className={f.kind === "part" ? "part" : ""}>
                 <div className="gx-row-between">
@@ -52,6 +52,7 @@ export default function MyFeatures() {
                       : t("{used} uses", { used: used ?? 0 }))}
                   </span>
                 </div>
+                {g.admins_only && <div className="muted small">{t("Company admins only")}</div>}
                 {g.levels.length > 0 && <div className="muted small">{g.levels.map((l) => t(LEVEL_LABELS[l] ?? l)).join(" · ")}</div>}
                 {f.metered && g.limit != null && <div className="gx-meter"><span style={{ width: `${Math.min(100, ((used ?? 0) / g.limit) * 100)}%` }} /></div>}
                 {seated && (
