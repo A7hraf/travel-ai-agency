@@ -38,6 +38,7 @@ log = logging.getLogger(__name__)
 SERPAPI_URL = "https://serpapi.com/search.json"
 SERPAPI_ACCOUNT_URL = "https://serpapi.com/account.json"
 VIATOR_URL = "https://api.viator.com/partner/search/freetext"
+VIATOR_SANDBOX_URL = "https://api.sandbox.viator.com/partner/search/freetext"
 USER_AGENT = "Mozilla/5.0 (compatible; GhanjahBot/1.0; +https://ghanjah.onrender.com)"
 PROVIDERS = {"serpapi": ("serpapi_key", "serpapi_api_key"), "viator": ("viator_key", "viator_api_key")}
 SOURCES = {"google_hotels": "Google Hotels", "google_flights": "Google Flights", "viator": "Viator", "web": "Web"}
@@ -85,9 +86,12 @@ def _json(resp: httpx.Response, provider: str) -> dict:
     try:
         data = resp.json()
     except ValueError as exc:
+        if resp.status_code in (401, 403):
+            raise LiveError(f"{provider} refused the key ({resp.status_code})") from exc
         raise LiveError(f"{provider} sent an unreadable answer ({resp.status_code})") from exc
     if resp.status_code == 401 or resp.status_code == 403:
-        raise LiveError(f"{provider} refused the key")
+        said = (data.get("message") or data.get("error") or data.get("code")) if isinstance(data, dict) else None
+        raise LiveError(f"{provider} refused the key ({resp.status_code}{': ' + str(said)[:120] if said else ''})")
     if resp.status_code == 429:
         raise LiveError(f"{provider} says the key has no searches left")
     if resp.status_code >= 400 or (isinstance(data, dict) and data.get("error")):
@@ -227,7 +231,13 @@ def viator(key: str, place: str, currency: str, travellers: int) -> list[dict]:
     body = {"searchTerm": place, "currency": currency,
             "searchTypes": [{"searchType": "PRODUCTS", "pagination": {"start": 1, "count": 15}}]}
     headers = {"exp-api-key": key, "Accept": "application/json;version=2.0", "Accept-Language": "en-US"}
-    data = _json(http("POST", VIATOR_URL, json=body, headers=headers), "Viator")
+    try:
+        data = _json(http("POST", VIATOR_URL, json=body, headers=headers), "Viator")
+    except LiveError as exc:
+        if "refused the key" in str(exc) and _viator_sandbox_ok(headers):
+            raise LiveError("Viator: this is a test (sandbox) key. Copy the production API key from your Viator "
+                            "account (Tools → Affiliate API)") from exc
+        raise
     products = data.get("products") or {}
     rows = products.get("results") if isinstance(products, dict) else products
     out = []
@@ -262,6 +272,41 @@ def viator(key: str, place: str, currency: str, travellers: int) -> list[dict]:
                     "details": " · ".join(b for b in bits if b)})
     out.sort(key=lambda c: -((c["facts"]["rating"] or 0) * min(c["facts"]["reviews"] or 0, 500)))
     return out[:MAX_CANDIDATES]
+
+
+def _viator_sandbox_ok(headers: dict) -> bool:
+    try:
+        return http("POST", VIATOR_SANDBOX_URL, headers=headers, timeout=10.0, json={
+            "searchTerm": "Muscat", "currency": "USD",
+            "searchTypes": [{"searchType": "PRODUCTS", "pagination": {"start": 1, "count": 1}}]}).status_code < 400
+    except httpx.HTTPError:
+        return False
+
+
+def test_keys(company: Company | None = None, central: bool = True) -> dict:
+    """Tries each key once (one SerpApi account look-up, which costs no search, and one small Viator search)."""
+    out = {}
+    if central:
+        k = {p: ((ps.get_effective(setting) or "").strip(), "platform") for p, (_, setting) in PROVIDERS.items()}
+    else:
+        k = {p: ((getattr(company, column) or "").strip(), "company") for p, (column, _) in PROVIDERS.items()}
+    serp = k["serpapi"][0]
+    if serp:
+        forget_account(serp)
+        a = serpapi_account(serp)
+        out["serpapi"] = {"ok": a["ok"], "detail": (f"{a['left']} searches left" if a["ok"] else a.get("error"))}
+    else:
+        out["serpapi"] = {"ok": None, "detail": "No key"}
+    vkey = k["viator"][0]
+    if vkey:
+        try:
+            found = viator(vkey, "Muscat", "USD", 1)
+            out["viator"] = {"ok": True, "detail": f"Working: {len(found)} activities found for Muscat"}
+        except (LiveError, httpx.HTTPError) as exc:
+            out["viator"] = {"ok": False, "detail": str(exc)[:240]}
+    else:
+        out["viator"] = {"ok": None, "detail": "No key"}
+    return out
 
 
 # --- Free: check a link and take the page's photo ------------------------------------------------------

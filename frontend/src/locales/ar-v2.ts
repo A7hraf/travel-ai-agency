@@ -543,6 +543,9 @@ export const AR_V2: Record<string, string> = {
   "Live prices and photos in the AI's recommendations: hotels and flights from Google, activities from Viator, with booking links (the platform's key, or the company's own)": "أسعار وصور مباشرة في توصيات الذكاء الاصطناعي: فنادق ورحلات من Google، وأنشطة من Viator، مع روابط الحجز (مفتاح المنصة أو مفتاح الشركة الخاص)",
   "Client segments: VIP, frequent, travelling soon, lost after a quotation, quiet for a year; who usually travels next; targeted messages to a group": "شرائح العملاء: المميزون، الدائمون، المسافرون قريبًا، من خسرناهم بعد عرض السعر، من لم يتواصلوا منذ سنة؛ من سيسافر قريبًا؛ رسائل موجّهة لمجموعة",
   "AI advisor: a chat with the AI about the business, with its recommendations (it sees only the figures of the levels you tick)": "المستشار الذكي: محادثة مع الذكاء الاصطناعي عن العمل مع توصياته (يرى فقط أرقام المستويات التي تحددها)",
+  "Testing…": "جارٍ الاختبار…",
+  "Test keys": "اختبار المفاتيح",
+  "No key": "لا يوجد مفتاح",
 };
 
 export const AR_V2_PATTERNS: [RegExp, string][] = [

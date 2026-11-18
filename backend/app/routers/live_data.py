@@ -67,6 +67,17 @@ def save_central(body: KeysIn, me: User = Depends(require_system_admin), db: Ses
     return {"keys": _central()}
 
 
+@router.post("/api/system/live-data/test")
+def test_central(_: User = Depends(require_system_admin)):
+    """Tries the central keys now and says what each provider answered."""
+    return svc.test_keys(central=True)
+
+
+@router.post("/api/system/companies/{company_id}/live-data/test")
+def test_company(company_id: int, _: User = Depends(require_system_admin), db: Session = Depends(get_db)):
+    return svc.test_keys(_company(db, company_id), central=False)
+
+
 def _company(db: Session, company_id: int) -> Company:
     c = db.get(Company, company_id)
     if c is None:

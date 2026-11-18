@@ -211,3 +211,27 @@ def test_a_country_destination_searches_the_right_area_and_prefers_real_hotels(c
     history = client.get(f"/api/tickets/{t['id']}/events", headers=admin).json()
     drafted = next(e for e in history if e["action"] == "ai_drafted")
     assert "live prices: Google Hotels" in drafted["new_value"] and "Google Flights:" in drafted["new_value"]
+
+
+def test_viator_errors_say_why_and_keys_can_be_tested(client, owner, company_a, monkeypatch):
+    company, admin = company_a
+    central_keys(client, owner, viator="viator-sandbox-key-123")
+
+    def providers(method, url, **kw):
+        if "account" in url:
+            return httpx.Response(200, json={"total_searches_left": 250})
+        if "sandbox" in url:  # the key only works on Viator's test server
+            return httpx.Response(200, json={"products": {"results": []}})
+        return httpx.Response(401, json={"code": "UNAUTHORIZED", "message": "Invalid API Key"})
+
+    monkeypatch.setattr(live_data, "http", providers)
+    live_data._account_cache.clear()
+    r = client.post("/api/system/live-data/test", headers=owner).json()
+    assert r["serpapi"] == {"ok": True, "detail": "250 searches left"}
+    assert r["viator"]["ok"] is False and "test (sandbox) key" in r["viator"]["detail"]
+    # A wrong key: Viator's own words are kept.
+    monkeypatch.setattr(live_data, "_viator_sandbox_ok", lambda headers: False)
+    r = client.post("/api/system/live-data/test", headers=owner).json()
+    assert "refused the key (401: Invalid API Key)" in r["viator"]["detail"]
+    assert client.post("/api/system/live-data/test", headers=admin).status_code == 403
+    assert client.post(f"/api/system/companies/{company['id']}/live-data/test", headers=owner).json()["viator"]["ok"] is None

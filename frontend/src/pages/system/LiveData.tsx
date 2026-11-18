@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { get, put } from "../../api";
 import { PageTitle } from "../../components/admin/AdminUI";
-import { AccountLine, type Account } from "../../components/features/LiveKeys";
+import { AccountLine, KeyTest, type Account } from "../../components/features/LiveKeys";
 import { Key } from "../../components/Icon";
 import { ErrorBox, Field, Loading } from "../../components/ui";
 import { useI18n } from "../../lang";
@@ -45,6 +45,7 @@ export default function LiveData() {
             </Field>
           </div>
           {data.keys.serpapi.set && <p><AccountLine a={data.keys.serpapi.account} /></p>}
+          {(data.keys.serpapi.set || data.keys.viator.set) && <KeyTest path="/api/system/live-data/test" />}
           <p className="muted small">{t("SerpApi has a free plan (250 searches a month) and paid plans; the Viator affiliate key is free and earns a commission on bookings made on Viator. Each AI draft uses one search per part (hotels, flights, activities). Every company gets 20 searches a month by default: change it in its Advanced features.")}</p>
           <ErrorBox error={null} />
           <div className="gx-form-actions">

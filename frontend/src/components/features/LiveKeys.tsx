@@ -1,8 +1,8 @@
 import { FormEvent, useEffect, useState } from "react";
-import { get, put } from "../../api";
+import { get, post, put } from "../../api";
 import { useI18n } from "../../lang";
 import { Switch } from "../admin/AdminUI";
-import { Key, Lightning } from "../Icon";
+import { CheckCircle, Key, Lightning, Plugs, WarningCircle } from "../Icon";
 import { ErrorBox, Field } from "../ui";
 
 export interface Account { left: number | null; per_month: number | null; used: number | null; ok: boolean; error?: string }
@@ -16,6 +16,30 @@ export function AccountLine({ a }: { a: Account | null | undefined }) {
   if (!a) return null;
   if (!a.ok) return <span className="small gx-cal-warn">{t("The key could not be checked")}{a.error ? `: ${a.error}` : ""}</span>;
   return <span className="small muted">{t("{n} searches left on this key", { n: a.left ?? "—" })}{a.per_month ? ` · ${t("{n} a month", { n: a.per_month })}` : ""}</span>;
+}
+
+type TestResult = Record<"serpapi" | "viator", { ok: boolean | null; detail: string }>;
+
+/** "Test keys": asks SerpApi and Viator now and shows what each answered. */
+export function KeyTest({ path }: { path: string }) {
+  const { t } = useI18n();
+  const [busy, setBusy] = useState(false);
+  const [res, setRes] = useState<TestResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const run = () => { setBusy(true); setError(null);
+    post<TestResult>(path).then(setRes).catch((e) => setError((e as Error).message)).finally(() => setBusy(false)); };
+  return (
+    <div className="gx-key-test">
+      <button type="button" className="btn btn-soft btn-sm" disabled={busy} onClick={run}><Plugs />{busy ? t("Testing…") : t("Test keys")}</button>
+      {res && (["serpapi", "viator"] as const).map((p) => (
+        <p key={p} className={`small ${res[p].ok ? "gx-live-ok" : res[p].ok === false ? "gx-live-bad" : "muted"}`}>
+          {res[p].ok ? <CheckCircle weight="fill" /> : <WarningCircle />} <strong>{p === "serpapi" ? "SerpApi" : "Viator"}:</strong>{" "}
+          <span dir="ltr">{res[p].ok === null ? t("No key") : res[p].detail}</span>
+        </p>
+      ))}
+      <ErrorBox error={error} />
+    </div>
+  );
 }
 
 /** Platform owner, on a company's page: its own keys (it then uses them instead of the central ones). */
@@ -53,6 +77,7 @@ export function CompanyLiveKeys({ companyId }: { companyId: number }) {
         </Field>
       </div>
       {s.own_serpapi && <p><AccountLine a={s.own_account} /></p>}
+      {(s.own_serpapi || s.own_viator) && <KeyTest path={`${base}/test`} />}
       <Switch checked={unlimited} onChange={setUnlimited} label={t("No monthly limit while it uses its own key")}
         hint={t("Its own plan pays for its searches. You can still set a limit in Advanced features.")} />
       <ErrorBox error={error} />
