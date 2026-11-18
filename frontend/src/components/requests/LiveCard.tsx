@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { get } from "../../api";
 import { useI18n } from "../../lang";
-import { ArrowSquareOut, CheckCircle, Clock, Lightning, Star, WarningCircle } from "../Icon";
+import { ArrowSquareOut, CheckCircle, Clock, Globe, Lightning, Star, WarningCircle } from "../Icon";
 
 /** The live-data parts of a recommendation card: photos, where the price comes from, rating, features,
  *  flight times and the booking button. Used on the request page and on business requests. */
@@ -11,7 +11,7 @@ export interface LiveFacts {
   nights?: number; per_person?: number | null; currency?: string; sold_by?: string[]; dates?: string;
   airlines?: string[]; flight_numbers?: string[]; depart?: string | null; arrive?: string | null; from?: string; to?: string;
   stops?: number; duration_min?: number | null; layovers?: string[]; round_trip?: boolean; summary?: string;
-  link_checked?: boolean | null;
+  link_checked?: boolean | null; site?: string;
 }
 export interface LiveOption {
   title: string; link: string | null; image_url: string | null; photos?: string[] | null; source?: string | null; facts?: LiveFacts | null;
@@ -60,6 +60,7 @@ export function LiveDetails({ option }: { option: LiveOption }) {
     <div className="gx-live">
       <div className="gx-live-badges small">
         {live && <span className="gx-live-src"><Lightning weight="fill" /> {t("Live price")} · {SOURCE[option.source!] ?? option.source}</span>}
+        {option.source === "web" && f.site && <span className="gx-live-site"><Globe /> {t("Found by the AI on {site}", { site: f.site })}</span>}
         {option.source === "web" && f.link_checked === true && <span className="gx-live-ok"><CheckCircle weight="fill" /> {t("Link checked")}</span>}
         {option.source === "web" && f.link_checked === null && <span className="muted"><WarningCircle /> {t("Site doesn't allow checking: open it to confirm")}</span>}
         {option.source === "web" && f.link_checked === false && <span className="gx-live-bad"><WarningCircle /> {t("The AI's link didn't work: removed")}</span>}

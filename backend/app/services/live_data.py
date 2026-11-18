@@ -385,6 +385,9 @@ def enrich(options: list[dict]) -> None:
     for o, r in zip(todo, results):
         o["source"] = "web"
         o.setdefault("facts", {})["link_checked"] = r["ok"]
+        host = (urlparse(o["link"]).hostname or "").lower().removeprefix("www.")
+        if host:
+            o["facts"]["site"] = host[:60]
         if r["ok"] is False:
             o["link"] = None
         else:

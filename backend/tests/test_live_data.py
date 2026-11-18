@@ -194,15 +194,29 @@ def test_a_country_destination_searches_the_right_area_and_prefers_real_hotels(c
 
     monkeypatch.setattr(live_data, "http", providers)
     t, _ = custom_request(client, company, admin, scripted, destination="Thailand")
+    pages = {"https://www.booking.com/hotel/th/katathani.html": (403, "https://www.booking.com/hotel/th/katathani.html", ""),
+             "https://www.agoda.com/the-shore/hotel/phuket.html": (200, "https://www.agoda.com/the-shore/hotel/phuket.html",
+                                                                   '<meta property="og:image" content="https://pix.agoda.net/shore.jpg">'),
+             "https://www.booking.com/hotel/th/third.html": (200, "https://www.booking.com/hotel/th/third.html", "")}
+    monkeypatch.setattr(live_data, "FETCH", lambda url: pages[url])
     llm = scripted([LLMResponse('{"from": "MCT", "to": "HKT", "hotel_area": "Phuket"}'),
                     draft_reply({"category": "hotel", "ref": "h1", "reason": "Quiet beach hotel"},
+                                {**opt("hotel", "Katathani Phuket", "Katathani", 900), "link": "https://www.booking.com/hotel/th/katathani.html"},
+                                {**opt("hotel", "The Shore", "Katathani", 1500), "link": "https://www.agoda.com/the-shore/hotel/phuket.html"},
+                                {**opt("hotel", "A third web hotel", "X", 700), "link": "https://www.booking.com/hotel/th/third.html"},
                                 {"category": "transport", "title": "Airport transfer to the hotel", "provider": None, "reason": "r"})])
     trip = client.post(f"/api/tickets/{t['id']}/ai-draft", headers=admin).json()
+    hotel_opts = [o for o in trip["options"] if o["category"] == "hotel"]
+    # 2 live offers first, then 2 the AI found on Booking.com and Agoda (a third web hotel is not kept).
+    assert [o["source"] for o in hotel_opts] == ["google_hotels", "google_hotels", "web", "web"]
+    shore = next(o for o in hotel_opts if o["title"] == "The Shore")
+    assert shore["facts"]["site"] == "agoda.com" and shore["image_url"] == "https://pix.agoda.net/shore.jpg"
+    assert next(o for o in hotel_opts if o["title"] == "Katathani Phuket")["facts"]["site"] == "booking.com"
     hotels = next(p for p in seen if p.get("engine") == "google_hotels")
     flights = next(p for p in seen if p.get("engine") == "google_flights")
     assert hotels["q"] == "hotels in Phuket" and flights["arrival_id"] == "HKT"
-    titles = [o["title"] for o in trip["options"] if o["category"] == "hotel"]
-    assert "Pool villa far away" not in titles and len(titles) == 3  # the AI's pick, then the best reviewed
+    titles = [o["title"] for o in trip["options"] if o["category"] == "hotel" and o["source"] == "google_hotels"]
+    assert "Pool villa far away" not in titles and len(titles) == 2  # the AI's pick, then the best reviewed
     # The AI is told the official class and the guest rating apart, and that transport is local.
     system = llm.calls[-1][0]["content"]
     assert '"hotel_stars": 4' in system and "guest_rating" in system and "never \\\ntravel between countries" not in system

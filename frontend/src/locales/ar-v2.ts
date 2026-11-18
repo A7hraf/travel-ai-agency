@@ -546,6 +546,7 @@ export const AR_V2: Record<string, string> = {
   "Testing…": "جارٍ الاختبار…",
   "Test keys": "اختبار المفاتيح",
   "No key": "لا يوجد مفتاح",
+  "Found by the AI on {site}": "وجده الذكاء الاصطناعي في {site}",
 };
 
 export const AR_V2_PATTERNS: [RegExp, string][] = [

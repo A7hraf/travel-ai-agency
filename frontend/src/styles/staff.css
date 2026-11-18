@@ -789,3 +789,4 @@ svg.warn { color: var(--st-waiting); }
 .gx-key-test { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin: 6px 0 10px; }
 .gx-key-test p { margin: 0; }
 .gx-key-test svg { vertical-align: -2px; }
+.gx-live-site { color: var(--brand); font-weight: 600; }
