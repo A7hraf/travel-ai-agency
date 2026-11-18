@@ -230,7 +230,9 @@ def send_choices(db: Session, company: Company, ticket: Ticket, option_ids: list
     ticket.client_note = None
     _status(db, ticket, T.QUOTED, user.full_name, user)
     db.commit()
-    say_in_chat(db, ticket.company_id, ticket.conversation_id, choices_text(ticket, company))
+    from ..ai.planner import write_choices  # noqa: PLC0415
+
+    say_in_chat(db, ticket.company_id, ticket.conversation_id, choices_text(ticket, company, write_choices(db, ticket, company)))
 
 
 def send_final(db: Session, company: Company, ticket: Ticket, total: Decimal | None, note: str | None, user: User) -> None:
@@ -363,22 +365,121 @@ def numbered(ticket: Ticket) -> list[tuple[int, TripOption]]:
     return list(enumerate([o for o in shared.ordered(ticket.options) if o.sent_to_client], start=1))
 
 
-def choices_text(ticket: Ticket, company: Company) -> Bi:
+PART_ICON = {"flight": "✈️", "hotel": "🏨", "transport": "🚗", "activity": "🎟️", "food": "🍽️", "visa": "🛂",
+             "insurance": "🛡️", "other": "📌"}
+_URL = re.compile(r"https?://\S+|www\.\S+", re.I)
+
+
+def _nice_money(v, cur: str) -> str:
+    """902 OMR, or 902.500 OMR when it has baisas."""
+    if v is None:
+        return "—"
+    d = Decimal(v)
+    return f"{d:,.0f} {cur}" if d == d.to_integral_value() else f"{d:,.3f} {cur}"
+
+
+def _plain(text: str | None, limit: int = 130) -> str:
+    """One short line for the client: no links, no line breaks."""
+    t = " ".join(_URL.sub("", text or "").split()).strip(" ·-–,;")
+    return t if len(t) <= limit else t[:limit].rsplit(" ", 1)[0] + "…"
+
+
+def _hours(minutes) -> tuple[str, str] | None:
+    if not isinstance(minutes, int) or minutes <= 0:
+        return None
+    h, m = divmod(minutes, 60)
+    return (f"{h}h {m:02d}m" if h else f"{m}m"), (f"{h}س {m:02d}د" if h else f"{m}د")
+
+
+def _option_lines(n: int, o: TripOption, cur: str, nights: int | None, highlight: dict | None) -> tuple[list[str], list[str]]:
+    """How one choice looks in the chat: name, the facts that matter, a short highlight, the price."""
+    f = o.facts if isinstance(o.facts, dict) else {}
+    en, ar = [], []
+    if o.category == "flight" and f.get("airlines"):
+        stops = f.get("stops")
+        s_en = "direct" if stops == 0 else f"{stops} stop" + ("s" if (stops or 0) > 1 else "") if stops is not None else ""
+        s_ar = "مباشرة" if stops == 0 else ("توقف واحد" if stops == 1 else f"{stops} توقفات") if stops is not None else ""
+        name = " + ".join(f["airlines"])
+        en.append(f"*{n}.* {name}" + (f" · {s_en}" if s_en else ""))
+        ar.append(f"*{n}.* {name}" + (f" · {s_ar}" if s_ar else ""))
+        times = f"{f.get('from', '')} {str(f.get('depart') or '')[-5:]} → {f.get('to', '')} {str(f.get('arrive') or '')[-5:]}".strip()
+        dur = _hours(f.get("duration_min"))
+        en.append(f"    🕐 {times}" + (f" · {dur[0]}" if dur else ""))
+        ar.append(f"    🕐 {times}" + (f" · {dur[1]}" if dur else ""))
+    else:
+        title = _plain(o.title, 90)
+        extra = f" · {o.provider}" if o.provider and o.provider.lower() not in title.lower() and o.provider != "Viator" else ""
+        stars = f" {'★' * int(f['stars'])}" if f.get("stars") else ""
+        en.append(f"*{n}.* {title}{extra}{stars}")
+        ar.append(f"*{n}.* {title}{extra}{stars}")
+        facts_en, facts_ar = [], []
+        if f.get("rating"):
+            facts_en.append(f"⭐ {f['rating']}/5" + (f" ({int(f['reviews']):,} reviews)" if f.get("reviews") else ""))
+            facts_ar.append(f"⭐ {f['rating']}/5" + (f" ({int(f['reviews']):,} تقييم)" if f.get("reviews") else ""))
+        dur = _hours(f.get("duration_min")) if o.category != "hotel" else None
+        if dur:
+            facts_en.append(f"⏱ {dur[0]}")
+            facts_ar.append(f"⏱ {dur[1]}")
+        if f.get("features"):
+            facts_en.append(", ".join(f["features"][:3]))
+            facts_ar.append(", ".join(f["features"][:3]))
+        if facts_en:
+            en.append("    " + " · ".join(facts_en))
+            ar.append("    " + " · ".join(facts_ar))
+        elif o.details:
+            en.append(f"    {_plain(o.details)}")
+            ar.append(f"    {_plain(o.details)}")
+    if highlight:
+        en.append(f"    _{highlight['en']}_")
+        ar.append(f"    _{highlight['ar']}_")
+    note_en = note_ar = ""
+    if o.category == "hotel" and (f.get("nights") or nights):
+        k = f.get("nights") or nights
+        note_en, note_ar = f" · {k} nights", f" · {k} ليالٍ"
+    elif o.category == "flight" and f.get("round_trip"):
+        note_en, note_ar = " · round trip", " · ذهاب وعودة"
+    en.append(f"    💰 *{_nice_money(o.price, cur)}*{note_en}")
+    ar.append(f"    💰 *{_nice_money(o.price, cur)}*{note_ar}")
+    return en, ar
+
+
+def choices_text(ticket: Ticket, company: Company, written: dict | None = None) -> Bi:
+    """The choices sent to the client: grouped by part, numbered, with the facts that matter and the price, no links.
+    `written`: the AI's warm intro and one highlight per choice (planner.write_choices); prices and numbers are
+    always ours."""
     cur = ticket.currency
-    head = f"*{ticket.reference}* · {ticket.package_title}"
-    en = [head, "Here are your options. Reply with the number of your choice for each part, or tell us what to change.", ""]
-    ar = [head, "هذه خياراتك. رد برقم اختيارك لكل جزء، أو أخبرنا بما تريد تغييره.", ""]
-    current = None
-    for n, o in numbered(ticket):
+    written = written or {}
+    items = numbered(ticket)
+    nights = None
+    try:
+        nights = (date.fromisoformat(str(ticket.return_date)[:10]) - date.fromisoformat(str(ticket.departure_date)[:10])).days or None
+    except (TypeError, ValueError):
+        pass
+    intro = written.get("intro") or {}
+    en = [f"✨ *{ticket.package_title}*", f"_{ticket.reference}_", "",
+          intro.get("en") or "Here are the options our team prepared for you.", ""]
+    ar = [f"✨ *{ticket.package_title}*", f"_{ticket.reference}_", "",
+          intro.get("ar") or "هذه الخيارات التي جهّزها فريقنا لك.", ""]
+    current, firsts = None, []
+    for n, o in items:
         if o.category != current:
+            if current is not None:
+                en.append("")
+                ar.append("")
             current = o.category
+            firsts.append(n)
             part_en, part_ar = PART_LABEL.get(o.category, (o.category, o.category))
-            en.append(f"*{part_en}*")
-            ar.append(f"*{part_ar}*")
-        line = f"{n}. {o.title}" + (f" ({o.provider})" if o.provider else "") + f" · {_money(o.price, cur)}"
-        line += f"\n   {o.link}" if o.link else ""
-        en.append(line)
-        ar.append(line)
+            icon = PART_ICON.get(o.category, "•")
+            en.append(f"{icon} *{part_en}*")
+            ar.append(f"{icon} *{part_ar}*")
+        line_en, line_ar = _option_lines(n, o, cur, nights, (written.get("items") or {}).get(n))
+        en.extend(line_en)
+        ar.extend(line_ar)
+    example = ", ".join(str(x) for x in firsts[:4])
+    en += ["", "👉 Reply with the number of your choice for each part" + (f", for example *{example}*." if len(firsts) > 1 else "."),
+           "Want something different? Just tell us here 😊"]
+    ar += ["", "👉 رد برقم اختيارك لكل جزء" + (f"، مثلًا *{example}*." if len(firsts) > 1 else "."),
+           "تريد شيئًا مختلفًا؟ أخبرنا هنا 😊"]
     return Bi("\n".join(en), "\n".join(ar))
 
 

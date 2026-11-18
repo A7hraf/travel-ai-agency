@@ -29,14 +29,14 @@ def test_updates_follow_the_clients_language(client, wa, scripted):
     base = f"/api/tickets/{t['id']}"
     oid = client.post(f"{base}/options", headers=admin, json={"category": "hotel", "title": "Atlantis", "price": "900"}).json()["options"][0]["id"]
     client.post(f"{base}/send-choices", headers=admin, json={"option_ids": [oid]})
-    assert "هذه خياراتك" in fake.sent[-1][2] and "Here are your options" not in fake.sent[-1][2]
+    assert "هذه الخيارات" in fake.sent[-1][2] and "Here are the options" not in fake.sent[-1][2]
     # The client asks for English: the updates switch, and stay English even if they write Arabic again.
     wa_say(client, "please reply in English", "wamid.l2", [LLMResponse("Sure!")], scripted)
     llm = wa_say(client, "شكرا", "wamid.l3", [LLMResponse("You're welcome")], scripted)
     assert "asked for replies in English" in llm.calls[0][0]["content"]
     client.post(f"{base}/client-answer", headers=admin, json={"action": "changes", "note": "cheaper"})
     client.post(f"{base}/send-choices", headers=admin, json={"option_ids": [oid]})
-    assert "Here are your options" in fake.sent[-1][2] and "هذه خياراتك" not in fake.sent[-1][2]
+    assert "Here are the options" in fake.sent[-1][2] and "هذه الخيارات" not in fake.sent[-1][2]
 
 
 def test_the_request_opens_early_and_the_team_asks_through_the_ai(client, wa, scripted):

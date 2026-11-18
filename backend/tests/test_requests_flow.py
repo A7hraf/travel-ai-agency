@@ -165,7 +165,8 @@ def test_full_loop_from_choices_to_booked(client, wa, scripted):
     r = client.post(f"{base}/send-choices", headers=admin, json={"option_ids": ids[:4]}).json()
     assert r["status"] == "quoted" and r["quote_round"] == 1
     sent = fake.sent[-1][2]
-    assert "1. Oman Air via Dar (Oman Air) · 640.000 OMR" in sent and "https://www.omanair.com" in sent and "540" not in sent
+    assert "*1.* Oman Air via Dar" in sent and "💰 *640 OMR*" in sent and "540" not in sent
+    assert "https://" not in sent  # our team books: no booking links for the client
     # The client asks for changes in the chat; staff revise and send again.
     ch = ToolCall("a", "answer_quotation", {"reference": ref, "decision": "changes", "note": "A cheaper hotel please"})
     wa_say(client, "a cheaper hotel please", "wamid.2", [LLMResponse(None, [ch]), LLMResponse("Noted")], scripted)

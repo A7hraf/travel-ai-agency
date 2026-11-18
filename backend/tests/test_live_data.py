@@ -2,6 +2,8 @@
 features and booking links. Central keys set by the platform owner; a company may get its own key, which it
 then uses. Companies see their searches left, never a key. No real network: the providers are stubbed."""
 
+import json
+
 import httpx
 import pytest
 
@@ -276,3 +278,31 @@ def test_a_live_option_can_be_priced_and_keeps_its_photos(client, owner, company
     # Priced: it can be sent to the client.
     r = client.post(f"/api/tickets/{t['id']}/send-choices", headers=admin, json={"option_ids": [flight["id"], hotel["id"]]})
     assert r.status_code == 200 and r.json()["status"] == "quoted", r.text
+
+
+def test_the_choices_message_is_written_for_the_client_without_links(client, owner, company_a, scripted, providers):
+    company, admin = company_a
+    switch(client, owner, company["id"], trip_planner=True)
+    central_keys(client, owner)
+    t, token = custom_request(client, company, admin, scripted)
+    scripted([draft_reply()])
+    trip = client.post(f"/api/tickets/{t['id']}/ai-draft", headers=admin).json()
+    base = f"/api/tickets/{t['id']}"
+    flight = next(o for o in trip["options"] if o["source"] == "google_flights")
+    hotel = next(o for o in trip["options"] if o["source"] == "google_hotels")
+    for o, price in ((flight, "980"), (hotel, "2500.5")):
+        body = {k: o[k] for k in ("category", "title", "provider", "link", "details", "image_url", "supplier_id")}
+        client.put(f"{base}/options/{o['id']}", headers=admin, json={**body, "price": price})
+    writer = scripted([LLMResponse(json.dumps({
+        "intro": {"en": "Your honeymoon in Zanzibar, quiet beaches and warm evenings.", "ar": "شهر عسلكم في زنجبار."},
+        "items": {"1": {"en": "One short stop, you land by mid-afternoon https://bad.example", "ar": "توقف قصير واحد"},
+                  "2": {"en": "Beachfront, perfect for a quiet honeymoon", "ar": "على الشاطئ"}, "9": {"en": "x", "ar": "y"}}}))])
+    client.post(f"{base}/send-choices", headers=admin, json={"option_ids": [flight["id"], hotel["id"]]})
+    from app.database import SessionLocal
+    from app.models import Message, Ticket
+    with SessionLocal() as db:
+        conv_id = db.get(Ticket, t["id"]).conversation_id
+        sent = db.query(Message).filter_by(conversation_id=conv_id).order_by(Message.id.desc()).first().content
+    assert "Your honeymoon in Zanzibar" in sent and "_One short stop, you land by mid-afternoon_" in sent
+    assert "💰 *980 OMR* · round trip" in sent and "💰 *2,500.500 OMR*" in sent and "★" in sent
+    assert "http" not in sent and "Huda" not in writer.calls[-1][1]["content"]  # no links; the AI never gets her name

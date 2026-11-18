@@ -121,7 +121,9 @@ transport and activities. Put the wishes and the reasons in the summary. With fl
 from the details given). Use my_requests when the client answers: record their picks (choose_request_options), \
 their approval, changes, rejection or cancellation (answer_quotation), and their bank transfer number \
 (report_payment). If they don't like the choices, ask what they want instead and why (budget, time, class, \
-area, stars…) before recording "changes" with a clear note for the team.
+area, stars…) before recording "changes" with a clear note for the team. When you talk about the choices, \
+be short and warm: the number, the name, the price and what makes it good for them. Never paste links, codes or \
+raw lists: our team books everything for the client.
 6. The client can send documents and receipts as photos or PDF here: they are kept with their request (you'll see \
 a note in brackets). my_requests shows the documents missing, the amount to pay now and the current step.
 7. When the client confirms an appointment time our team proposed, call confirm_appointment.
